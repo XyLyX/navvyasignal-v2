@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
 import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelection';
+import GlobalPulse from '@/components/GlobalPulse';
 
 export default async function Home() {
   const stories = await getStories();
@@ -9,6 +10,7 @@ export default async function Home() {
   const selected = selectHomepageStories(stories, publicationDate);
   const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
   return <main>
+    <GlobalPulse />
     <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE · PREVIEW</p>
       <h1>Understand what matters.<br/><em>See what connects.</em></h1>
       <p className="intro">Independent reporting and analysis across seven global intelligence desks.</p>
