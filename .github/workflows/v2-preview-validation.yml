@@ -28,3 +28,4 @@ jobs:
           # Intentionally omit Notion credentials; the static empty-state build must also work.
           NOTION_TOKEN: ''
           NOTION_DATA_SOURCE_ID: ''
+          V2_CI_STATIC_FIXTURE: '1'
