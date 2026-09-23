@@ -16,3 +16,25 @@
 .lead-note{margin:25px 0 0;color:#dfc48d;font:12px Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}.section-deck{color:#5b6670;font-size:15px;max-width:650px;margin:0 0 10px}.editorial-empty{padding:36px 30px;background:#f0ece3;border-left:4px solid var(--gold)}.editorial-empty h3{font-size:27px;font-weight:400;margin:12px 0}.editorial-empty p{color:#5b6670}.editorial-empty a,.navyaa-lens a,.article-discovery a{color:var(--deep);text-decoration:underline;text-underline-offset:3px}.editorial-bottom{padding:65px 0}.editorial-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.editorial-panel{padding:28px;background:white;border-top:3px solid var(--gold);display:flex;flex-direction:column;align-items:flex-start}.editorial-panel h2,.navyaa-lens h2{font-size:28px;line-height:1.2;font-weight:400;margin:15px 0}.editorial-panel p,.navyaa-lens p{font-size:15px;color:#5b6670}.editorial-pending{margin-top:auto;padding-top:16px;font:11px Arial,sans-serif;color:#8e671c;letter-spacing:.5px}.navyaa-lens{display:flex;justify-content:space-between;align-items:center;gap:30px;margin-top:30px;padding:32px;background:#f0ece3;border-left:4px solid var(--gold)}.navyaa-lens>div{max-width:720px}.navyaa-lens>a{white-space:nowrap;font:13px Arial,sans-serif}.sponsor-reserve{margin-top:30px;padding:18px 24px;border:1px dashed #b9b3a7;color:#5b6670}.sponsor-reserve p{margin:7px 0 0;font-size:13px}.article-discovery{border-top:2px solid var(--navy);margin-top:40px;padding-top:24px}.article-discovery h2{font-weight:400}.article-discovery li{margin:12px 0}@media(max-width:760px){.editorial-grid{grid-template-columns:1fr}.navyaa-lens{flex-direction:column;align-items:flex-start}.editorial-bottom{padding:40px 0}}
 /* Affiliated network discovery; no ads or third-party scripts */
 .network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:35px 0}.network-card{background:#fff;border-top:3px solid var(--gold);padding:26px}.network-card h2{font-size:27px;font-weight:400;margin:12px 0}.network-card p,.network-home>p,.network-note p{color:#5b6670}.network-card a{display:inline-block;margin-top:14px;text-decoration:underline;text-underline-offset:4px;color:var(--navy)}.network-note{padding:25px;background:#f0ece3;margin-bottom:35px}.network-home{margin-top:32px}.network-home-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.network-home-grid a{padding:20px;background:white;border:1px solid #e0d8c9;display:flex;flex-direction:column;gap:8px}.network-home-grid strong{font-size:18px;font-weight:400}@media(max-width:760px){.network-grid,.network-home-grid{grid-template-columns:1fr}.mast nav{flex-wrap:wrap;gap:12px}}
+
+/* V2.7 visual network cards: public Open Graph image or branded fallback */
+.network-card{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.network-card-visual{display:block;aspect-ratio:16/9;overflow:hidden;background:var(--navy);margin:0!important}
+.network-card-visual img,.network-home-visual img{width:100%;height:100%;display:block;object-fit:cover}
+.network-card-body{padding:24px;display:flex;flex-direction:column;flex:1}
+.network-card-body p{flex:1}
+.network-visual-fallback{display:flex;width:100%;height:100%;min-height:120px;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px;color:#fff;background:linear-gradient(130deg,#173b60,#316389 70%,#c7a45b);font-family:Arial,sans-serif}
+.network-visual-fallback span{font-size:clamp(20px,3vw,32px);font-weight:700;letter-spacing:.02em}
+.network-visual-fallback small{font-size:11px;text-transform:uppercase;letter-spacing:2px;opacity:.85}
+.network-visual-navyaa{background:linear-gradient(130deg,#433c54,#8c6c80,#c7a45b)}
+.network-visual-zen-homes{background:linear-gradient(130deg,#122b36,#426b70,#c7a45b)}
+.network-visual-rate-manifest{background:linear-gradient(130deg,#1b456b,#407f9b,#c9a76b)}
+.network-visual-om4biz{background:linear-gradient(130deg,#1b2854,#506ba1,#88b6d3)}
+.network-visual-design-code{background:linear-gradient(130deg,#3e3b35,#817363,#c9b79c)}
+.network-visual-fils-only{background:linear-gradient(130deg,#163a43,#267d80,#9ccbc5)}
+.network-visual-d6-kitchens{background:linear-gradient(130deg,#312c2a,#7e6c5d,#c7a45b)}
+.network-home-grid a.network-home-card{padding:0;display:flex;flex-direction:column;gap:0;overflow:hidden}
+.network-home-visual{display:block;width:100%;aspect-ratio:16/9;overflow:hidden;background:var(--navy)}
+.network-home-info{padding:15px;display:flex;flex-direction:column;gap:6px;flex:1}
+.network-home-info small{font:13px/1.5 Arial,sans-serif;color:#596672}
+.network-home-info strong{font-size:20px}
