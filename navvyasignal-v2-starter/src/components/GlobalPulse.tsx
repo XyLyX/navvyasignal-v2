@@ -2,9 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 const CITIES = [
-  { name: 'Dubai', zone: 'Asia/Dubai' },
-  { name: 'London', zone: 'Europe/London' },
   { name: 'New York', zone: 'America/New_York' },
+  { name: 'London', zone: 'Europe/London' },
   { name: 'New Delhi', zone: 'Asia/Kolkata' },
   { name: 'Singapore', zone: 'Asia/Singapore' },
   { name: 'Tokyo', zone: 'Asia/Tokyo' },
