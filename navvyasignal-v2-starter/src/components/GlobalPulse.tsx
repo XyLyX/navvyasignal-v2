@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 const CITIES = [
   { name: 'New York', zone: 'America/New_York' },
   { name: 'London', zone: 'Europe/London' },
+  { name: 'Dubai', zone: 'Asia/Dubai' },
   { name: 'New Delhi', zone: 'Asia/Kolkata' },
   { name: 'Singapore', zone: 'Asia/Singapore' },
   { name: 'Tokyo', zone: 'Asia/Tokyo' },
