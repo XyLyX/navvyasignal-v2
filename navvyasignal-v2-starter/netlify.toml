@@ -1,3 +1,5 @@
+# Next.js runtime needs the generated .next output, not the source directory.
+# Keep base directory in Netlify UI as navvyasignal-v2-starter.
 [build]
 command = "npm run build"
-# Netlify automatically detects the Next.js framework and manages the output.
+publish = ".next"
