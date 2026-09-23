@@ -1,0 +1,3 @@
+[build]
+command = "npm run build"
+# Netlify automatically detects the Next.js framework and manages the output.
