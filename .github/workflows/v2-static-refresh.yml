@@ -1,0 +1,38 @@
+name: V2 static content refresh
+
+# GitHub scheduled workflows only run from the repository default branch.
+# This workflow is staged on the draft branch and cannot run on a schedule until merged.
+on:
+  schedule:
+    # Dubai is UTC+4 year-round: 00:10 GST, plus every four hours.
+    - cron: '10 0,4,8,12,16,20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-static-content-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    steps:
+      - name: Trigger isolated V2 Netlify build hook
+        env:
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "$V2_NETLIFY_BUILD_HOOK" ]; then
+            echo 'V2_NETLIFY_BUILD_HOOK is not configured; no deployment triggered.'
+            exit 1
+          fi
+          case "$V2_NETLIFY_BUILD_HOOK" in
+            https://api.netlify.com/build_hooks/*) ;;
+            *) echo 'Invalid Netlify build hook URL'; exit 1 ;;
+          esac
+          curl --fail --silent --show-error --retry 2 --max-time 30 \
+            -X POST "$V2_NETLIFY_BUILD_HOOK"
+          echo 'V2 preview build queued; deployment success must be checked separately.'
