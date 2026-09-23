@@ -8,3 +8,6 @@
 
 /* Five requested clocks, ordered west to east. */
 .global-pulse .pulse-clocks{grid-template-columns:repeat(5,minmax(0,1fr))}@media(max-width:800px){.global-pulse .pulse-clocks{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:480px){.global-pulse .pulse-clocks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Six clocks in requested west-to-east order, including Dubai. */
+@media(min-width:801px){.global-pulse .pulse-clocks{grid-template-columns:repeat(6,minmax(0,1fr))}}
