@@ -16,7 +16,17 @@ const select = (p?:Prop) => p?.select?.name ?? '';
 const source = process.env.NOTION_DATA_SOURCE_ID;
 const token = process.env.NOTION_TOKEN;
 export async function getStories(limit = 800):Promise<Story[]> {
- if (!token || !source) return [];
+ if (!token || !source) {
+  // CI-only static-export fixture: Next requires at least one generated dynamic route.
+  // Never enabled in Netlify previews or production; no external Notion writes.
+  if (process.env.V2_CI_STATIC_FIXTURE === '1' && process.env.CI === 'true') {
+   return [{ id:'ci-static-fixture', title:'CI static export fixture', brief:'Build-only test record.', body:'',
+    category:'West Asia Desk', contentType:'', today:false, homepageDate:null, homepagePriority:null,
+    watchlist:false, watchStatus:'', nextReview:null, createdAt:'2026-01-01T00:00:00.000Z',
+    ready:true, coverageThemes:[] }];
+  }
+  return [];
+ }
  const stories:Story[]=[];
  let cursor:string|undefined;
  do {
