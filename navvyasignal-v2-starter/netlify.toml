@@ -1,6 +1,3 @@
-# Temporary static preview only. Next.js exports HTML to out/.
-# Keep the existing Netlify base directory: navvyasignal-v2-starter.
-# Before enabling live Notion content, migrate to the Netlify Next.js runtime.
 [build]
 command = "npm run build"
-publish = "out"
+publish = ".next"
