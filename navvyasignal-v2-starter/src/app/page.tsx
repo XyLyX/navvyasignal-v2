@@ -1,4 +1,38 @@
 import Link from 'next/link';
 import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
-export default async function Home(){const stories=await getStories();const selected=stories.filter(s=>s.today).slice(0,7);const watch=stories.filter(s=>s.watchlist&&s.watchStatus==='Active').slice(0,4);return <main><section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE · PREVIEW</p><h1>Understand what matters.<br/><em>See what connects.</em></h1><p className="intro">Independent reporting and analysis across seven global intelligence desks.</p></div></section><div className="container content"><section><div className="section-title"><h2>Today’s Intelligence</h2><Link href="/signals">All signals →</Link></div>{selected.length?selected.map((s,i)=><article className="story" key={s.id}><span className="num">{String(i+1).padStart(2,'0')}</span><div><span className="kicker">{s.category}</span><h3>{s.title}</h3><p>{s.brief}</p></div></article>):<p className="empty">No approved editorial selections are available in this preview.</p>}</section><aside><h2>Watchlist</h2><p className="aside-intro">Developments under continued editorial observation.</p>{watch.length?watch.map(s=><article className="watch" key={s.id}><span className="status">{s.watchStatus}</span><h3>{s.title}</h3><p>{s.brief}</p></article>):<p className="empty">No approved active Watchlist entries are available.</p>}<Link href="/watchlist">View Watchlist →</Link></aside></div><section className="desk-section" id="desks"><div className="container"><div className="section-title"><h2>Seven intelligence desks</h2></div><div className="desk-grid">{desks.map((d,i)=><Link key={d.slug} href={`/desks/${d.slug}`} className="desk"><span>0{i+1}</span><h3>{d.name}</h3><b>Explore desk ↗</b></Link>)}</div></div></section><section className="container bottom"><h2>Cross-Desk Intelligence</h2><p>Editorial connections across regions, industries and policy. Full publication contract pending.</p><h2>Weekly Briefing</h2><p>Original weekly synthesis. No automated email sends are connected to this preview.</p><h2>A Different Lens — From Navyaa</h2><p>Reserved for a manually approved editorial selection from navyaa.blog.</p></section></main>}
+import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelection';
+
+export default async function Home() {
+  const stories = await getStories();
+  const publicationDate = dubaiPublicationDate();
+  const selected = selectHomepageStories(stories, publicationDate);
+  const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
+  return <main>
+    <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE · PREVIEW</p>
+      <h1>Understand what matters.<br/><em>See what connects.</em></h1>
+      <p className="intro">Independent reporting and analysis across seven global intelligence desks.</p>
+    </div></section>
+    <div className="container content"><section>
+      <div className="section-title"><h2>Today’s Intelligence</h2><Link href="/signals">All signals →</Link></div>
+      {selected.length ? selected.map((s, i) => <article className="story" key={s.id}>
+        <span className="num">{String(i + 1).padStart(2, '0')}</span><div>
+          <span className="kicker">{s.category}</span><h3>{s.title}</h3><p>{s.brief}</p>
+        </div></article>) : <p className="empty">No stories have been selected for today. Browse the approved Signal Feed.</p>}
+    </section><aside><h2>Watchlist</h2><p className="aside-intro">Developments under continued editorial observation.</p>
+      {watch.length ? watch.map(s => <article className="watch" key={s.id}>
+        <span className="status">{s.watchStatus}</span><h3>{s.title}</h3><p>{s.brief}</p>
+      </article>) : <p className="empty">No approved active Watchlist entries are available.</p>}
+      <Link href="/watchlist">View Watchlist →</Link>
+    </aside></div>
+    <section className="desk-section" id="desks"><div className="container"><div className="section-title"><h2>Seven intelligence desks</h2></div>
+      <div className="desk-grid">{desks.map((d, i) => <Link key={d.slug} href={`/desks/${d.slug}`} className="desk">
+        <span>0{i + 1}</span><h3>{d.name}</h3><b>Explore desk ↗</b>
+      </Link>)}</div></div></section>
+    <section className="container bottom"><h2>Cross-Desk Intelligence</h2>
+      <p>Editorial connections across regions, industries and policy. Full publication contract pending.</p>
+      <h2>Weekly Briefing</h2><p>Original weekly synthesis. No automated email sends are connected to this preview.</p>
+      <h2>A Different Lens — From Navyaa</h2><p>Reserved for a manually approved editorial selection from navyaa.blog.</p>
+    </section>
+  </main>;
+}
