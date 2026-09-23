@@ -3,6 +3,7 @@ import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
 import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelection';
 import GlobalPulse from '@/components/GlobalPulse';
+import { networkVentures } from '@/lib/network';
 
 export default async function Home() {
   const stories = await getStories();
@@ -53,6 +54,7 @@ export default async function Home() {
           <p>A manually selected essay from Navyaa will be featured here once approved. Navyaa remains a separate publication; no automatic article import.</p></div>
         <a href="https://navyaa.blog/" target="_blank" rel="noopener noreferrer">Visit Navyaa.blog ↗</a>
       </section>
+      <section className="network-home" aria-label="The Navvya Network"><div className="section-title"><h2>The Navvya Network</h2><Link href="/network">Explore all seven →</Link></div><p>Separate publications and affiliated ventures. Commercial updates are not independent intelligence reporting.</p><div className="network-home-grid">{networkVentures.filter(v => v.slug !== 'navyaa').map(v => <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong></a>)}</div></section>
       <section className="sponsor-reserve" aria-label="Future sponsorship placement">
         <span className="kicker">SPONSORSHIP</span><p>Reserved for clearly disclosed sponsorship and contextual advertising. No paid placement is active in this preview.</p>
       </section>
