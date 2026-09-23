@@ -1,0 +1,7 @@
+# Global Clock and Markets Pulse — preview contract
+
+The clock strip is fully client-side and uses IANA time zones: Asia/Dubai, Europe/London, America/New_York, Asia/Kolkata, Asia/Singapore and Asia/Tokyo. The browser refreshes it every 30 seconds; DST is resolved by Intl. Initial server-rendered output is a placeholder to avoid hydration mismatch. Clocks are not external network feeds.
+
+Markets Pulse is currently a **watchlist of instruments, not a price feed**. It intentionally displays `Feed pending` rather than fabricated prices or an unlicensed live-data claim. Proposed instruments are S&P 500, Nifty 50, DFM General, Brent crude, gold and USD/INR. Do not connect external quote services without checking commercial display licensing, symbol coverage, attribution, update cadence, redistribution terms and cost. Every actual price must include provider attribution, a source timestamp, currency/unit and a real-time or delayed designation. Closed-market quotes need explicit last-session treatment. On errors, show `Unavailable` and retain the last valid timestamp only if the license permits it; never silently show stale data as live.
+
+The original Framer site's market-price data source has not been verified. Audit it before selecting a replacement. Do not touch Framer V1 or any production automation. This V2 preview remains noindex, and Today's Intelligence continues to require newly approved, manually dated editorial selections.
