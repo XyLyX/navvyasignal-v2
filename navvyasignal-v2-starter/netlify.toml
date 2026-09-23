@@ -1,3 +1,7 @@
 [build]
 command = "npm run build"
 publish = ".next"
+
+# The app requires Netlify's Next.js runtime for ISR and Notion reads.
+# If the deploy log shows zero functions, halt promotion and inspect
+# the automatic OpenNext adapter rather than publishing raw .next files.
