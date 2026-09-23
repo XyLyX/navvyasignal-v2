@@ -5,3 +5,6 @@
 
 /* Original five TradingView single-quote instruments; embedded third-party quotes. */
 .pulse-market .pulse-instruments{grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.pulse-quote{min-width:0;border:1px solid #47617b;border-radius:3px;padding:8px;background:#173b60}.pulse-quote-label{display:block;color:#dfc48d;font:11px Arial,sans-serif;min-height:27px}.pulse-quote-embed{min-height:100px;overflow:hidden}.pulse-quote-embed .tradingview-widget-container{width:100%;min-height:100px}.pulse-quote-loading{display:block;color:#d4deea;font:11px Arial,sans-serif;padding-top:15px}.pulse-disclosure{font:11px/1.5 Arial,sans-serif;color:#d4deea;margin:12px 0 0}@media(max-width:900px){.pulse-market .pulse-instruments{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:550px){.pulse-market .pulse-instruments{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Five requested clocks, ordered west to east. */
+.global-pulse .pulse-clocks{grid-template-columns:repeat(5,minmax(0,1fr))}@media(max-width:800px){.global-pulse .pulse-clocks{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:480px){.global-pulse .pulse-clocks{grid-template-columns:repeat(2,minmax(0,1fr))}}
