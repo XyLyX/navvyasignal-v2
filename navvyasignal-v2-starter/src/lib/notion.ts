@@ -1,6 +1,6 @@
 // Independent, read-only V2 adapter. Never writes to Notion or touches Framer sync flags.
 export type Story = {
- id: string; title: string; brief: string; category: string; contentType: string;
+ id: string; title: string; brief: string; body: string; category: string; contentType: string;
  today: boolean; homepageDate: string | null; homepagePriority: number | null;
  watchlist: boolean; watchStatus: string; nextReview: string | null;
  createdAt: string; ready: boolean; coverageThemes: string[];
@@ -32,7 +32,7 @@ export async function getStories(limit = 800):Promise<Story[]> {
    const p=page.properties, title=text(p.Name);
    if(!title || title.startsWith('[TEST') || title.startsWith('[DUPLICATE')) continue;
    if(p['Ready to Post']?.checkbox !== true) continue;
-   stories.push({id:page.id,title,brief:text(p['Signal Brief']),category:select(p.Category),
+   stories.push({id:page.id,title,brief:text(p['Signal Brief']),body:text(p['Text 1']),category:select(p.Category),
     contentType:select(p['Content Type']),today:p["Today's Intelligence"]?.checkbox===true,
     homepageDate:p['Homepage Date']?.date?.start?.slice(0,10)??null,
     homepagePriority:p['Homepage Priority']?.number??null,
