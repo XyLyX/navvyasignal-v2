@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getStories } from '@/lib/notion';
+import { desks, matchesDeskCategory } from '@/lib/desks';
 
 export const dynamicParams = false;
 
@@ -11,8 +12,11 @@ export async function generateStaticParams() {
 
 export default async function LegacySignal({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const story = (await getStories()).find(item => item.id === id);
+  const stories = await getStories();
+  const story = stories.find(item => item.id === id);
   if (!story) notFound();
+  const desk = desks.find(d => matchesDeskCategory(d.slug, story.category));
+  const related = stories.filter(item => item.id !== story.id && item.category === story.category).slice(0, 3);
   // Notion Text 1 contains legacy <br> separators. Never inject it as HTML.
   const paragraphs = story.body.split(/(?:<br\s*\/?\s*>\s*){1,}|\n{2,}/gi)
     .map(part => part.trim()).filter(Boolean);
@@ -30,6 +34,11 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
       {paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
     </section> : <p className="empty">No additional archived editorial text is available for this record. The Signal Brief above is not presented as a full article.</p>}
     <p><small>Historical preview only. The underlying record has not been independently reverified for current accuracy.</small></p>
-    <p><Link href="/signals">← Back to Signal Feed</Link></p>
+    <section className="article-discovery" aria-label="Explore related intelligence">
+      <h2>Continue exploring</h2>
+      {desk && <p><Link href={`/desks/${desk.slug}`}>Explore the {desk.name} desk →</Link></p>}
+      {related.length > 0 && <><h3>Related historical signals</h3><ul>{related.map(item => <li key={item.id}><Link href={`/signals/${item.id}`}>{item.title}</Link></li>)}</ul></>}
+      <p><Link href="/signals">← Back to the historical Signal Feed</Link></p>
+    </section>
   </main>;
 }
