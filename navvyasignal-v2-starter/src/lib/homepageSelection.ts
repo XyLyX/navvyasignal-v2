@@ -17,6 +17,7 @@ export function selectHomepageStories(stories: Story[], publicationDate: string,
         ? a.homepagePriority : Number.POSITIVE_INFINITY;
       const priorityB = b.homepagePriority != null && Number.isFinite(b.homepagePriority) && b.homepagePriority >= 1
         ? b.homepagePriority : Number.POSITIVE_INFINITY;
-      return priorityA - priorityB || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id);
+      return (priorityA === priorityB ? 0 : priorityA - priorityB)
+        || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id);
     }).slice(0, limit);
 }
