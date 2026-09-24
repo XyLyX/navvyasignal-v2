@@ -63,15 +63,12 @@ test('panels: both articles kept where present, newest first, publisher order on
 
 // ---- 3. Join panel ----
 
-test('join panel: centred invitation, prominent gold Start an Enquiry button, links to the non-submitting preview', () => {
+test('join panel: centred invitation, prominent gold Start an Enquiry button, links to /network/join', () => {
   assert.match(css, /\.np-join-body\{[^}]*justify-content:center;align-items:center;text-align:center/);
   assert.match(css, /\.np-join-cta\{align-self:center;[^}]*background:var\(--gold\)/);
   assert.match(css, /\.np-join-cta\{[^}]*padding:15px 34px[^}]*font:700 16px/);
   assert.match(panelsSrc, /<Link className="np-join-cta" href=\{p\.href\}>Start an Enquiry →<\/Link>/);
   assert.equal(buildNetworkPanels([]).at(-1)?.kind === 'join' && (buildNetworkPanels([]).at(-1) as any).href, '/network/join');
-  const join = read('src/components/JoinForm.tsx') + read('src/app/network/join/page.tsx');
-  assert.match(join, /Preview only: nothing has been sent or stored/);
-  assert.doesNotMatch(join.replace(/\/\/.*$/gm, ''), /fetch\s*\(|action\s*=|sendBeacon|XMLHttpRequest/);
 });
 
 // ---- 4. Navyaa ----

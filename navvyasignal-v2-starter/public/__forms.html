@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Join Our Network (form declaration)</title>
+</head>
+<body>
+  <!--
+    Static declaration so Netlify Forms can detect the Join Our Network form on this Next.js static export.
+    The visible form lives at /network/join and submits here with fetch. Field names must match src/lib/joinForm.ts.
+    Spam protection: honeypot (bot-field). Notifications are configured in the Netlify UI, never in code.
+  -->
+  <form name="join-network" method="POST" data-netlify="true" netlify-honeypot="bot-field" hidden>
+    <input type="hidden" name="form-name" value="join-network">
+    <p><label>Do not fill this out if you are human: <input name="bot-field"></label></p>
+    <input name="name">
+    <input name="company">
+    <input type="email" name="email">
+    <input name="website">
+    <select name="enquiry-type">
+      <option>Editorial publication</option>
+      <option>Affiliated business</option>
+      <option>Content collaboration</option>
+      <option>Other partnership</option>
+    </select>
+    <textarea name="message"></textarea>
+  </form>
+</body>
+</html>

@@ -8,8 +8,8 @@ export default function JoinNetwork() {
     <p className="eyebrow">THE NAVVYA NETWORK</p>
     <h1>Join Our Network</h1>
     <p className="intro">Run a publication or a business you would like to see in the Navvya Network? Tell us about yourself and what you publish.</p>
-    <div id="join-preview-note" className="join-preview-note" role="note">
-      <strong>Preview form: not connected yet.</strong> Nothing you type here is sent or stored. To reach us today, email <a href="mailto:hello@navvyasignal.com">hello@navvyasignal.com</a> or use the <Link href="/contact">contact page</Link>.
+    <div id="join-note" className="join-preview-note" role="note">
+      Your enquiry is sent through our hosting provider&rsquo;s form service to the NavvyaSignal team. No automatic confirmation email is sent. You can also email <a href="mailto:hello@navvyasignal.com">hello@navvyasignal.com</a> or use the <Link href="/contact">contact page</Link>.
     </div>
     <JoinForm />
     <p className="join-fine">Network listings are separate from NavvyaSignal’s intelligence reporting and are not editorial endorsements.</p>

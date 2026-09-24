@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import { getStories, type Story } from '@/lib/notion';
-import WatchCard from '@/components/WatchCard';
+import WatchCard, { type WatchEntry } from '@/components/WatchCard';
+import WatchTabs from '@/components/WatchTabs';
 
 export const metadata: Metadata = { title: 'Watchlist' };
+
+const slim = (s: Story): WatchEntry => ({ id: s.id, title: s.title, brief: s.brief, watchStatus: s.watchStatus, nextReview: s.nextReview });
 
 function WatchEntries({ stories }: { stories: Story[] }) {
   return <div className="watch-grid">{stories.map(s => <WatchCard key={s.id} story={s} variant="page" />)}</div>;
@@ -22,11 +25,10 @@ export default async function Watchlist() {
     <p className="eyebrow">ONGOING INTELLIGENCE</p>
     <h1>Watchlist</h1>
     <p className="watch-lede">Tracked situations, not ordinary breaking-news labels.</p>
-    <section aria-labelledby="active-watchlist"><Heading id="active-watchlist" label="Active" count={active.length} />
-      <WatchEntries stories={active} />
-      {!active.length && <p className="empty">No approved active Watchlist entries.</p>}
-    </section>
-    {resolved.length > 0 && <section aria-labelledby="resolved-watchlist"><Heading id="resolved-watchlist" label="Resolved" count={resolved.length} /><WatchEntries stories={resolved} /></section>}
+    <WatchTabs tabs={[
+      { id: 'active', label: 'Active', entries: active.map(slim) },
+      { id: 'resolved', label: 'Resolved', entries: resolved.map(slim) },
+    ]} />
     {abandoned.length > 0 && <section aria-labelledby="abandoned-watchlist"><Heading id="abandoned-watchlist" label="Abandoned" count={abandoned.length} /><WatchEntries stories={abandoned} /></section>}
     {unspecified.length > 0 && <section aria-labelledby="unspecified-watchlist"><Heading id="unspecified-watchlist" label="Status pending editorial review" count={unspecified.length} /><WatchEntries stories={unspecified} /></section>}
   </main>;

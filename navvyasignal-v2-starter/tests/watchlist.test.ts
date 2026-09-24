@@ -74,11 +74,12 @@ test('both pages use the shared card; selection criteria and status handling are
   assert.match(home, /<WatchCard key=\{s\.id\} story=\{s\} variant="aside" \/>/);
   assert.match(home, /No approved active Watchlist entries are available\./);
   assert.match(home, /<Link className="watch-all" href="\/watchlist">View Watchlist/);
-  assert.match(listing, /<WatchCard key=\{s\.id\} story=\{s\} variant="page" \/>/);
+  assert.match(listing, /<WatchTabs tabs=/);
+  assert.match(read('src/components/WatchTabs.tsx'), /<WatchCard key=\{s\.id\} story=\{s\} variant="page" \/>/);
   assert.match(listing, /\(await getStories\(\)\)\.filter\(s => s\.watchlist\)/);
   for (const status of ['Active', 'Resolved', 'Abandoned']) assert.match(listing, new RegExp(`s\\.watchStatus === '${status}'`));
   assert.match(listing, /Status pending editorial review/);
-  assert.match(listing, /No approved active Watchlist entries\./);
+  assert.match(read('src/components/WatchTabs.tsx'), /No approved \{t\.label\.toLowerCase\(\)\} Watchlist entries\./);
   const notion = read('src/lib/notion.ts');
   assert.doesNotMatch(notion, /method:\s*'(PATCH|PUT|DELETE)'/);
   assert.equal((notion.match(/method:'POST'/g) ?? []).length, 1, 'still only the read-only query POST');

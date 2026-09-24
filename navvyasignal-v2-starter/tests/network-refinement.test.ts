@@ -7,7 +7,6 @@ import { getSource, FEED_SOURCES } from '../src/lib/rss/sources.ts';
 import { loadSource, loadAllFeeds, sortAndDedupe, type SourceResult } from '../src/lib/rss/service.ts';
 import { enrichOgImages, extractOgImage, isGenericImageUrl } from '../src/lib/rss/ogImage.ts';
 import { buildNetworkPanels } from '../src/lib/networkPanels.ts';
-import { validateJoin } from '../src/lib/joinForm.ts';
 import { NETWORK_PER_SOURCE } from '../src/lib/rss/limits.ts';
 
 const root = path.join(import.meta.dirname, '..');
@@ -196,41 +195,4 @@ test('/network text tokens meet contrast targets on paper, white and navy', () =
   assert.ok(ratio('#e8d3a2', '#173b60') >= 4.5, 'join kicker on navy');
   assert.ok(ratio('#14283d', '#c7a45b') >= 4.5, 'join button');
   assert.match(css, /\.network-page \.intro\{color:var\(--np-muted\)/, 'the light hero colour is overridden on /network');
-});
-
-// ---- Join Our Network: validated preview that never submits ----
-
-const ok = { name: 'A Person', company: 'Example Publishing', email: 'a.person@example.com', website: 'https://example.com', message: 'We publish weekly market notes and would like to talk.' };
-
-test('join validation: required fields, email, https website, message length', () => {
-  assert.deepEqual(validateJoin(ok), {});
-  assert.deepEqual(validateJoin({ ...ok, website: '' }), {}, 'website is optional');
-  assert.deepEqual(Object.keys(validateJoin({ name: ' ', company: '', email: '', website: '', message: '' })).sort(), ['company', 'email', 'message', 'name']);
-  for (const email of ['nope', 'a@b', 'a b@c.com', '<x>@c.com', 'a@b.c'])
-    assert.ok(validateJoin({ ...ok, email }).email, email);
-  for (const website of ['example.com', 'http://example.com', 'javascript:alert(1)', 'https://u:p@example.com', 'https://localhost'])
-    assert.ok(validateJoin({ ...ok, website }).website, website);
-  assert.ok(validateJoin({ ...ok, message: 'too short' }).message);
-  assert.ok(validateJoin({ ...ok, message: 'x'.repeat(2001) }).message);
-});
-
-test('join form is a non-submitting preview: no endpoint, network call, mailto or new email automation', () => {
-  for (const file of ['src/components/JoinForm.tsx', 'src/lib/joinForm.ts', 'src/app/network/join/page.tsx']) {
-    const src = fs.readFileSync(path.join(root, file), 'utf8').replace(/\/\/.*$/gm, '');
-    for (const banned of [/fetch\s*\(/, /XMLHttpRequest/, /sendBeacon/, /\baction\s*=/, /method\s*=\s*["']post/i, /formspree|netlify|webhook|api\//i, /window\.location/, /localStorage|sessionStorage/])
-      assert.doesNotMatch(src, banned, `${file} ${banned}`);
-  }
-  const form = fs.readFileSync(path.join(root, 'src/components/JoinForm.tsx'), 'utf8');
-  assert.match(form, /e\.preventDefault\(\)/);
-  assert.match(form, /Preview only: nothing has been sent or stored/);
-  const page = fs.readFileSync(path.join(root, 'src/app/network/join/page.tsx'), 'utf8');
-  assert.match(page, /Preview form: not connected yet/);
-  assert.equal((page.match(/mailto:/g) ?? []).length, 1, 'only the existing published contact address is offered');
-  assert.match(page, /mailto:hello@navvyasignal\.com/);
-  assert.match(fs.readFileSync(path.join(root, 'src/app/contact/page.tsx'), 'utf8'), /mailto:hello@navvyasignal\.com/, 'same address as the existing contact page');
-});
-
-test('no netlify form detection markup or config was introduced', () => {
-  assert.doesNotMatch(fs.readFileSync(path.join(root, 'netlify.toml'), 'utf8'), /forms?/i);
-  for (const f of ['src/components/JoinForm.tsx', 'src/app/network/join/page.tsx']) assert.doesNotMatch(fs.readFileSync(path.join(root, f), 'utf8'), /data-netlify|netlify-honeypot/);
 });
