@@ -3,6 +3,7 @@ import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
 import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelection';
 import GlobalPulse from '@/components/GlobalPulse';
+import WatchCard from '@/components/WatchCard';
 import { getNetworkCards } from '@/lib/networkMetadata';
 import { getFeedSections } from '@/lib/feeds';
 import { NavyaaLens } from '@/components/FeedSections';
@@ -28,10 +29,8 @@ export default async function Home() {
           <span className="kicker">{s.category}</span><h3><Link href={`/signals/${s.id}`}>{s.title}</Link></h3><p>{s.brief}</p>
         </div></article>) : <div className="editorial-empty"><span className="kicker">AWAITING EDITORIAL SELECTION</span><h3>Today's edition is being prepared.</h3><p>No new signals have been selected for this publication date. Historical intelligence remains available separately.</p><Link href="/signals">Explore the historical archive →</Link></div>}
     </section><aside><h2>Watchlist</h2><p className="aside-intro">Developments under continued editorial observation.</p>
-      {watch.length ? watch.map(s => <article className="watch" key={s.id}>
-        <span className="status">{s.watchStatus}{s.nextReview ? ` · Next review ${s.nextReview.slice(0,10)}` : ''}</span><h3><Link href={`/signals/${s.id}`}>{s.title}</Link></h3><p>{s.brief}</p>
-      </article>) : <p className="empty">No approved active Watchlist entries are available.</p>}
-      <Link href="/watchlist">View Watchlist →</Link>
+      {watch.length ? <div className="watch-list">{watch.map(s => <WatchCard key={s.id} story={s} variant="aside" />)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
+      <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
     </aside></div>
     <section className="desk-section" id="desks"><div className="container"><div className="section-title"><h2>Seven intelligence desks</h2></div>
       <div className="desk-grid">{desks.map((d, i) => <Link key={d.slug} href={`/desks/${d.slug}`} className="desk">
