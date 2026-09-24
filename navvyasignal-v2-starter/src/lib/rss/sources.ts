@@ -8,12 +8,14 @@ export type FeedSource = {
   contentType: string;
   feedUrl: string;
   siteUrl: string;
+  /** Publication's own logo, when it publishes one (declared in the site's structured data). */
+  logoUrl?: string;
   /** Hosts permitted for redirects, article links and article images. */
   allowedHosts: readonly string[];
 };
 
 export const FEED_SOURCES: readonly FeedSource[] = Object.freeze([
-  { id: 'navyaa', name: 'Navyaa', group: 'navyaa', contentType: 'Essays', feedUrl: 'https://navyaa.blog/feed.xml', siteUrl: 'https://navyaa.blog/', allowedHosts: ['navyaa.blog', 'www.navyaa.blog'] },
+  { id: 'navyaa', name: 'Navyaa', group: 'navyaa', contentType: 'Essays', feedUrl: 'https://navyaa.blog/feed.xml', siteUrl: 'https://navyaa.blog/', logoUrl: 'https://navyaa.blog/images/logo.png', allowedHosts: ['navyaa.blog', 'www.navyaa.blog'] },
   { id: 'om4biz', name: 'OM4BIZ', group: 'network', contentType: 'Insights', feedUrl: 'https://om4biz.com/feed.xml', siteUrl: 'https://om4biz.com/', allowedHosts: ['om4biz.com', 'www.om4biz.com'] },
   { id: 'd6-kitchens', name: 'D6 Kitchens', group: 'network', contentType: 'Insights', feedUrl: 'https://d6kitchens.com/feed.xml', siteUrl: 'https://d6kitchens.com/', allowedHosts: ['d6kitchens.com', 'www.d6kitchens.com'] },
   { id: 'zen-insights', name: 'Zen Homes', group: 'network', contentType: 'Insights', feedUrl: 'https://zenhomesglobal.com/insights/feed.xml', siteUrl: 'https://zenhomesglobal.com/insights/', allowedHosts: ['zenhomesglobal.com', 'www.zenhomesglobal.com'] },

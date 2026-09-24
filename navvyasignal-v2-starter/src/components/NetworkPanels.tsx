@@ -10,6 +10,8 @@ const EMPTY_TEXT: Record<string, string> = {
   empty: 'No published articles are listed yet.',
 };
 
+const MARK: Record<string, string> = { om4biz: 'OM', 'd6-kitchens': 'D6', 'zen-insights': 'Z', 'zen-portfolio': 'Z', 'design-code': 'DC' };
+
 function Panel({ p }: { p: FeedPanel }) {
   const fillers = Array.from({ length: Math.max(0, NETWORK_PER_SOURCE - p.items.length) }, (_, i) => i);
   return <section className="np-panel" aria-labelledby={`np-${p.id}`}>
@@ -20,7 +22,7 @@ function Panel({ p }: { p: FeedPanel }) {
     <div className="np-slots">
       {p.items.map(item => <article className="np-item" key={item.canonicalUrl}>
         <a className="np-thumb" href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true">
-          <span className="np-thumb-fallback"><span>{p.sourceName}</span><small>{p.contentType}</small></span>
+          <span className={`np-thumb-fallback np-cover-${p.id}`} data-mark={MARK[p.id] ?? p.sourceName.slice(0, 2)}><span>{p.sourceName}</span><small>{p.contentType}</small></span>
           {item.imageUrl ? <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
         </a>
         <div className="np-item-body">
@@ -39,10 +41,10 @@ function Panel({ p }: { p: FeedPanel }) {
 }
 
 /** Six equal panels: five RSS-fed publications plus Join Our Network. Editorially separate from NavvyaSignal reporting. */
-export default function NetworkPanels({ data }: { data: FeedSections }) {
+export default function NetworkPanels({ data, heading = 'Latest from the network' }: { data: FeedSections; heading?: string }) {
   const panels = buildNetworkPanels(data.network);
   return <section className="np-section" aria-label="Latest from the Navvya Network">
-    <div className="np-intro"><span className="kicker">AFFILIATED VENTURES · NOT INDEPENDENT REPORTING</span><h2>Latest from the network</h2>
+    <div className="np-intro"><span className="kicker">AFFILIATED VENTURES · NOT INDEPENDENT REPORTING</span><h2>{heading}</h2>
       <p>Articles and announcements published by affiliated businesses on their own sites. They are commercial or promotional in nature, are not NavvyaSignal reporting, and carry no editorial endorsement.</p></div>
     <div className="np-grid">
       {panels.map(p => p.kind === 'feed' ? <Panel key={p.id} p={p} /> : <section className="np-panel np-join" key={p.id} aria-labelledby="np-join">

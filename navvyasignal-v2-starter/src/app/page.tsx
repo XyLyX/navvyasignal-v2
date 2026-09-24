@@ -5,7 +5,8 @@ import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelec
 import GlobalPulse from '@/components/GlobalPulse';
 import { getNetworkCards } from '@/lib/networkMetadata';
 import { getFeedSections } from '@/lib/feeds';
-import { NavyaaLens, NetworkFeed } from '@/components/FeedSections';
+import { NavyaaLens } from '@/components/FeedSections';
+import NetworkPanels from '@/components/NetworkPanels';
 
 export default async function Home() {
   const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
@@ -14,7 +15,7 @@ export default async function Home() {
   const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
   return <main>
     <GlobalPulse />
-    <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE · PREVIEW</p>
+    <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE</p>
       <h1>Understand what matters.<br/><em>See what connects.</em></h1>
       <p className="intro">Independent global intelligence, grounded in documented developments and the connections between them.</p>
       <p className="lead-note">Seven desks · Historical archive · Developing watchlists</p>
@@ -52,7 +53,7 @@ export default async function Home() {
         </section>
       </div>
       <NavyaaLens data={feeds} />
-      <NetworkFeed data={feeds} />
+      <NetworkPanels data={feeds} heading="From the Navvya Network" />
       <section className="network-home" aria-label="The Navvya Network"><div className="section-title"><h2>The Navvya Network</h2><Link href="/network">Explore all seven →</Link></div><p>Separate publications and affiliated ventures. Commercial updates are not independent intelligence reporting.</p><div className="network-home-grid">{networkCards.filter(v => v.slug !== 'navyaa').map(v => <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card"><span className="network-home-visual">{v.image ? <img src={v.image} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className={`network-visual-fallback network-visual-${v.slug}`} aria-hidden="true"><span>{v.name}</span></span>}</span><span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span></a>)}</div></section>
       <section className="sponsor-reserve" aria-label="Future sponsorship placement">
         <span className="kicker">SPONSORSHIP</span><p>Reserved for clearly disclosed sponsorship and contextual advertising. No paid placement is active in this preview.</p>
