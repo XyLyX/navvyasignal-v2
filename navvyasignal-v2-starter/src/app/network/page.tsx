@@ -15,7 +15,7 @@ export default async function NetworkPage(){
     <p>{v.displayDescription}</p><a href={v.url} target="_blank" rel="noopener noreferrer">Visit {v.name} ↗</a></div>
   </article>)}</div>
   <section className="network-note"><h2>How network updates work</h2>
-   <p>Navyaa articles will be featured as separately attributed editorial links once its publishing feed is verified. Updates from affiliated businesses will appear in a clearly labelled network feed, not Today's Intelligence. Automatic imports and paid advertising are not active in this preview.</p>
+   <p>At build time the homepage reads each publication's public RSS feed and links to the original articles: Navyaa essays appear under A Different Lens, and articles from affiliated businesses appear under From the Navvya Network. Everything is attributed to its source and kept separate from Today's Intelligence. Nothing is reproduced beyond a short excerpt, and paid advertising is not active in this preview.</p>
   </section><p><Link href="/">← Back to NavvyaSignal</Link></p>
  </main>;
 }

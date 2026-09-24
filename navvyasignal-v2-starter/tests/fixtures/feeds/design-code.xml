@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Design Code - Insights</title>
+    <link>https://designcode.ae/insights</link>
+    <description>Fixture copy of the Design Code feed shape.</description>
+    <language>en-ae</language>
+    <lastBuildDate>Thu, 24 Sep 2026 08:00:00 +0400</lastBuildDate>
+    <atom:link href="https://designcode.ae/insights-feed.xml" rel="self" type="application/rss+xml"/>
+    <image>
+      <url>https://designcode.ae/apple-touch-icon.png</url>
+      <title>Design Code - Insights</title>
+      <link>https://designcode.ae/insights</link>
+    </image>
+    <!-- Insights articles only. -->
+    <item>
+      <title>Fixture: Retail fit-out drivers</title>
+      <link>https://designcode.ae/insights/fixture-retail-fit-out</link>
+      <guid isPermaLink="true">https://designcode.ae/insights/fixture-retail-fit-out</guid>
+      <pubDate>Thu, 24 Sep 2026 08:00:00 +0400</pubDate>
+      <category>Retail</category>
+      <description>Sample excerpt. The channel-level icon above must never be used as an article image.</description>
+    </item>
+  </channel>
+</rss>

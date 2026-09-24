@@ -17,3 +17,5 @@ After the secret and environment are configured, manually dispatch the workflow,
 Notion has `Homepage Date` and `Homepage Priority`. Do not automatically select or backfill records. Editors must set `Ready to Post`, `Today's Intelligence`, today's Dubai `Homepage Date` and positive numeric priority. With no dated selections the homepage intentionally shows an empty state. Approved desk/archive records remain visible.
 
 No production cutover, V1 changes, Kit sends or WhatsApp operations are part of this workflow.
+
+See also [rss-integration.md](rss-integration.md): the six-feed RSS importer runs during the same build, so this refresh workflow also picks up new Navyaa and network articles with no further change.

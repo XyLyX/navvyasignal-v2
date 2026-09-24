@@ -21,7 +21,7 @@ jobs:
           cache: npm
           cache-dependency-path: navvyasignal-v2-starter/package-lock.json
       - run: npm ci
-      - run: node --test tests/homepage-selection.test.cjs
+      - run: npm test
       - run: npm run typecheck
       - run: npm run build
         env:

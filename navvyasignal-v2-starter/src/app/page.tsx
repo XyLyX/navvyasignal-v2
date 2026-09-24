@@ -4,9 +4,11 @@ import { getStories } from '@/lib/notion';
 import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelection';
 import GlobalPulse from '@/components/GlobalPulse';
 import { getNetworkCards } from '@/lib/networkMetadata';
+import { getFeedSections } from '@/lib/feeds';
+import { NavyaaLens, NetworkFeed } from '@/components/FeedSections';
 
 export default async function Home() {
-  const [stories, networkCards] = await Promise.all([getStories(), getNetworkCards()]);
+  const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
   const publicationDate = dubaiPublicationDate();
   const selected = selectHomepageStories(stories, publicationDate);
   const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
@@ -49,11 +51,8 @@ export default async function Home() {
           <span className="editorial-pending">Long-form desk in preparation</span>
         </section>
       </div>
-      <section className="navyaa-lens" aria-label="A Different Lens from Navyaa">
-        <div><span className="kicker">A DIFFERENT LENS · FROM NAVYAA</span><h2>A separate editorial perspective</h2>
-          <p>A manually selected essay from Navyaa will be featured here once approved. Navyaa remains a separate publication; no automatic article import.</p></div>
-        <a href="https://navyaa.blog/" target="_blank" rel="noopener noreferrer">Visit Navyaa.blog ↗</a>
-      </section>
+      <NavyaaLens data={feeds} />
+      <NetworkFeed data={feeds} />
       <section className="network-home" aria-label="The Navvya Network"><div className="section-title"><h2>The Navvya Network</h2><Link href="/network">Explore all seven →</Link></div><p>Separate publications and affiliated ventures. Commercial updates are not independent intelligence reporting.</p><div className="network-home-grid">{networkCards.filter(v => v.slug !== 'navyaa').map(v => <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card"><span className="network-home-visual">{v.image ? <img src={v.image} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className={`network-visual-fallback network-visual-${v.slug}`} aria-hidden="true"><span>{v.name}</span></span>}</span><span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span></a>)}</div></section>
       <section className="sponsor-reserve" aria-label="Future sponsorship placement">
         <span className="kicker">SPONSORSHIP</span><p>Reserved for clearly disclosed sponsorship and contextual advertising. No paid placement is active in this preview.</p>

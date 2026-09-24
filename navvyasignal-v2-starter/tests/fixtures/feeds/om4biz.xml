@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>OM4Biz Insights</title>
+    <link>https://www.om4biz.com/insights/</link>
+    <atom:link href="https://www.om4biz.com/feed.xml" rel="self" type="application/rss+xml" />
+    <description>Fixture copy of the OM4BIZ feed shape.</description>
+    <language>en</language>
+    <lastBuildDate>Thu, 24 Sep 2026 10:57:29 +0000</lastBuildDate>
+    <item>
+      <title>Fixture: A retail sukuk explainer</title>
+      <link>https://www.om4biz.com/insights/fixture-retail-sukuk/</link>
+      <guid isPermaLink="true">https://www.om4biz.com/insights/fixture-retail-sukuk/</guid>
+      <pubDate>Thu, 24 Sep 2026 00:00:00 +0000</pubDate>
+      <category>Insight</category>
+      <description>Sample excerpt: how the offer works and the trade-offs to weigh before subscriptions close.</description>
+    </item>
+  </channel>
+</rss>

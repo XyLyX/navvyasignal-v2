@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Edge cases</title>
+    <link>https://navyaa.blog/</link>
+    <description>Test-only document.</description>
+    <item><title>Valid CDATA item</title><link>https://navyaa.blog/valid/?utm_source=x&amp;a=1#frag</link><pubDate>Mon, 21 Sep 2026 10:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Hello <b>world</b> &amp; friends</p><script>alert(1)</script><style>p{}</style><img src="x" onerror="alert(1)">]]></description></item>
+    <item><title>Duplicate by canonical URL (older)</title><link>https://www.navyaa.blog/valid/?a=1#other</link><pubDate>Sun, 20 Sep 2026 10:00:00 GMT</pubDate></item>
+    <item><title>No date at all</title><link>https://navyaa.blog/no-date/</link></item>
+    <item><title>Bad date text</title><link>https://navyaa.blog/bad-date/</link><pubDate>sometime last week</pubDate></item>
+    <item><title>Impossible calendar date</title><link>https://navyaa.blog/feb31/</link><pubDate>Tue, 31 Feb 2026 10:00:00 GMT</pubDate></item>
+    <item><title>Zoneless date</title><link>https://navyaa.blog/zoneless/</link><pubDate>Mon, 21 Sep 2026 10:00:00</pubDate></item>
+    <item><title>Far future date</title><link>https://navyaa.blog/future/</link><pubDate>Mon, 21 Sep 2099 10:00:00 GMT</pubDate></item>
+    <item><title>javascript link</title><link>javascript:alert(1)</link><pubDate>Mon, 21 Sep 2026 10:00:00 GMT</pubDate></item>
+    <item><title>http link</title><link>http://navyaa.blog/insecure/</link><pubDate>Mon, 21 Sep 2026 10:00:00 GMT</pubDate></item>
+    <item><title>Foreign host</title><link>https://evil.example/post/</link><pubDate>Mon, 21 Sep 2026 10:00:00 GMT</pubDate></item>
+    <item><title>Credentialed link</title><link>https://user:pw@navyaa.blog/x/</link><pubDate>Mon, 21 Sep 2026 10:00:00 GMT</pubDate></item>
+    <item><title>Missing link</title><pubDate>Mon, 21 Sep 2026 10:00:00 GMT</pubDate></item>
+    <item><link>https://navyaa.blog/no-title/</link><pubDate>Mon, 21 Sep 2026 10:00:00 GMT</pubDate></item>
+    <item><title>Tie B</title><link>https://navyaa.blog/tie-b/</link><dc:date>2026-09-19T08:00:00+04:00</dc:date></item>
+    <item><title>Tie A</title><link>https://navyaa.blog/tie-a/</link><pubDate>Sat, 19 Sep 2026 04:00:00 GMT</pubDate></item>
+    <item><title>Image handling</title><link>https://navyaa.blog/images/</link><pubDate>Fri, 18 Sep 2026 04:00:00 GMT</pubDate>
+      <description>Body text.</description>
+      <media:content url="http://navyaa.blog/insecure.jpg" medium="image"/>
+      <media:content url="https://tracker.example/pixel.gif" medium="image"/>
+      <media:content url="/img/relative.jpg" medium="image"/></item>
+    <item><title>Video is not an image</title><link>https://navyaa.blog/video/</link><pubDate>Thu, 17 Sep 2026 04:00:00 GMT</pubDate>
+      <enclosure url="https://navyaa.blog/clip.mp4" type="video/mp4" length="1"/></item>
+    <item><title>Fancy &amp; "quoted" title, 5 &lt; 6</title><link>https://navyaa.blog/quotes/</link><pubDate>Wed, 16 Sep 2026 04:00:00 GMT</pubDate></item>
+  </channel>
+</rss>
