@@ -13,8 +13,12 @@ export type FeedItem = {
   /** ISO 8601 UTC instant taken from the item's own date field. */
   publishedAt: string;
   excerpt: string | null;
-  /** Article-level image declared by the item itself; never a site-wide fallback. */
+  /** Position within the source feed: the publisher's own order for items that share a timestamp. */
+  feedIndex: number;
+  /** Article-level image; never a site-wide fallback. */
   imageUrl: string | null;
+  /** Where imageUrl came from: the feed item itself, or the article page's own Open Graph image. */
+  imageSource: 'feed' | 'og' | null;
   /** True when a strict UTF-8-read-as-Windows-1252 repair was applied to the title or excerpt. */
   encodingRepaired: boolean;
 };
@@ -265,9 +269,10 @@ export function parseFeed(xml: string, source: FeedSource, now: Date = new Date(
     const excerptRaw = textOf(raw.description) || textOf(raw.summary) || textOf(raw['content:encoded']) || textOf(raw.content);
     const ex = repairMojibake(htmlToText(excerptRaw));
     const excerpt = ex.text && ex.text.toLowerCase() !== title.text.toLowerCase() ? truncate(ex.text, MAX_EXCERPT) : null;
+    const img = pickImage(raw, source, link.url);
     items.push({
       sourceId: source.id, title: title.text, url: link.url, canonicalUrl: link.canonical, publishedAt: date.iso, excerpt,
-      imageUrl: pickImage(raw, source, link.url), encodingRepaired: title.repaired || (!!excerpt && ex.repaired),
+      feedIndex: index, imageUrl: img, imageSource: img ? 'feed' : null, encodingRepaired: title.repaired || (!!excerpt && ex.repaired),
     });
   });
   return { items, rejected, totalItems: rawItems.length };

@@ -91,13 +91,13 @@ test('duplicates collapse on canonical URL and the newest copy wins', () => {
   assert.equal(out[0].title, 'Valid CDATA item');
 });
 
-test('equal timestamps are ordered deterministically regardless of feed order', () => {
+test('equal timestamps keep the publisher feed order, whatever order items are passed in', () => {
   const tie = edge.items.filter(i => i.title.startsWith('Tie '));
   assert.equal(tie[0].publishedAt, tie[1].publishedAt);
   const a = sortAndDedupe(edge.items).map(i => i.title);
   const b = sortAndDedupe([...edge.items].reverse()).map(i => i.title);
   assert.deepEqual(a, b);
-  assert.ok(a.indexOf('Tie A') < a.indexOf('Tie B'));
+  assert.ok(a.indexOf('Tie B') < a.indexOf('Tie A'), 'Tie B is listed first in the feed');
   const sorted = sortAndDedupe(edge.items).map(i => i.publishedAt);
   assert.deepEqual(sorted, [...sorted].sort().reverse());
 });

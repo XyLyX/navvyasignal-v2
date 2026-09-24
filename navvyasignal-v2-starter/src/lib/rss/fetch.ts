@@ -44,7 +44,7 @@ export async function fetchFeedText(source: FeedSource, opts: FetchOptions = {})
 
 function safeUrl(loc: string, base: string): URL | null { try { return new URL(loc, base); } catch { return null; } }
 
-async function readCapped(res: Response, maxBytes: number): Promise<Uint8Array> {
+export async function readCapped(res: Response, maxBytes: number): Promise<Uint8Array> {
   if (!res.body) {
     const buf = new Uint8Array(await res.arrayBuffer());
     if (buf.length > maxBytes) throw new FeedFetchError('too-large', `Body exceeds ${maxBytes} bytes`);

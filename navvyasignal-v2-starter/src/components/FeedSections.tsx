@@ -1,8 +1,7 @@
 import type { FeedSections as Data } from '@/lib/feeds';
 import { FeedCard, FeedEmpty, formatPublished } from './FeedCards';
+import { NAVYAA_COUNT, NETWORK_PER_SOURCE } from '@/lib/rss/limits';
 
-const NAVYAA_COUNT = 3;
-const NETWORK_PER_SOURCE = 2;
 
 /** A DIFFERENT LENS: newest published Navyaa articles, clearly attributed to a separate publication. */
 export function NavyaaLens({ data }: { data: Data }) {

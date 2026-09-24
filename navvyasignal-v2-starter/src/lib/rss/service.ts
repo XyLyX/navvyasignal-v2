@@ -22,9 +22,12 @@ export type SourceResult = {
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Newest first; equal timestamps fall back to title then canonical URL so output never depends on feed order. */
+/**
+ * Newest first. Equal timestamps keep the publisher's own feed order (matching the publication's index page), then
+ * canonical URL, so a given feed always yields the same result whatever order the items are passed in.
+ */
 export function compareItems(a: FeedItem, b: FeedItem): number {
-  return cmp(b.publishedAt, a.publishedAt) || cmp(a.title, b.title) || cmp(a.canonicalUrl, b.canonicalUrl);
+  return cmp(b.publishedAt, a.publishedAt) || a.feedIndex - b.feedIndex || cmp(a.canonicalUrl, b.canonicalUrl);
 }
 
 /** Deterministically sort and drop repeated canonical URLs (first after sorting wins). */
