@@ -32,7 +32,7 @@ Network sections are separate from Today's Intelligence, Notion records, the Wat
 
 ## Resilience: explicit empty state, no snapshots
 
-Each source is loaded independently. A timeout, HTTP error, wrong content type, oversize body, malformed XML or empty feed affects only that source: its group shows an empty state ("could not be reached when the site was last built" or "No published articles are listed yet") with a link to the publication, and the build logs `[rss] <id> unavailable at build: <reason>`. The build never fails because of a feed.
+Each source is loaded independently. A feed that lists entries but has every one rejected (status `all-rejected`) is reported separately from a genuinely empty feed: the build logs `[rss] <id>: feed has N entries but all N were rejected (reason=count, …)` using only counts and fixed reason codes, never article text, and the card says no valid articles could be read. A timeout, HTTP error, wrong content type, oversize body, malformed XML or empty feed affects only that source: its group shows an empty state ("could not be reached when the site was last built" or "No published articles are listed yet") with a link to the publication, and the build logs `[rss] <id> unavailable at build: <reason>`. The build never fails because of a feed.
 
 **No last-known snapshot is stored or committed.** This avoids stale content masquerading as fresh; everything displayed was retrieved by the current build, which the section footnote states ("Feeds checked when this page was built, <date>"). If a snapshot is wanted later it must record `retrievedAt` separately from each article's `publishedAt` and be labelled as a snapshot.
 
@@ -41,7 +41,7 @@ Each source is loaded independently. A timeout, HTTP error, wrong content type, 
 `npm test` (Node's built-in runner, Node 24 type stripping, no network) runs `tests/homepage-selection.test.cjs` and `tests/rss.test.ts` against `tests/fixtures/feeds/`:
 representative XML for all six feeds (`<source-id>.xml`) plus `edge-cases.xml`, `atom.xml`, `empty-feed.xml`, `malformed.xml`, `doctype.xml`. Fetch behaviour (outages, timeouts, oversize, redirects) uses injected `fetch` implementations.
 
-When `CI=true` and `V2_CI_STATIC_FIXTURE=1` (the validation workflow) the build reads those fixtures instead of the network, so CI is deterministic and the section renders with clearly labelled `Fixture:` items. For local verification `V2_RSS_FIXTURES=1` forces fixtures and `V2_RSS_FIXTURES=0` forces live feeds. Production/preview builds have neither flag and fetch the live feeds.
+When `CI=true` and `V2_CI_STATIC_FIXTURE=1` (the validation workflow) the build reads those fixtures instead of the network, so CI is deterministic and the section renders with clearly labelled `Fixture:` items. For local verification `V2_RSS_FIXTURES=1` forces fixtures and `V2_RSS_FIXTURES=0` forces live feeds. Production/preview builds have neither flag and fetch the live feeds. As a safeguard, fixtures are never used on a Netlify build (`NETLIFY=true`, `NETLIFY_BUILD_BASE` or `DEPLOY_ID` present) even if `V2_RSS_FIXTURES=1` or the CI flags are set; the build logs a warning and fetches live feeds (`src/lib/rss/env.ts`).
 
 ## Making new articles appear automatically
 

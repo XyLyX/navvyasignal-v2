@@ -21,11 +21,17 @@ export function FeedCard({ item, label, contentType }: { item: FeedItem; label: 
   </article>;
 }
 
+const EMPTY_TEXT: Record<string, string> = {
+  unavailable: 'This publication’s feed could not be reached when the site was last built.',
+  'all-rejected': 'No valid articles could be read from this publication’s feed when the site was last built.',
+  empty: 'No published articles are listed yet.',
+};
+
 export function FeedEmpty({ result }: { result: SourceResult }) {
   const s = result.source;
   return <div className="feed-empty">
     <span className="kicker">{s.name} · {s.contentType}</span>
-    <p>{result.status === 'unavailable' ? 'This publication’s feed could not be reached when the site was last built.' : 'No published articles are listed yet.'}</p>
+    <p>{EMPTY_TEXT[result.status] ?? EMPTY_TEXT.empty}</p>
     <a href={s.siteUrl} target="_blank" rel="noopener noreferrer">Visit {s.name} ↗</a>
   </div>;
 }
