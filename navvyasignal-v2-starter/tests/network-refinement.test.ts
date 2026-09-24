@@ -170,7 +170,8 @@ test('panel markup uses a fixed number of slots and the shared grid rules', () =
   assert.match(css, /\.np-grid\{[^}]*repeat\(2,minmax\(0,1fr\)\)[^}]*grid-auto-rows:1fr/);
   assert.match(css, /@media\(max-width:900px\)\{\.np-grid\{grid-template-columns:1fr/);
   const comp = fs.readFileSync(path.join(root, 'src/components/NetworkPanels.tsx'), 'utf8');
-  assert.match(comp, /NETWORK_PER_SOURCE - p\.items\.length/, 'short panels are padded so all six share one shape');
+  assert.match(comp, /Browse Articles/, 'every feed panel ends with the same compact footer link');
+  assert.doesNotMatch(comp, /np-item-empty/, 'no oversized dashed placeholders');
 });
 
 // ---- contrast on /network ----

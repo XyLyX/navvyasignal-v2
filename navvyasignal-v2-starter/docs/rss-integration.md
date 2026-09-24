@@ -38,7 +38,7 @@ Each source is loaded independently. A feed that lists entries but has every one
 
 ## /network page (V2.8.1)
 
-`/network` keeps the existing venture directory and adds six equal panels (`src/components/NetworkPanels.tsx`, model in `src/lib/networkPanels.ts`): OM4BIZ Insights, D6 Kitchens Insights, Zen Homes Insights, Zen Homes Portfolio, Design Code Studios Insights and Join Our Network. Panels sit in a two-column grid with `grid-auto-rows:1fr` (one column on mobile) so all six share one size; each feed panel always has `NETWORK_PER_SOURCE` (2) slots, padded with a "Browse" tile or an empty-state message. The homepage "From the Navvya Network" section is unchanged. Text on `/network` uses the `--np-*` colour tokens (ink and muted at least 7:1, gold at least 5:1), enforced by a test.
+`/network` keeps the existing venture directory and adds six equal panels (`src/components/NetworkPanels.tsx`, model in `src/lib/networkPanels.ts`): OM4BIZ Insights, D6 Kitchens Insights, Zen Homes Insights, Zen Homes Portfolio, Design Code Studios Insights and Join Our Network. Panels sit in a two-column grid with `grid-auto-rows:1fr` (one column on mobile) so all six share one size; each feed panel shows up to `NETWORK_PER_SOURCE` (2) articles and always ends with the same compact "Browse Articles ↗" footer link (V2.8.3 replaced the earlier oversized dashed placeholder), or an empty-state message when a feed has no articles. The homepage "From the Navvya Network" section is unchanged. Text on `/network` uses the `--np-*` colour tokens (ink and muted at least 7:1, gold at least 5:1), enforced by a test.
 
 ## Homepage refinement (V2.8.2)
 

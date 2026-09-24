@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { FeedSections } from '@/lib/feeds';
 import { buildNetworkPanels, type FeedPanel } from '@/lib/networkPanels';
-import { NETWORK_PER_SOURCE } from '@/lib/rss/limits';
 import { formatPublished } from './FeedCards';
 
 const EMPTY_TEXT: Record<string, string> = {
@@ -13,7 +12,6 @@ const EMPTY_TEXT: Record<string, string> = {
 const MARK: Record<string, string> = { om4biz: 'OM', 'd6-kitchens': 'D6', 'zen-insights': 'Z', 'zen-portfolio': 'Z', 'design-code': 'DC' };
 
 function Panel({ p }: { p: FeedPanel }) {
-  const fillers = Array.from({ length: Math.max(0, NETWORK_PER_SOURCE - p.items.length) }, (_, i) => i);
   return <section className="np-panel" aria-labelledby={`np-${p.id}`}>
     <header className="np-head">
       <div><span className="np-kicker">{p.contentType} · from {p.sourceName}</span><h3 id={`np-${p.id}`}>{p.title}</h3></div>
@@ -32,11 +30,11 @@ function Panel({ p }: { p: FeedPanel }) {
           <a className="np-read" href={item.url} target="_blank" rel="noopener noreferrer">Read on {p.sourceName} ↗</a>
         </div>
       </article>)}
-      {fillers.map(i => <div className="np-item np-item-empty" key={`f${i}`}>
-        {p.items.length === 0 && i === 0 ? <p>{EMPTY_TEXT[p.status] ?? EMPTY_TEXT.empty}</p> : <p>That is everything listed in this feed right now.</p>}
-        <a href={p.siteUrl} target="_blank" rel="noopener noreferrer">Browse {p.title} ↗</a>
-      </div>)}
+      {p.items.length === 0 ? <p className="np-empty">{EMPTY_TEXT[p.status] ?? EMPTY_TEXT.empty}</p> : null}
     </div>
+    <footer className="np-foot">
+      <a href={p.siteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Browse articles on ${p.title} (opens ${p.sourceName})`}>Browse Articles ↗</a>
+    </footer>
   </section>;
 }
 
@@ -52,7 +50,7 @@ export default function NetworkPanels({ data, heading = 'Latest from the network
         <div className="np-join-body">
           <p>Run a publication or a business you would like to see in the Navvya Network? Introduce yourself and tell us what you publish.</p>
           <p className="np-join-note">Network listings are separate from NavvyaSignal’s intelligence reporting and are not editorial endorsements.</p>
-          <Link className="np-join-cta" href={p.href}>Start an enquiry →</Link>
+          <Link className="np-join-cta" href={p.href}>Start an Enquiry →</Link>
         </div>
       </section>)}
     </div>

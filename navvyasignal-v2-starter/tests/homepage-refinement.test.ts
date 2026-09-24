@@ -39,7 +39,7 @@ test('Navyaa: text link removed; genuine logo tile above the third essay; three 
   assert.match(css, /\.nl-tile\{grid-column:3;grid-row:1/, 'sits in the third column, above the third essay');
   assert.match(css, /\.nl-cards\{grid-column:1 \/ -1\}/);
   assert.match(css, /\.navyaa-lens>div\.nl-cards\{max-width:none\}/, 'legacy 720px cap must not narrow the cards');
-  assert.match(css, /\.nl-tile-logo\{[^}]*width:148px;height:148px/, 'square tile');
+  assert.match(css, /\.nl-tile-logo\{[^}]*width:164px;height:164px/, 'square tile');
   assert.match(css, /@media\(max-width:900px\)\{\.navyaa-lens\.nl\{grid-template-columns:1fr\}/);
   const navyaa = FEED_SOURCES.find(s => s.id === 'navyaa')!;
   assert.equal(navyaa.siteUrl, 'https://navyaa.blog/');
@@ -83,7 +83,7 @@ test('homepage panels are the same six in the same order with Browse fillers and
   assert.deepEqual(panels.map(p => p.title), ['OM4BIZ Insights', 'D6 Kitchens Insights', 'Zen Homes Insights', 'Zen Homes Portfolio', 'Design Code Studios Insights', 'Join Our Network']);
   const one = panels.filter(p => p.kind === 'feed' && p.items.length === 1);
   assert.ok(one.length >= 3, 'one-article sources exist in the fixtures');
-  assert.match(read('src/components/NetworkPanels.tsx'), /Browse \{p\.title\}/);
+  assert.match(read('src/components/NetworkPanels.tsx'), /Browse Articles ↗/);
   assert.equal(panels[5].kind === 'join' && panels[5].href, '/network/join');
 });
 
