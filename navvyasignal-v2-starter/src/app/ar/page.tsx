@@ -23,7 +23,7 @@ export default function ArabicHome() {
     <header className="arabic-mast">
       <div className="container arabic-topbar">
         <Link href="/ar" className="arabic-wordmark">NAVVYASIGNAL <small>النسخة العربية</small></Link>
-        <nav aria-label="التنقل في النسخة العربية"><a href="#today">أبرز التطورات</a><a href="#desks-ar">الأقسام</a><a href="#about-ar">من نحن</a><Link href="/" hrefLang="en" lang="en">English</Link></nav>
+        <nav aria-label="التنقل في النسخة العربية"><a href="#today">أبرز التطورات</a><a href="#desks-ar">الأقسام</a><Link href="/ar/about">من نحن</Link><Link href="/" hrefLang="en" lang="en">English</Link></nav>
       </div>
     </header>
     <main>
@@ -41,7 +41,7 @@ export default function ArabicHome() {
       </section>
       <section id="desks-ar" className="arabic-desks"><div className="container arabic-section">
         <h2>مجالات التغطية</h2><div className="arabic-desk-grid">{desks.map(([slug,title,summary])=>
-          <article key={slug}><h3>{title}</h3><p>{summary}</p><Link href={`/desks/${slug}`} hrefLang="en">التغطية المتاحة بالإنجليزية ←</Link></article>
+          <article key={slug}><h3>{title}</h3><p>{summary}</p><Link href={`/ar/desks/${slug}`}>استكشف القسم ←</Link></article>
         )}</div>
       </div></section>
       <section id="about-ar" className="container arabic-section"><h2>عن نافيا سيغنال</h2>
