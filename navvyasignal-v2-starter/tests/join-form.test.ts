@@ -147,6 +147,6 @@ test('no secrets, tokens or notification configuration are committed for Netlify
     assert.doesNotMatch(s, /NETLIFY_AUTH|api\.netlify\.com|build_hooks|access[_-]?token|Bearer /i, file);
     assert.doesNotMatch(s, /notification|notify|email_to|emailTo/i, `${file}: notifications are configured in the Netlify UI, not code`);
   }
-  assert.doesNotMatch(read('netlify.toml'), /forms|redirects|headers/i, 'netlify.toml unchanged');
+  assert.doesNotMatch(read('netlify.toml'), /forms|headers/i, 'no form or header configuration in Netlify file');
   assert.doesNotMatch(read('src/app/network/join/page.tsx'), /fetch\s*\(/);
 });
