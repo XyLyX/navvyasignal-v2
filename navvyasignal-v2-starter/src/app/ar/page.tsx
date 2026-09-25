@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: 'نافيا سيغنال | قراءة في الأحداث وما وراءها',
   description: 'نافيا سيغنال: تغطية وتحليل للتطورات العالمية، مع الاهتمام بسياق الأحداث وترابطها.',
   robots: { index: false, follow: false },
+  alternates: { languages: { 'en': '/', 'ar': '/ar' } },
 };
 
 const desks = [
