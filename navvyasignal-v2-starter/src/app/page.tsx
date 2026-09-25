@@ -28,7 +28,7 @@ export default async function Home() {
       {selected.length ? selected.map((s, i) => <article className="story" key={s.id}>
         <span className="num">{String(i + 1).padStart(2, '0')}</span><div>
           <span className="kicker">{s.category}</span><h3><Link href={`/signals/${s.id}`}>{s.title}</Link></h3><p>{s.brief}</p>
-        </div></article>) : <div className="editorial-empty"><span className="kicker">AWAITING EDITORIAL SELECTION</span><h3>Today's edition is being prepared.</h3><p>No new signals have been selected for this publication date. Historical intelligence remains available separately.</p><Link href="/old-archives-v1">Browse Old Archives — Version 1 →</Link></div>}
+        </div></article>) : <div className="editorial-empty"><span className="kicker">AWAITING TODAY’S APPROVED REPORTS</span><h3>Today's edition is being prepared.</h3><p>No editor-approved reports are dated for today. Earlier V2 reporting remains in Signals; V1 reporting is archived separately.</p><Link href="/old-archives-v1">Browse Old Archives — Version 1 →</Link></div>}
     </section><aside><h2>Watchlist</h2><p className="aside-intro">Developments under continued editorial observation.</p>
       {watch.length ? <div className="watch-list">{watch.map(s => <WatchCard key={s.id} story={s} variant="aside" />)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
       <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
