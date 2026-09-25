@@ -226,3 +226,33 @@ aside{min-width:0;box-sizing:border-box;padding-left:28px}
 .watch-tabpanel{padding-top:4px}
 .watch-tabpanel:focus-visible{outline:3px solid #173b60;outline-offset:4px}
 @media(max-width:480px){.watch-tab{padding:11px 14px 9px;font-size:17px}}
+
+
+/* Independently written Arabic editorial edition. Scoped RTL; English pages stay LTR. */
+.arabic-edition{direction:rtl;font-family:Tahoma,Arial,sans-serif;line-height:1.9;text-align:right}
+.arabic-edition :is(h1,h2,h3,p,a){letter-spacing:normal;text-transform:none}
+.arabic-mast,.arabic-footer{background:var(--navy);color:#fff}
+.arabic-mast{border-bottom:4px solid var(--gold);padding:16px 0}
+.arabic-topbar,.arabic-mast nav,.arabic-footer .container{display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap}
+.arabic-mast nav{justify-content:flex-start}
+.arabic-mast a,.arabic-footer a{color:#fff}
+.arabic-wordmark{font:700 23px Arial,sans-serif;direction:ltr}
+.arabic-wordmark small{display:block;font:12px Tahoma,Arial,sans-serif;direction:rtl;color:#dfc48d}
+.arabic-hero{background:var(--deep);color:#fff;padding:64px 0}
+.arabic-kicker{color:#dfc48d}
+.arabic-hero h1{font:400 clamp(34px,6vw,62px)/1.35 Tahoma,Arial,sans-serif;margin:14px 0}
+.arabic-hero em{font-style:normal;color:#dfc48d}
+.arabic-hero p:last-child{font-size:20px;max-width:740px}
+.arabic-section{padding-top:54px;padding-bottom:54px}
+.arabic-section h2{font-size:31px;font-weight:600}
+.arabic-notice{background:#f0ece3;border-right:4px solid var(--gold);padding:24px;max-width:850px}
+.arabic-notice h3{font-size:21px;margin-top:0}
+.arabic-notice a,.arabic-desk-grid a{color:var(--navy);text-decoration:underline;text-underline-offset:4px}
+.arabic-desks{background:#f0ece3}
+.arabic-desk-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.arabic-desk-grid article{background:#fff;padding:22px;border-top:3px solid var(--gold)}
+.arabic-desk-grid h3{font-size:19px;margin:0}
+.arabic-desk-grid p{color:#53616d}
+.arabic-footer{padding:28px 0}
+.arabic-edition :is(a,button):focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+@media(max-width:760px){.arabic-desk-grid{grid-template-columns:1fr}.arabic-hero{padding:40px 0}}
