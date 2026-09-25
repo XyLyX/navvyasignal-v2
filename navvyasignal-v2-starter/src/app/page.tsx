@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
+import { approvedV2Ids, currentV2Stories } from '@/lib/v2Editorial';
 import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelection';
 import GlobalPulse from '@/components/GlobalPulse';
 import WatchCard from '@/components/WatchCard';
@@ -12,22 +13,22 @@ import NetworkPanels from '@/components/NetworkPanels';
 export default async function Home() {
   const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
   const publicationDate = dubaiPublicationDate();
-  const selected = selectHomepageStories(stories, publicationDate);
+  const selected = selectHomepageStories(currentV2Stories(stories, approvedV2Ids()), publicationDate);
   const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
   return <main>
     <GlobalPulse />
     <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE</p>
       <h1>Understand what matters.<br/><em>See what connects.</em></h1>
       <p className="intro">Independent global intelligence, grounded in documented developments and the connections between them.</p>
-      <p className="lead-note">Seven desks · Historical archive · Developing watchlists</p>
+      <p className="lead-note">Seven desks · Current reporting · Developing watchlists</p>
     </div></section>
     <div className="container content"><section>
       <div className="section-title"><h2>Today’s Intelligence</h2><Link href="/signals">All signals →</Link></div>
-      <p className="section-deck">New, editor-approved intelligence selected for the current Dubai publication date. Historical reporting remains in the archive.</p>
+      <p className="section-deck">New, editor-approved intelligence selected for the current Dubai publication date. Historical reporting remains in the separate V1 archive.</p>
       {selected.length ? selected.map((s, i) => <article className="story" key={s.id}>
         <span className="num">{String(i + 1).padStart(2, '0')}</span><div>
           <span className="kicker">{s.category}</span><h3><Link href={`/signals/${s.id}`}>{s.title}</Link></h3><p>{s.brief}</p>
-        </div></article>) : <div className="editorial-empty"><span className="kicker">AWAITING EDITORIAL SELECTION</span><h3>Today's edition is being prepared.</h3><p>No new signals have been selected for this publication date. Historical intelligence remains available separately.</p><Link href="/signals">Explore the historical archive →</Link></div>}
+        </div></article>) : <div className="editorial-empty"><span className="kicker">AWAITING EDITORIAL SELECTION</span><h3>Today's edition is being prepared.</h3><p>No new signals have been selected for this publication date. Historical intelligence remains available separately.</p><Link href="/old-archives-v1">Browse Old Archives — Version 1 →</Link></div>}
     </section><aside><h2>Watchlist</h2><p className="aside-intro">Developments under continued editorial observation.</p>
       {watch.length ? <div className="watch-list">{watch.map(s => <WatchCard key={s.id} story={s} variant="aside" />)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
       <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
