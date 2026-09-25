@@ -11,7 +11,7 @@ export default async function Signals() {
   return <main className="container inner">
     <p className="eyebrow">CURRENT SIGNALS · V2 PREVIEW</p>
     <h1>Signal Feed</h1>
-    <p>Only explicitly selected V2 reporting appears here. The original historical archive remains available separately through Old Archives — Version 1.</p>
+    <p>The latest editor-approved reports are listed by their V2 publication date, beginning 25 September 2026. Earlier V1 reporting remains in the separate archive.</p>
     <ArchiveExplorer stories={archive} />
   </main>;
 }
