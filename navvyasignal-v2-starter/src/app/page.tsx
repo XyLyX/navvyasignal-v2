@@ -34,7 +34,7 @@ export default async function Home() {
       <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
     </aside></div>
     <section className="desk-section" id="desks"><div className="container"><div className="section-title"><h2>Seven intelligence desks</h2></div>
-      <div className="desk-grid">{desks.map((d, i) => <Link key={d.slug} href={`/desks/${d.slug}`} className="desk">
+      <div className="desk-grid">{desks.map((d, i) => <Link key={d.slug} href={`/desks/${d.slug}`} className={`desk desk--${d.slug}`}>
         <span>0{i + 1}</span><h3>{d.name}</h3><b>Explore desk ↗</b>
       </Link>)}</div></div></section>
     <section className="container editorial-bottom" aria-label="Editorial formats">
