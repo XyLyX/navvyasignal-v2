@@ -1,4 +1,3 @@
-import NetworkArtwork from '@/components/NetworkArtwork';
 import Link from 'next/link';
 import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
@@ -6,14 +5,13 @@ import { approvedV2Ids, currentV2Stories } from '@/lib/v2Editorial';
 import { dubaiPublicationDate, selectHomepageStories } from '@/lib/homepageSelection';
 import GlobalPulse from '@/components/GlobalPulse';
 import WatchCard from '@/components/WatchCard';
-import { getNetworkCards } from '@/lib/networkMetadata';
 import { getFeedSections } from '@/lib/feeds';
 import { NavyaaLens } from '@/components/FeedSections';
 import NetworkPanels from '@/components/NetworkPanels';
 import ExpandableEditorial from '@/components/ExpandableEditorial';
 
 export default async function Home() {
-  const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
+  const [stories, feeds] = await Promise.all([getStories(), getFeedSections()]);
   const publicationDate = dubaiPublicationDate();
   const whatsappChannel = 'https://whatsapp.com/channel/0029VbDPeHH47Xe2oj9oSL3C';
   const channelUrl = whatsappChannel && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(whatsappChannel) ? whatsappChannel : null;
@@ -61,22 +59,6 @@ export default async function Home() {
       </div>
       <NavyaaLens data={feeds} />
       <NetworkPanels data={feeds} heading="From the Navvya Network" />
-      <section className="network-home" aria-label="The Navvya Network"><div className="section-title"><h2>The Navvya Network</h2><Link href="/network">Explore the network →</Link></div><p>Separate publications and affiliated ventures. Commercial updates are not independent intelligence reporting.</p>
-      <div className="network-home-grid">{['om4biz','fils-only','rate-manifest','zen-homes','design-code','d6-kitchens'].map(slug => networkCards.find(v => v.slug === slug)).filter((v): v is NonNullable<typeof v> => v != null).map(v =>
-        <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card">
-          <span className="network-home-visual"><NetworkArtwork name={v.name} slug={v.slug} image={v.image} siteUrl={v.url} /></span>
-          <span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span>
-        </a>)}
-        {networkCards.filter(v => v.slug === 'the-wasam').map(v =>
-          <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card">
-            <span className="network-home-visual"><NetworkArtwork name={v.name} slug={v.slug} image={v.image} siteUrl={v.url} /></span>
-            <span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span>
-          </a>)}
-        {[1,2].map(n => <div key={n} className="network-home-card network-coming-soon" aria-label={`Coming soon — future network venture ${n}`}>
-          <span className="network-home-visual network-soon-visual"><span>COMING SOON</span></span>
-          <span className="network-home-info"><span className="kicker">FUTURE VENTURE</span><strong>Coming Soon</strong><small>Another venture will join the network.</small></span>
-        </div>)}
-      </div></section>
       <section className="sponsor-reserve" aria-label="Future sponsorship placement">
         <span className="kicker">SPONSORSHIP</span><p>Reserved for clearly disclosed sponsorship and contextual advertising. No paid placement is active in this preview.</p>
       </section>
