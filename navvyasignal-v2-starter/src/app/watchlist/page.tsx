@@ -22,9 +22,9 @@ export default async function Watchlist() {
   const abandoned = stories.filter(s => s.watchStatus === 'Abandoned');
   const unspecified = stories.filter(s => !['Active', 'Resolved', 'Abandoned'].includes(s.watchStatus));
   return <main className="container inner watch-page">
-    <p className="eyebrow">ONGOING INTELLIGENCE</p>
+    <header className="intelligence-page-hero">\n    <p className="eyebrow">ONGOING INTELLIGENCE</p>
     <h1>Watchlist</h1>
-    <p className="watch-lede">Tracked situations, not ordinary breaking-news labels.</p>
+    <p className="watch-lede">Tracked situations, not ordinary breaking-news labels.</p>\n    </header>
     <WatchTabs tabs={[
       { id: 'active', label: 'Active', entries: active.map(slim) },
       { id: 'resolved', label: 'Resolved', entries: resolved.map(slim) },
