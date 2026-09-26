@@ -106,6 +106,11 @@ test('directory keeps Rate Manifest and FilsOnly as venture entries, never as RS
   assert.ok(!ids.some(id => /rate|fils/i.test(id)));
   assert.ok(!FEED_SOURCES.some(s => /ratemanifest|filsonly/i.test(s.feedUrl + s.siteUrl + s.allowedHosts.join())));
   assert.equal(FEED_SOURCES.length, 6);
-  assert.match(page, /networkCards\.filter\(v => v\.slug !== 'navyaa'\)/, 'homepage venture cards still list them');
+  // The homepage deliberately uses the approved three-row order, not the old directory filter.
+  const homepageOrder = ['om4biz','fils-only','rate-manifest','zen-homes','design-code','d6-kitchens'];
+  for (const slug of homepageOrder) assert.ok(networkVentures.some(v => v.slug === slug), slug);
+  assert.match(page, /networkCards\.find\(v => v\.slug === slug\)/, 'homepage renders ordered venture entries');
+  assert.match(page, /thewasam\.com/, 'third row contains The Wasam');
+  assert.match(page, /\[1,2\]\.map\(n =>/, 'third row reserves two Coming Soon cards');
   assert.match(read('src/app/network/page.tsx'), /cards\.map\(v=>/);
 });
