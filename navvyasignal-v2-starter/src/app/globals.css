@@ -432,3 +432,6 @@ body:has(.arabic-shell) > .footer {display:none}
 .whatsapp-channel-invite a:focus-visible{outline:3px solid #173d2a;outline-offset:3px}
 
 .network-brand-icon{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;width:100%;height:100%;min-height:140px;background:#f4f3ef;color:#162d43;text-align:center;padding:20px}.network-brand-icon img{display:block;width:68px;height:68px;object-fit:contain}.network-brand-icon strong{font:700 17px/1.4 Georgia,serif}
+
+/* Expanded lower editorial cards must override the collapsed four-line clamp. */
+.editorial-panel .editorial-expandable.is-open .editorial-preview-text{display:block;-webkit-line-clamp:unset;line-clamp:unset;overflow-y:auto}
