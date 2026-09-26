@@ -13,7 +13,10 @@ import NetworkPanels from '@/components/NetworkPanels';
 export default async function Home() {
   const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
   const publicationDate = dubaiPublicationDate();
-  const selected = selectHomepageStories(currentV2Stories(stories, approvedV2Ids()), publicationDate);
+  const selected = selectHomepageStories(currentV2Stories(stories, approvedV2Ids()), publicationDate, 8);
+  const edition = currentV2Stories(stories, approvedV2Ids());
+  const latestCrossDesk = edition.filter(s => s.contentType === 'Cross-Desk').sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
+  const latestLongRead = edition.filter(s => s.contentType === 'Long Read').sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
   const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
   return <main>
     <GlobalPulse />
@@ -40,16 +43,14 @@ export default async function Home() {
     <section className="container editorial-bottom" aria-label="Editorial formats">
       <div className="editorial-grid">
         <section className="editorial-panel"><span className="kicker">CROSS-DESK INTELLIGENCE</span>
-          <h2>Where the signals connect</h2><p>Analysis across regions, markets, technology and supply chains. Original cross-desk synthesis will appear here after editorial approval.</p>
-          <span className="editorial-pending">Editorial format in preparation</span>
+          <h2>Where the signals connect</h2>{latestCrossDesk ? <><h3><Link href={`/signals/${latestCrossDesk.id}`}>{latestCrossDesk.title}</Link></h3><p>{latestCrossDesk.brief}</p><Link href={`/signals/${latestCrossDesk.id}`}>Read cross-desk brief →</Link></> : <span className="editorial-pending">Awaiting an approved cross-desk report</span>}
         </section>
         <section className="editorial-panel"><span className="kicker">WEEKLY BRIEFING</span>
           <h2>The week in context</h2><p>Friday synthesis of the developments that mattered and the connections worth watching. No automated weekly email is connected to this preview.</p>
           <span className="editorial-pending">Awaiting first approved edition</span>
         </section>
         <section className="editorial-panel"><span className="kicker">LONG READS</span>
-          <h2>Beyond the daily signal</h2><p>Original, deeply reported analysis with documented sources and a clear editorial publication date.</p>
-          <span className="editorial-pending">Long-form desk in preparation</span>
+          <h2>Beyond the daily signal</h2>{latestLongRead ? <><h3><Link href={`/signals/${latestLongRead.id}`}>{latestLongRead.title}</Link></h3><p>{latestLongRead.brief}</p><span className="editorial-pending">{latestLongRead.body.trim() ? 'Read the long-form editorial' : 'Latest long-read brief · full article pending editorial integration'}</span><p><Link href={`/signals/${latestLongRead.id}`}>Read available report →</Link></p></> : <span className="editorial-pending">Awaiting an approved long read</span>}
         </section>
       </div>
       <NavyaaLens data={feeds} />
