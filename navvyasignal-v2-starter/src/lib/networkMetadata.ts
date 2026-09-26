@@ -24,13 +24,13 @@ async function loadCard(v: NetworkVenture): Promise<NetworkCard> {
   const html = (await res.text()).slice(0,200000);
   // Prefer the site's own social image; use its declared logo/icon only when no hero is supplied.
   const rawImage = readMeta(html,'og:image:secure_url') ?? readMeta(html,'og:image') ?? readMeta(html,'twitter:image') ??
-    (html.match(/<link\\s+[^>]*rel=["'][^"']*(?:apple-touch-icon|icon)[^"']*["'][^>]*>/i)?.[0].match(/href=["']([^"']+)["']/i)?.[1] ?? null) ??
-    (html.match(/<link\\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'][^"']*(?:apple-touch-icon|icon)[^"']*["']/i)?.[1] ?? null);
+    (html.match(/<link\s+[^>]*rel=["'][^"']*(?:apple-touch-icon|icon)[^"']*["'][^>]*>/i)?.[0].match(/href=["']([^"']+)["']/i)?.[1] ?? null) ??
+    (html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'][^"']*(?:apple-touch-icon|icon)[^"']*["']/i)?.[1] ?? null);
   let image: string | null = null;
   if (rawImage) {
    const u = new URL(rawImage, v.url);
-   const baseHost = new URL(v.url).hostname.replace(/^www\\./,'');
-   const imageHost = u.hostname.replace(/^www\\./,'');
+   const baseHost = new URL(v.url).hostname.replace(/^www\./,'');
+   const imageHost = u.hostname.replace(/^www\./,'');
    if (u.protocol === 'https:' && !u.username && !u.password &&
       (imageHost === baseHost || imageHost.endsWith('.' + baseHost) ||
        ['images.unsplash.com','res.cloudinary.com','cdn.shopify.com','images.squarespace-cdn.com','static.wixstatic.com','framerusercontent.com','assets-global.website-files.com','images.ctfassets.net','i0.wp.com','i1.wp.com','i2.wp.com'].includes(imageHost))) image = u.toString();
