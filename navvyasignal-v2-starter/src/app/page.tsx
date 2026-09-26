@@ -1,3 +1,4 @@
+import NetworkArtwork from '@/components/NetworkArtwork';
 import Link from 'next/link';
 import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
@@ -63,12 +64,12 @@ export default async function Home() {
       <section className="network-home" aria-label="The Navvya Network"><div className="section-title"><h2>The Navvya Network</h2><Link href="/network">Explore the network →</Link></div><p>Separate publications and affiliated ventures. Commercial updates are not independent intelligence reporting.</p>
       <div className="network-home-grid">{['om4biz','fils-only','rate-manifest','zen-homes','design-code','d6-kitchens'].map(slug => networkCards.find(v => v.slug === slug)).filter((v): v is NonNullable<typeof v> => v != null).map(v =>
         <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card">
-          <span className="network-home-visual">{v.image ? <img src={v.image} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className={`network-visual-fallback network-visual-${v.slug}`} aria-hidden="true"><span>{v.name}</span></span>}</span>
+          <span className="network-home-visual"><NetworkArtwork name={v.name} slug={v.slug} image={v.image} siteUrl={v.url} /></span>
           <span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span>
         </a>)}
         {networkCards.filter(v => v.slug === 'the-wasam').map(v =>
           <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card">
-            <span className="network-home-visual">{v.image ? <img src={v.image} alt="The Wasam website cover or logo" loading="lazy" referrerPolicy="no-referrer" /> : <span className="network-wasam-visual"><span>THE WASAM</span></span>}</span>
+            <span className="network-home-visual"><NetworkArtwork name={v.name} slug={v.slug} image={v.image} siteUrl={v.url} /></span>
             <span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span>
           </a>)}
         {[1,2].map(n => <div key={n} className="network-home-card network-coming-soon" aria-label={`Coming soon — future network venture ${n}`}>
