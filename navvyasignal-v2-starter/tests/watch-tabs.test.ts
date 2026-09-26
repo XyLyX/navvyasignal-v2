@@ -106,9 +106,11 @@ test('visible keyboard focus on tabs and panels', () => {
   assert.ok(ratio('#173b60', '#ffffff') >= 7);
 });
 
-test('responsive 3/2/1 grid and no fixed heights are preserved inside the panel', () => {
-  assert.match(css, /\.watch-grid\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(min\(100%,320px\),1fr\)\);gap:18px;align-items:start/);
-  const rules = css.split('\n').filter(l => l.startsWith('.watch')).join('\n');
-  assert.doesNotMatch(rules, /(^|[;{])\s*(height|max-height)\s*:/m);
+test('responsive 3/2/1 grid and strictly equal Watchlist cards', () => {
+  assert.match(css, /\.watch-grid\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:16px;align-items:stretch\}/);
+  assert.match(css, /\.watch-grid \.watch-card-page\{[^}]*height:280px;min-height:280px;max-height:280px/);
+  assert.match(css, /\.watch-grid \.watch-card-page \.watch-details\{[^}]*max-height:100px;overflow:auto/);
+  assert.match(css, /@media\(max-width:800px\)\{\.watch-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(css, /@media\(max-width:520px\)\{\.watch-grid\{grid-template-columns:1fr\}/);
   assert.match(css, /@media\(max-width:480px\)\{\.watch-tab\{padding:11px 14px 9px/, 'tabs fit a 375px screen');
 });
