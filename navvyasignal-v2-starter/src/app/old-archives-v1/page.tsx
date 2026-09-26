@@ -14,8 +14,8 @@ export default function OldArchivesPage() {
     <section>
       <h2>Browse the original archive</h2>
       <p>The existing V1 site retains its original article pages. Search and browse there using its existing facilities; no historical articles have been rebuilt for V2.</p>
-      <p><a href="https://archive.navvyasignal.com/" rel="noopener noreferrer">Open Old Archives — Version 1 ↗</a></p>
-      <p><small>The archive link becomes available once the original Framer site is connected to archive.navvyasignal.com.</small></p>
+      <p><a href="https://other-transform-191815.framer.app/" rel="noopener noreferrer">Open Old Archives — Version 1 ↗</a></p>
+      <p><small>Temporary Framer address while the archive subdomain is configured. Verify individual historical article URLs before the production switch.</small></p>
     </section>
   </main>;
 }
