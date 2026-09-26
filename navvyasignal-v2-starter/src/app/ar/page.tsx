@@ -45,3 +45,4 @@ export default async function ArabicHome() {
  <p className="arabic-editorial-note">هذه الأشكال التحريرية قيد الإعداد، ولن تُنشر قبل المراجعة.</p>
  </section>
  </main>;
+}
