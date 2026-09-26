@@ -56,6 +56,7 @@ export const V2_RELEASE_STORY_IDS = [
   '3e611486-b145-81a2-a79e-ddbb7c4857da',
   '3e611486-b145-81a4-8715-e120c45f3b57',
   '3e611486-b145-8176-b0d7-fc9f936d7abd',
+  '3e611486-b145-810f-8247-db88c2d66076',
 ] as const;
 
 /** Explicit launch selection; environment IDs may add subsequent editor-approved records. */
