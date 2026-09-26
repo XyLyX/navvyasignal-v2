@@ -2,10 +2,4 @@
 command = "npm run build"
 publish = "out"
 
-# V1 legacy article preservation after Framer is connected to archive.navvyasignal.com.
-# Unforced redirect: existing V2 /signals/<uuid> static pages take precedence.
-[[redirects]]
-from = "/signals/*"
-to = "https://archive.navvyasignal.com/signals/:splat"
-status = 301
-force = false
+# Historical article redirects are intentionally disabled until the Framer\n# archive hostname and original V1 article path structure are verified.\n# The /old-archives-v1 landing page links to the existing Framer base address.\n
