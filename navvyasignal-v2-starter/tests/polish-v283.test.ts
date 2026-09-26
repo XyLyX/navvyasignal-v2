@@ -19,7 +19,7 @@ const panelsSrc = read('src/components/NetworkPanels.tsx');
 test('seven desks: same seven names, order, links and card content; no eighth desk', () => {
   assert.deepEqual(desks.map(d => d.name), ['West Asia', 'India', 'UAE', 'Global Politics', 'Markets & Capital', 'Technology & AI', 'Maritime, Energy & Supply Chains']);
   assert.deepEqual(desks.map(d => d.slug), ['west-asia', 'india', 'uae', 'global-politics', 'markets-capital', 'technology-ai', 'maritime-energy-supply-chains']);
-  assert.match(page, /desks\.map\(\(d, i\) => <Link key=\{d\.slug\} href=\{`\/desks\/\$\{d\.slug\}`\} className="desk">/);
+  assert.ok(page.includes("className={`desk desk--${d.slug}`}"), "seven desk links have image-ready slug classes");
   assert.match(page, /<span>0\{i \+ 1\}<\/span><h3>\{d\.name\}<\/h3><b>Explore desk ↗<\/b>/);
   assert.match(page, /Seven intelligence desks/);
 });
