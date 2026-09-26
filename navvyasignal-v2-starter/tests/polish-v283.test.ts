@@ -98,7 +98,7 @@ test('images: covers stay CSS-only, photos stack above them, no stock or generic
 test('directory keeps Rate Manifest and FilsOnly as venture entries, never as RSS contributors', () => {
   const slugs = networkVentures.map(v => v.slug);
   assert.ok(slugs.includes('rate-manifest') && slugs.includes('fils-only'));
-  assert.equal(networkVentures.length, 7);
+  assert.equal(networkVentures.length, 8);
   for (const slug of ['rate-manifest', 'fils-only']) {
     assert.equal(networkVentures.find(v => v.slug === slug)!.feedStatus, 'unverified', slug);
   }
@@ -110,7 +110,7 @@ test('directory keeps Rate Manifest and FilsOnly as venture entries, never as RS
   const homepageOrder = ['om4biz','fils-only','rate-manifest','zen-homes','design-code','d6-kitchens'];
   for (const slug of homepageOrder) assert.ok(networkVentures.some(v => v.slug === slug), slug);
   assert.match(page, /networkCards\.find\(v => v\.slug === slug\)/, 'homepage renders ordered venture entries');
-  assert.match(page, /thewasam\.com/, 'third row contains The Wasam');
+  assert.match(page, /the-wasam/, 'third row contains The Wasam');
   assert.match(page, /\[1,2\]\.map\(n =>/, 'third row reserves two Coming Soon cards');
   assert.match(read('src/app/network/page.tsx'), /cards\.map\(v=>/);
 });
