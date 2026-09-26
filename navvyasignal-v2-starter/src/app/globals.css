@@ -267,3 +267,51 @@ body:has(.arabic-shell) > .footer {display:none}
 .language-switch a:focus-visible{outline:3px solid #dfc48d;outline-offset:3px}
 .arabic-shell{direction:rtl}
 @media(max-width:760px){.language-switch{gap:8px;padding:7px 9px}.arabic-topbar{gap:12px}.arabic-mast nav{gap:12px}}
+
+/* Arabic homepage: equivalent editorial hierarchy with native RTL reading order. */
+.arabic-home{font-size:17px;line-height:1.8}
+.arabic-home .global-pulse{direction:rtl;text-align:right;font-family:Arial,Tahoma,sans-serif;line-height:1.45}
+.arabic-home .pulse-clocks,.arabic-home .pulse-instruments{direction:ltr}
+.arabic-home .pulse-clock,.arabic-home .pulse-quote{text-align:right;direction:rtl}
+.arabic-home .pulse-quote-embed{direction:ltr;text-align:left}
+.arabic-home .pulse-heading,.arabic-home .pulse-market-title{flex-direction:row-reverse}
+.arabic-hero{padding:52px 0 54px}
+.arabic-hero .container{max-width:1200px}
+.arabic-hero h1{font-size:clamp(35px,4.4vw,61px);line-height:1.45;max-width:860px}
+.arabic-hero p:last-child{max-width:780px}
+.arabic-hero-note{color:#e1c58d;font-size:14px!important;margin-top:20px}
+.arabic-news-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(270px,1fr);gap:46px;padding-top:48px;padding-bottom:52px}
+.arabic-news-layout>*{min-width:0}
+.arabic-section-title{display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-bottom:2px solid var(--navy);padding-bottom:12px}
+.arabic-section-title h2{font-size:clamp(25px,2.8vw,34px);line-height:1.45;font-weight:600;margin:0}
+.arabic-section-title a,.arabic-editorial-empty a,.arabic-watch-panel a{font-size:15px;color:var(--navy);text-decoration:underline;text-underline-offset:4px}
+.arabic-section-deck{font-size:16px;color:#465666;max-width:720px}
+.arabic-editorial-empty{background:#f7f4ed;border-right:4px solid var(--gold);padding:26px;margin-top:22px}
+.arabic-editorial-empty h3{font-size:26px;margin:10px 0}
+.arabic-editorial-empty p,.arabic-watch-panel p{font-size:16px;line-height:1.85}
+.arabic-story{padding:24px 0;border-bottom:1px solid #d7d2c8}
+.arabic-story h3{font-size:25px;margin:8px 0}
+.arabic-story a{color:var(--navy)}
+.arabic-watch{border-right:1px solid #d7d2c8;padding-right:26px;padding-left:0;border-left:0}
+.arabic-watch>p{font-size:16px;color:#465666}
+.arabic-watch-panel{background:#fff;border:1px solid #ded5c5;border-top:3px solid var(--gold);padding:22px;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.arabic-watch-panel strong{font:700 46px Arial,sans-serif;color:var(--navy)}
+.arabic-watch-panel p{margin:0}
+.arabic-desks{background:#f1ede5}
+.arabic-desk-grid{grid-template-columns:repeat(12,minmax(0,1fr));gap:15px;margin-top:25px}
+.arabic-desk-card{grid-column:span 3;background:#fff;border-top:3px solid var(--gold);padding:24px;text-decoration:none!important;min-width:0;display:flex;flex-direction:column;gap:10px}
+.arabic-desk-card:nth-child(n+5){grid-column:span 4}
+.arabic-desk-card h3{font-size:23px;line-height:1.4;margin:0;color:var(--navy)}
+.arabic-desk-card p{font-size:16px;line-height:1.8;color:#3f4d59;margin:0;flex:1}
+.arabic-desk-card strong{font-size:14px;text-decoration:underline;text-underline-offset:4px}
+.arabic-desk-number{font:700 13px Arial,sans-serif;color:#916a1e}
+.arabic-format-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:24px 0}
+.arabic-format-grid article{border:1px solid #d7d2c8;border-top:3px solid var(--gold);padding:23px}
+.arabic-format-grid h3{font-size:23px;line-height:1.45;margin:10px 0}
+.arabic-format-grid p{font-size:16px;line-height:1.8}
+.arabic-editorial-note{font-size:15px;color:#455463}
+.arabic-shell .arabic-mast{padding:12px 0}
+.arabic-shell .arabic-mast nav{font-size:15px;gap:20px}
+.arabic-shell .arabic-wordmark{font-size:22px}
+@media(max-width:900px){.arabic-news-layout{grid-template-columns:1fr;gap:30px}.arabic-watch{border-right:0;border-top:1px solid #d7d2c8;padding:26px 0 0}.arabic-desk-card{grid-column:span 6!important}.arabic-format-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.arabic-home{font-size:16px}.arabic-hero{padding:40px 0}.arabic-news-layout{padding-top:32px}.arabic-desk-card{grid-column:span 12!important}.arabic-desk-grid{gap:12px}.arabic-shell .arabic-topbar{align-items:flex-start}.arabic-shell .arabic-mast nav{gap:12px;flex-wrap:wrap}.arabic-section-title{align-items:flex-start}.arabic-section-title h2{font-size:25px}}
