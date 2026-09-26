@@ -424,3 +424,9 @@ body:has(.arabic-shell) > .footer {display:none}
 .article-share button{background:none;border:0;text-decoration:underline;cursor:pointer;padding:0}
 .footer-social{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
 .footer-social a{color:#fff;text-decoration:underline;text-underline-offset:3px}
+
+/* Official WhatsApp Channel invitation; rendered only with verified channel URL. */
+.whatsapp-channel-invite{display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap;margin:0 auto 36px;padding:25px 28px;border:1px solid #bad5c3;border-left:4px solid #238b55;background:#f2f8f3}
+.whatsapp-channel-invite>div{max-width:680px}.whatsapp-channel-invite h2{margin:8px 0;color:#193c2d}.whatsapp-channel-invite p{margin:0;line-height:1.55;color:#294c3b}
+.whatsapp-channel-invite a{display:inline-block;background:#216c48;color:#fff;text-decoration:none;font:700 14px Arial,sans-serif;padding:13px 19px}
+.whatsapp-channel-invite a:focus-visible{outline:3px solid #173d2a;outline-offset:3px}
