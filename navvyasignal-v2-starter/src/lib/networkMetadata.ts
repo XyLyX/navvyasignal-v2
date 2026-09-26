@@ -19,7 +19,7 @@ async function loadCard(v: NetworkVenture): Promise<NetworkCard> {
  // CI must be deterministic; live public metadata is optional, never a build prerequisite.
  if (process.env.CI === 'true' && process.env.V2_CI_STATIC_FIXTURE === '1') return fallback;
  try {
-  const res = await fetch(v.url,{signal:AbortSignal.timeout(3500),headers:{'User-Agent':'NavvyaSignalPreview/1.0 (public OG metadata)'}});
+  const res = await fetch(v.url,{signal:AbortSignal.timeout(7000),headers:{'User-Agent':'NavvyaSignalPreview/1.0 (public OG metadata)'}});
   if (!res.ok || !(res.headers.get('content-type') ?? '').includes('text/html')) return fallback;
   const html = (await res.text()).slice(0,200000);
   // Prefer the site's own social image; use its declared logo/icon only when no hero is supplied.
@@ -32,7 +32,8 @@ async function loadCard(v: NetworkVenture): Promise<NetworkCard> {
    const baseHost = new URL(v.url).hostname.replace(/^www\\./,'');
    const imageHost = u.hostname.replace(/^www\\./,'');
    if (u.protocol === 'https:' && !u.username && !u.password &&
-      (imageHost === baseHost || imageHost.endsWith('.' + baseHost))) image = u.toString();
+      (imageHost === baseHost || imageHost.endsWith('.' + baseHost) ||
+       ['images.unsplash.com','res.cloudinary.com','cdn.shopify.com','images.squarespace-cdn.com','static.wixstatic.com','framerusercontent.com','assets-global.website-files.com','images.ctfassets.net','i0.wp.com','i1.wp.com','i2.wp.com'].includes(imageHost))) image = u.toString();
   }
   return {...fallback,image,displayTitle:clean(readMeta(html,'og:title'),95) ?? v.name,
    displayDescription:clean(readMeta(html,'og:description') ?? readMeta(html,'description'),190) ?? v.description,
