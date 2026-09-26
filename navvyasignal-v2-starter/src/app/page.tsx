@@ -15,7 +15,7 @@ import ExpandableEditorial from '@/components/ExpandableEditorial';
 export default async function Home() {
   const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
   const publicationDate = dubaiPublicationDate();
-  const whatsappChannel = process.env.NEXT_PUBLIC_WHATSAPP_CHANNEL_URL?.trim();
+  const whatsappChannel = 'https://whatsapp.com/channel/0029VbDPeHH47Xe2oj9oSL3C';
   const channelUrl = whatsappChannel && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(whatsappChannel) ? whatsappChannel : null;
   const selected = selectHomepageStories(currentV2Stories(stories, approvedV2Ids()), publicationDate, 8);
   const edition = currentV2Stories(stories, approvedV2Ids());
