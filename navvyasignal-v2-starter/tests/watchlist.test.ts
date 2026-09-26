@@ -63,9 +63,9 @@ test('cards: excerpts only, links only to the existing /signals/<id> page, never
   assert.doesNotMatch(card, /https?:\/\//, 'no external or invented URLs');
   assert.doesNotMatch(card, /dangerouslySetInnerHTML/);
   assert.match(card, /Read full analysis/);
-  assert.match(card, /variant === 'page' && truncated/, 'full summary is offered inline on /watchlist when the excerpt is limited');
-  assert.match(card, /<details className="watch-details"><summary>Show full summary<\/summary>/);
-  assert.match(card, /\{excerpt \? <p className="watch-excerpt">/, 'a missing summary renders no empty paragraph');
+  assert.match(card, /variant === 'page' && excerpt/, 'page briefs remain collapsed until requested');
+  assert.match(card, /<details className="watch-details"><summary>Show brief<\/summary>/);
+  assert.match(card, /variant === 'aside' && excerpt/, 'sidebar excerpt is conditional');
   assert.match(card, /story\.watchStatus \|\| 'Status pending'/);
 });
 
