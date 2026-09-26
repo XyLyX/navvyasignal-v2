@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>Navyaa</title>
+<link>https://navyaa.blog/</link>
+<atom:link href="https://navyaa.blog/feed.xml" rel="self" type="application/rss+xml" />
+<description>Fixture copy of the Navyaa feed shape.</description>
+<language>en</language>
+<item>
+  <title>Fixture: Three Voices, One Kitchen Table</title>
+  <link>https://navyaa.blog/fixture-three-voices/</link>
+  <guid>https://navyaa.blog/fixture-three-voices/</guid>
+  <description><![CDATA[A sample essay excerpt with CDATA and an apostrophe entity: it&#39;s deliberately plain text.]]></description>
+  <pubDate>Thu, 24 Sep 2026 14:25:00 GMT</pubDate>
+</item>
+<item>
+  <title>Fixture: Stillness After the Pavement Ends</title>
+  <link>https://navyaa.blog/fixture-stillness/</link>
+  <guid>https://navyaa.blog/fixture-stillness/</guid>
+  <description><![CDATA[A sample excerpt whose source encoding is broken â€” the dash above should be repaired conservatively.]]></description>
+  <pubDate>Tue, 22 Sep 2026 20:28:00 GMT</pubDate>
+</item>
+<item>
+  <title>Fixture: The Cage Called Practical</title>
+  <link>https://navyaa.blog/fixture-practical/</link>
+  <guid>https://navyaa.blog/fixture-practical/</guid>
+  <description><![CDATA[What if being practical is the real risk?]]></description>
+  <pubDate>Sat, 12 Sep 2026 22:13:00 GMT</pubDate>
+</item>
+<item>
+  <title>Fixture: Love Is Not a Ledger</title>
+  <link>https://navyaa.blog/fixture-ledger/</link>
+  <guid>https://navyaa.blog/fixture-ledger/</guid>
+  <description><![CDATA[Keeping score can suffocate intimacy.]]></description>
+  <pubDate>Thu, 10 Sep 2026 18:42:00 GMT</pubDate>
+</item>
+</channel>
+</rss>

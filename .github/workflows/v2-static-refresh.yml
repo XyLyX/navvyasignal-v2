@@ -1,0 +1,52 @@
+name: V2 static content refresh
+
+# GitHub scheduled workflows only run from the repository default branch (main).
+# This workflow is staged on the draft branch and cannot run on a schedule until merged.
+# It only POSTs the isolated V2 Netlify site's build hook; it never touches Framer V1, Kit, Whapi or Notion.
+on:
+  schedule:
+    # Dubai is UTC+4 year-round: 00:10 GST, plus every four hours.
+    - cron: '10 0,4,8,12,16,20 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Validate the secret and format only; do NOT trigger a build (default: true)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-static-content-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: github.repository == 'XyLyX/navvyasignal-v2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: v2-preview
+    steps:
+      - name: Trigger isolated V2 Netlify build hook
+        env:
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          # Manual runs default to a dry run; scheduled runs always trigger the build.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "${V2_NETLIFY_BUILD_HOOK:-}" ]; then
+            echo 'V2_NETLIFY_BUILD_HOOK is not configured; no deployment triggered.'
+            exit 1
+          fi
+          if ! printf '%s' "$V2_NETLIFY_BUILD_HOOK" | grep -Eq '^https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+$'; then
+            echo 'Invalid Netlify build hook URL format; no deployment triggered.'
+            exit 1
+          fi
+          if [ "${DRY_RUN:-false}" = 'true' ]; then
+            echo 'Dry run: the secret is configured and well formed. No build was triggered.'
+            exit 0
+          fi
+          curl --fail --silent --show-error --retry 2 --max-time 30 \
+            -X POST "$V2_NETLIFY_BUILD_HOOK"
+          echo 'V2 preview build queued; deployment success must be checked separately.'

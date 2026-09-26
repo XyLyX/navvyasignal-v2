@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>Zen Homes - Insights</title>
+    <link>https://zenhomesglobal.com/insights/</link>
+    <description>Fixture copy of the Zen Homes Insights feed shape.</description>
+    <language>en</language>
+    <atom:link href="https://zenhomesglobal.com/insights/feed.xml" rel="self" type="application/rss+xml"/>
+    <lastBuildDate>Thu, 24 Sep 2026 12:31:29 +0000</lastBuildDate>
+    <item>
+      <title>Fixture: Waterfront island yields</title>
+      <link>https://zenhomesglobal.com/insights/fixture-waterfront-yields/</link>
+      <guid isPermaLink="true">https://zenhomesglobal.com/insights/fixture-waterfront-yields/</guid>
+      <pubDate>Fri, 28 Aug 2026 09:00:00 +0400</pubDate>
+      <description>Sample excerpt on pricing and rental yields &amp; service charges.</description>
+    </item>
+    <item>
+      <title>Fixture: Downtown or Marina</title>
+      <link>https://zenhomesglobal.com/insights/fixture-downtown-marina/</link>
+      <guid isPermaLink="true">https://zenhomesglobal.com/insights/fixture-downtown-marina/</guid>
+      <pubDate>Fri, 28 Aug 2026 09:00:00 +0400</pubDate>
+      <description>Sample excerpt with an identical timestamp to the item above.</description>
+    </item>
+  </channel>
+</rss>

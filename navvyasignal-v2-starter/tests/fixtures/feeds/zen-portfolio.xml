@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>Zen Homes - Portfolio Intelligence</title>
+    <link>https://zenhomesglobal.com/portfolio</link>
+    <description>Fixture copy of the Zen Homes Portfolio feed shape.</description>
+    <language>en</language>
+    <atom:link href="https://zenhomesglobal.com/portfolio/feed.xml" rel="self" type="application/rss+xml"/>
+    <lastBuildDate>Thu, 24 Sep 2026 12:31:29 +0000</lastBuildDate>
+    <item>
+      <title>Fixture: Marina Waterfront &amp; Residences</title>
+      <link>https://zenhomesglobal.com/fixture-marina-waterfront/</link>
+      <guid isPermaLink="true">https://zenhomesglobal.com/fixture-marina-waterfront/</guid>
+      <pubDate>Tue, 22 Sep 2026 09:00:00 +0400</pubDate>
+      <description>Sample excerpt for a portfolio item that carries an article-level image.</description>
+      <enclosure url="https://zenhomesglobal.com/fixture-marina-waterfront/img/hero.jpg" length="230085" type="image/jpeg"/>
+      <media:content url="https://zenhomesglobal.com/fixture-marina-waterfront/img/hero.jpg" type="image/jpeg" medium="image"/>
+    </item>
+    <item>
+      <title>Fixture: Metro-side tower</title>
+      <link>https://zenhomesglobal.com/fixture-metro-tower/</link>
+      <guid isPermaLink="true">https://zenhomesglobal.com/fixture-metro-tower/</guid>
+      <pubDate>Tue, 22 Sep 2026 09:00:00 +0400</pubDate>
+      <description>Sample excerpt for a portfolio item with enclosure only.</description>
+      <enclosure url="https://zenhomesglobal.com/fixture-metro-tower/img/hero.jpg" length="155441" type="image/jpeg"/>
+    </item>
+  </channel>
+</rss>
