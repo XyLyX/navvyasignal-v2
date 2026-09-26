@@ -377,3 +377,25 @@ body:has(.arabic-shell) > .footer {display:none}
 .watch-grid .watch-card-page .watch-details[open]{border-top:1px solid #e5ddcf;padding-top:7px}
 .watch-grid .watch-card-page .watch-excerpt{font-size:13px;line-height:1.5;margin:7px 0}
 @media(max-width:600px){.signal-feed-page::before,.watch-page::before{opacity:.22;height:210px}}
+
+/* V2 final: full-visibility photographic banners with legible white copy. */
+.signal-feed-page::before,.watch-page::before{content:none!important}
+.intelligence-page-hero{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;justify-content:center;min-height:252px;margin:0 0 22px;padding:34px 40px;background:#142f49;color:#fff}
+.intelligence-page-hero::before{content:"";position:absolute;z-index:-2;inset:0;background-position:center;background-size:cover;filter:grayscale(1) contrast(1.08)}
+.signal-feed-page .intelligence-page-hero::before{background-image:url("https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1600&q=85")}
+.watch-page .intelligence-page-hero::before{background-image:url("https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1600&q=85")}
+.intelligence-page-hero::after{content:"";position:absolute;z-index:-1;inset:0;background:linear-gradient(90deg,rgba(10,29,47,.88) 0%,rgba(10,29,47,.65) 42%,rgba(10,29,47,.18) 100%)}
+.intelligence-page-hero .eyebrow{color:#efd4a1!important;letter-spacing:1.7px}
+.intelligence-page-hero h1{color:#fff!important;text-shadow:0 2px 12px rgba(0,0,0,.45);margin:10px 0 12px}
+.intelligence-page-hero p:not(.eyebrow){color:#fff!important;text-shadow:0 1px 8px rgba(0,0,0,.7);max-width:630px;line-height:1.65}
+.watch-page .watch-tabs{margin-top:8px}
+/* Strictly symmetrical Watchlist: fixed-height cards, consistent three-column tracks. */
+.watch-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+.watch-grid .watch-card-page{box-sizing:border-box;height:280px;min-height:280px;max-height:280px;min-width:0;display:flex;flex-direction:column;gap:8px;overflow:hidden;padding:17px 18px 16px}
+.watch-grid .watch-card-page h3{font-size:18px;line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;line-clamp:5;overflow:hidden;min-height:0;margin:4px 0 0}
+.watch-grid .watch-card-page .watch-meta{flex:none}
+.watch-grid .watch-card-page .watch-details{margin-top:auto;flex:none;max-height:100px;overflow:auto}
+.watch-grid .watch-card-page .watch-more{margin-top:0;flex:none}
+.watch-grid .watch-card-page .watch-details[open]{max-height:100px;overflow:auto}
+@media(max-width:800px){.watch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.intelligence-page-hero{min-height:220px;padding:28px}}
+@media(max-width:520px){.watch-grid{grid-template-columns:1fr}.intelligence-page-hero{min-height:205px;padding:25px 22px}.intelligence-page-hero::after{background:linear-gradient(90deg,rgba(10,29,47,.92),rgba(10,29,47,.45))}}
