@@ -1,7 +1,7 @@
 name: V2 preview validation
 on:
   push:
-    branches: [notion-readonly]
+    branches: [notion-readonly, release/v2-english]
   workflow_dispatch:
 
 permissions:
