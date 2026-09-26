@@ -14,6 +14,8 @@ import ExpandableEditorial from '@/components/ExpandableEditorial';
 export default async function Home() {
   const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
   const publicationDate = dubaiPublicationDate();
+  const whatsappChannel = process.env.NEXT_PUBLIC_WHATSAPP_CHANNEL_URL?.trim();
+  const channelUrl = whatsappChannel && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(whatsappChannel) ? whatsappChannel : null;
   const selected = selectHomepageStories(currentV2Stories(stories, approvedV2Ids()), publicationDate, 8);
   const edition = currentV2Stories(stories, approvedV2Ids());
   const latestCrossDesk = edition.filter(s => s.contentType === 'Cross-Desk').sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
@@ -39,6 +41,7 @@ export default async function Home() {
       <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
     </aside></div>
     <section className="container subscribe-brief" aria-label="Daily Brief subscription"><div><h2>Subscribe to the Daily Brief</h2><p>Get in touch to request the daily intelligence briefing. We’ll confirm subscription availability by email.</p></div><a href="mailto:hello@navvyasignal.com?subject=Daily%20Brief%20subscription%20request">Request subscription →</a></section>
+    {channelUrl && <section className="container whatsapp-channel-invite" aria-label="Join our WhatsApp Channel"><div><span className="kicker">NAVVYASIGNAL ON WHATSAPP</span><h2>Join our WhatsApp Channel</h2><p>Follow NavvyaSignal for intelligence updates and links to the latest reporting. Channel membership is optional and separate from the Daily Brief email subscription.</p></div><a href={channelUrl} target="_blank" rel="noopener noreferrer">Join the WhatsApp Channel ↗</a></section>}
     <section className="desk-section" id="desks"><div className="container"><div className="section-title"><h2>Seven intelligence desks</h2></div>
       <div className="desk-grid">{desks.map((d, i) => <Link key={d.slug} href={`/desks/${d.slug}`} className={`desk desk--${d.slug}`}>
         <span>0{i + 1}</span><h3>{d.name}</h3><b>Explore desk ↗</b>
