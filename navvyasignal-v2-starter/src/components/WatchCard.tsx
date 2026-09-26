@@ -6,7 +6,7 @@ export type WatchEntry = Pick<Story, 'id' | 'title' | 'brief' | 'watchStatus' | 
 import { briefParagraphs, watchExcerpt } from '@/lib/watchExcerpt';
 
 export const WATCH_EXCERPT_ASIDE = 220;
-export const WATCH_EXCERPT_PAGE = 280;
+export const WATCH_EXCERPT_PAGE = 155;
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}/;
 
