@@ -20,12 +20,6 @@ const desks = [
 
 export default function ArabicHome() {
   return <div lang="ar" dir="rtl" className="arabic-edition">
-    <header className="arabic-mast">
-      <div className="container arabic-topbar">
-        <Link href="/ar" className="arabic-wordmark">NAVVYASIGNAL <small>النسخة العربية</small></Link>
-        <nav aria-label="التنقل في النسخة العربية"><Link href="/ar/signals">التقارير</Link><a href="#desks-ar">الأقسام</a><Link href="/ar/about">من نحن</Link><Link href="/" hrefLang="en" lang="en">English</Link></nav>
-      </div>
-    </header>
     <main>
       <section className="arabic-hero"><div className="container">
         <p className="arabic-kicker">قراءة مستقلة في الشؤون العالمية</p>
@@ -49,6 +43,5 @@ export default function ArabicHome() {
         <p>نعدّ النسخة العربية لتكون إصداراً تحريرياً قائماً بذاته، بلغة صحفية عربية سليمة، لا نسخة حرفية من النص الإنجليزي.</p>
       </section>
     </main>
-    <footer className="arabic-footer"><div className="container"><span>نافيا سيغنال — النسخة العربية</span><a href="mailto:hello@navvyasignal.com" dir="ltr">hello@navvyasignal.com</a><Link href="/" hrefLang="en" lang="en">English edition</Link></div></footer>
   </div>;
 }
