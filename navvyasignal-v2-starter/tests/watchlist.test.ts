@@ -94,8 +94,10 @@ test('layout: parent grid, sidebar width, wrapping, breakpoints and no fixed hei
   assert.match(css, /\.watch-grid\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(min\(100%,320px\),1fr\)\);gap:18px;align-items:start/);
   assert.match(css, /\.watch-card\{[^}]*box-sizing:border-box[^}]*overflow-wrap:anywhere/);
   const rules = css.split('\n').filter(l => l.startsWith('.watch')).join('\n');
-  assert.doesNotMatch(rules, /(^|[;{])\s*(height|max-height)\s*:/m, 'no fixed heights on Watchlist rules');
-  assert.doesNotMatch(rules, /line-clamp|text-overflow/, 'titles and excerpts are never visually clipped');
+  const asideRule = /\.watch-card-aside\{[^}]*\}/.exec(css)?.[0] ?? '';
+  assert.doesNotMatch(asideRule, /(?:^|[;{])\s*(?:height|max-height):/, 'homepage sidebar cards remain fluid');
+  assert.match(css, /\.watch-grid \.watch-card-page\{[^}]*height:280px;min-height:280px;max-height:280px/, 'Watchlist page cards have identical dimensions');
+  assert.match(css, /\.watch-grid \.watch-card-page \.watch-details\{[^}]*max-height:100px;overflow:auto/, 'expanded briefs scroll within the fixed card');
   assert.match(rules, /min-width:0/);
 });
 
