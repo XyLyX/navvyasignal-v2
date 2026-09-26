@@ -20,12 +20,12 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
   if (!story) notFound();
   const desk = desks.find(d => matchesDeskCategory(d.slug, story.category));
   const related = visible.filter(item => item.id !== story.id && item.category === story.category).slice(0, 3);
-  // Notion Text 1 contains legacy <br> separators. Never inject it as HTML.
-  const paragraphs = story.body.split(/(?:<br\s*\/?\s*>\s*){1,}|\n{2,}/gi)
+  // Current pipeline: Signal Brief is editorial prose; Text 1 is sources, never article body.
+  const briefParagraphs = story.brief.split(/(?:<br\s*\/?\s*>\s*){1,}|\n{2,}/gi)
     .map(part => part.trim()).filter(Boolean);
-  const fullEditorial = story.contentType === 'Long Read' && paragraphs.length === 0
+  const sources = story.body.trim();
+  const fullEditorial = story.contentType === 'Long Read'
     ? await getLongReadBlocks(story.id) : [];
-  const articleParagraphs = paragraphs.length ? paragraphs : fullEditorial;
   const recordedDate = new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(story.createdAt));
@@ -34,11 +34,14 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
     <p className="kicker">{story.category}{story.contentType ? ` · ${story.contentType}` : ''}</p>
     <h1>{story.title}</h1>
     <p><small>Notion record created: {recordedDate}. This is not a verified original publication date.</small></p>
-    {story.brief && <section aria-label="Signal brief"><h2>Signal brief</h2><p>{story.brief}</p></section>}
-    {articleParagraphs.length > 0 ? <section aria-label="Editorial text">
-      <h2>{story.contentType === 'Long Read' ? 'Long read' : 'Editorial text'}</h2>
-      {articleParagraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
-    </section> : <p className="empty">No additional full article text is available for this record. The Signal Brief above is not presented as a full article.</p>}
+    {briefParagraphs.length > 0 ? <section aria-label="Signal report">
+      <h2>Signal report</h2>
+      {briefParagraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+    </section> : <p className="empty">No report text is available for this record.</p>}
+    {fullEditorial.length > 0 && <section aria-label="Long read"><h2>Long read</h2>
+      {fullEditorial.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+    </section>}
+    {sources && <section aria-label="Sources"><h2>Sources</h2><p>{sources}</p></section>}
     <p><small>Editorial record sourced from Notion. The record creation date is not necessarily the original publication date.</small></p>
     <ShareLinks title={story.title} url={`https://navvyasignal.com/signals/${story.id}`} />
     <section className="article-discovery" aria-label="Explore related intelligence">
