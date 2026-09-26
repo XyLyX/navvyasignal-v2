@@ -9,6 +9,7 @@ import { getNetworkCards } from '@/lib/networkMetadata';
 import { getFeedSections } from '@/lib/feeds';
 import { NavyaaLens } from '@/components/FeedSections';
 import NetworkPanels from '@/components/NetworkPanels';
+import ExpandableEditorial from '@/components/ExpandableEditorial';
 
 export default async function Home() {
   const [stories, networkCards, feeds] = await Promise.all([getStories(), getNetworkCards(), getFeedSections()]);
@@ -31,7 +32,7 @@ export default async function Home() {
       <p className="section-deck">New, editor-approved intelligence selected for the current Dubai publication date. Historical reporting remains in the separate V1 archive.</p>
       {selected.length ? selected.map((s, i) => <article className="story" key={s.id}>
         <span className="num">{String(i + 1).padStart(2, '0')}</span><div>
-          <span className="kicker">{s.category}</span><h3><Link href={`/signals/${s.id}`}>{s.title}</Link></h3><p>{s.brief}</p>
+          <ExpandableEditorial story={s} label={s.category} />
         </div></article>) : <div className="editorial-empty"><span className="kicker">AWAITING TODAY’S APPROVED REPORTS</span><h3>Today's edition is being prepared.</h3><p>No editor-approved reports are dated for today. Earlier V2 reporting remains in Signals; V1 reporting is archived separately.</p><Link href="/old-archives-v1">Browse Old Archives — Version 1 →</Link></div>}
     </section><aside><h2>Watchlist</h2><p className="aside-intro">Developments under continued editorial observation.</p>
       {watch.length ? <div className="watch-list">{watch.map(s => <WatchCard key={s.id} story={s} variant="aside" />)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
@@ -44,13 +45,13 @@ export default async function Home() {
     <section className="container editorial-bottom" aria-label="Editorial formats">
       <div className="editorial-grid">
         <section className="editorial-panel"><span className="kicker">CROSS-DESK INTELLIGENCE</span>
-          <h2>Where the signals connect</h2>{latestCrossDesk ? <><h3><Link href={`/signals/${latestCrossDesk.id}`}>{latestCrossDesk.title}</Link></h3><p>{latestCrossDesk.brief}</p><Link href={`/signals/${latestCrossDesk.id}`}>Read cross-desk brief →</Link></> : <span className="editorial-pending">Awaiting an approved cross-desk report</span>}
+          <h2>Where the signals connect</h2>{latestCrossDesk ? <ExpandableEditorial story={latestCrossDesk} /> : <span className="editorial-pending">Awaiting an approved cross-desk report</span>}
         </section>
         <section className="editorial-panel"><span className="kicker">WEEKLY BRIEFING</span>
-          <h2>The week in context</h2>{latestBriefing ? <><h3><Link href={`/signals/${latestBriefing.id}`}>{latestBriefing.title}</Link></h3><p>{latestBriefing.brief || latestBriefing.body.slice(0,350)}</p><Link href={`/signals/${latestBriefing.id}`}>Read latest briefing →</Link></> : <span className="editorial-pending">Awaiting first approved edition</span>}
+          <h2>The week in context</h2>{latestBriefing ? <ExpandableEditorial story={{...latestBriefing, brief: latestBriefing.brief || latestBriefing.body.slice(0,1200)}} /> : <span className="editorial-pending">Awaiting first approved edition</span>}
         </section>
         <section className="editorial-panel"><span className="kicker">LONG READS</span>
-          <h2>Beyond the daily signal</h2>{latestLongRead ? <><h3><Link href={`/signals/${latestLongRead.id}`}>{latestLongRead.title}</Link></h3><p>{latestLongRead.brief}</p><span className="editorial-pending">{latestLongRead.body.trim() ? 'Read the long-form editorial' : 'Latest long-read brief · full article pending editorial integration'}</span><p><Link href={`/signals/${latestLongRead.id}`}>Read available report →</Link></p></> : <span className="editorial-pending">Awaiting an approved long read</span>}
+          <h2>Beyond the daily signal</h2>{latestLongRead ? <ExpandableEditorial story={latestLongRead} /> : <span className="editorial-pending">Awaiting an approved long read</span>}
         </section>
       </div>
       <NavyaaLens data={feeds} />
