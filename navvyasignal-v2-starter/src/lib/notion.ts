@@ -54,3 +54,33 @@ export async function getStories(limit = 800):Promise<Story[]> {
  }while(cursor && stories.length<limit);
  return stories.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
 }
+
+/** Read the original Notion page blocks for a selected long read whose legacy Text 1 is empty.
+ *  Read-only: never mutates V1 sync flags or the underlying editorial document.
+ */
+export async function getLongReadBlocks(pageId: string): Promise<string[]> {
+ if (!token || !/^[0-9a-f-]{36}$/i.test(pageId)) return [];
+ const blocks: string[] = [];
+ let cursor: string | undefined;
+ do {
+  const url = new URL(`https://api.notion.com/v1/blocks/${pageId}/children`);
+  url.searchParams.set('page_size', '100');
+  if (cursor) url.searchParams.set('start_cursor', cursor);
+  const response = await fetch(url.toString(), {
+   headers: { Authorization: `Bearer ${token}`, 'Notion-Version': '2025-09-03' },
+   next: { revalidate: 900 },
+  });
+  if (!response.ok) throw new Error(`V2 long-read fetch failed: HTTP ${response.status}`);
+  const result = await response.json() as {
+   results: { type: string; [key: string]: unknown }[];
+   has_more: boolean; next_cursor: string | null;
+  };
+  for (const block of result.results) {
+   const data = block[block.type] as { rich_text?: { plain_text?: string }[] } | undefined;
+   const line = (data?.rich_text ?? []).map(t => t.plain_text ?? '').join('').trim();
+   if (line) blocks.push(line);
+  }
+  cursor = result.has_more && result.next_cursor ? result.next_cursor : undefined;
+ } while (cursor);
+ return blocks;
+}
