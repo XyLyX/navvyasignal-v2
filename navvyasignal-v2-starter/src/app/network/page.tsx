@@ -1,3 +1,4 @@
+import NetworkArtwork from '@/components/NetworkArtwork';
 import Link from 'next/link';
 import { getNetworkCards } from '@/lib/networkMetadata';
 import { getFeedSections } from '@/lib/feeds';
@@ -11,7 +12,7 @@ export default async function NetworkPage(){
   <p className="intro">Explore our separate editorial publication and affiliated businesses. Their articles, products and announcements are not NavvyaSignal intelligence reporting or editorial endorsements.</p>
   <div className="network-grid">{cards.map(v=><article className="network-card" key={v.slug}>
     <a className="network-card-visual" href={v.url} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${v.name}`}>
-      {v.image ? <img src={v.image} alt={`${v.name} website preview`} loading="lazy" referrerPolicy="no-referrer" /> : <span className={`network-visual-fallback network-visual-${v.slug}`} aria-hidden="true"><span>{v.name}</span><small>{v.category}</small></span>}
+      <NetworkArtwork name={v.name} slug={v.slug} image={v.image} siteUrl={v.url} />
     </a>
     <div className="network-card-body"><span className="kicker">{v.category}</span><h2>{v.name}</h2>
     <p>{v.displayDescription}</p><a href={v.url} target="_blank" rel="noopener noreferrer">Visit {v.name} ↗</a></div>
