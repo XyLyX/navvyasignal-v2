@@ -54,7 +54,21 @@ export default async function Home() {
       </div>
       <NavyaaLens data={feeds} />
       <NetworkPanels data={feeds} heading="From the Navvya Network" />
-      <section className="network-home" aria-label="The Navvya Network"><div className="section-title"><h2>The Navvya Network</h2><Link href="/network">Explore all seven →</Link></div><p>Separate publications and affiliated ventures. Commercial updates are not independent intelligence reporting.</p><div className="network-home-grid">{networkCards.filter(v => v.slug !== 'navyaa').map(v => <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card"><span className="network-home-visual">{v.image ? <img src={v.image} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className={`network-visual-fallback network-visual-${v.slug}`} aria-hidden="true"><span>{v.name}</span></span>}</span><span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span></a>)}</div></section>
+      <section className="network-home" aria-label="The Navvya Network"><div className="section-title"><h2>The Navvya Network</h2><Link href="/network">Explore the network →</Link></div><p>Separate publications and affiliated ventures. Commercial updates are not independent intelligence reporting.</p>
+      <div className="network-home-grid">{['om4biz','fils-only','rate-manifest','zen-homes','design-code','d6-kitchens'].map(slug => networkCards.find(v => v.slug === slug)).filter((v): v is NonNullable<typeof v> => v != null).map(v =>
+        <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card">
+          <span className="network-home-visual">{v.image ? <img src={v.image} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className={`network-visual-fallback network-visual-${v.slug}`} aria-hidden="true"><span>{v.name}</span></span>}</span>
+          <span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span>
+        </a>)}
+        <a href="https://thewasam.com/" target="_blank" rel="noopener noreferrer" className="network-home-card">
+          <span className="network-home-visual network-wasam-visual"><span>THE WASAM</span></span>
+          <span className="network-home-info"><span className="kicker">THE NAVVYA NETWORK</span><strong>The Wasam ↗</strong><small>Explore The Wasam.</small></span>
+        </a>
+        {[1,2].map(n => <div key={n} className="network-home-card network-coming-soon" aria-label={`Coming soon — future network venture ${n}`}>
+          <span className="network-home-visual network-soon-visual"><span>COMING SOON</span></span>
+          <span className="network-home-info"><span className="kicker">FUTURE VENTURE</span><strong>Coming Soon</strong><small>Another venture will join the network.</small></span>
+        </div>)}
+      </div></section>
       <section className="sponsor-reserve" aria-label="Future sponsorship placement">
         <span className="kicker">SPONSORSHIP</span><p>Reserved for clearly disclosed sponsorship and contextual advertising. No paid placement is active in this preview.</p>
       </section>
