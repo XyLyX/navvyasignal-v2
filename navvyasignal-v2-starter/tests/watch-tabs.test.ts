@@ -60,7 +60,7 @@ test('summaries are collapsed initially and expand individually', () => {
   assert.match(card, /<details className="watch-details">/);
   assert.doesNotMatch(card, /<details[^>]*\bopen\b/, 'never open by default');
   assert.equal((card.match(/<details/g) ?? []).length, 1, 'one details element per card, so each opens on its own');
-  assert.match(card, /<summary>Show full summary<\/summary>/);
+  assert.match(card, /<summary>Show brief<\/summary>/);
   assert.doesNotMatch(tabs, /details|open=/, 'tabs never force summaries open');
 });
 
