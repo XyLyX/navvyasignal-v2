@@ -453,3 +453,5 @@ body:has(.arabic-shell) > .footer {display:none}
 .subscribe-brief.container{margin-bottom:14px}
 @media(max-width:760px){.whatsapp-channel-invite.container{grid-template-columns:1fr;gap:16px;padding:22px 20px;margin-bottom:20px}.whatsapp-channel-invite a{justify-self:start;min-width:0;white-space:normal}.whatsapp-channel-invite h2{font-size:25px}}
 @media(max-width:420px){.whatsapp-channel-invite a{width:100%}}
+
+.edition-line{margin:0 0 18px;font:12px Arial,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#8e671c}.edition-line strong{font-weight:700}

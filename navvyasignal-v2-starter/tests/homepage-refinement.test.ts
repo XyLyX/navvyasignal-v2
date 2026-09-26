@@ -65,7 +65,8 @@ test('homepage and /network share one panel component; directory and cap preserv
   assert.match(net, /<NetworkPanels data=\{feeds\} \/>/);
   assert.match(net, /getNetworkCards/, 'network directory kept');
   assert.match(net, /className="network-grid"/);
-  assert.match(page, /className="network-home"/, 'homepage venture cards kept');
+  // Approved change (commit d0e181a): the duplicate homepage venture-card section was removed; NetworkPanels is the single homepage network section.
+  assert.doesNotMatch(page, /className="network-home"/, 'duplicate homepage venture cards stay removed');
   assert.match(read('src/lib/rss/limits.ts'), /NETWORK_PER_SOURCE = 2/);
   assert.match(read('src/lib/rss/limits.ts'), /NAVYAA_COUNT = 3/);
 });
@@ -73,7 +74,8 @@ test('homepage and /network share one panel component; directory and cap preserv
 test('homepage section order keeps editorial separation', () => {
   const i = (s: string) => page.indexOf(s);
   assert.ok(i('Today') > 0 && i('<NavyaaLens') > i('editorial-grid') && i('<NetworkPanels') > i('<NavyaaLens'));
-  assert.ok(i('className="network-home"') > i('<NetworkPanels'));
+  assert.equal(i('className="network-home"'), -1, 'no duplicate venture-card section after the network panels');
+  assert.ok(i('<NetworkPanels') > 0, 'the network panels section itself is kept');
 });
 
 test('homepage panels are the same six in the same order with Browse fillers and a join preview link', async () => {

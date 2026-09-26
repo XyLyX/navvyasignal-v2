@@ -3,19 +3,19 @@ import ShareLinks from '@/components/ShareLinks';
 import { notFound } from 'next/navigation';
 import { getStories, getLongReadBlocks } from '@/lib/notion';
 import { desks, matchesDeskCategory } from '@/lib/desks';
-import { approvedV2Ids, v2ArticleRoutes } from '@/lib/v2Editorial';
+import { v2ArticleRoutes } from '@/lib/v2Editorial';
 
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
   const stories = await getStories();
-  return v2ArticleRoutes(stories, approvedV2Ids()).map(story => ({ id: story.id }));
+  return v2ArticleRoutes(stories).map(story => ({ id: story.id }));
 }
 
 export default async function LegacySignal({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const stories = await getStories();
-  const visible = v2ArticleRoutes(stories, approvedV2Ids());
+  const visible = v2ArticleRoutes(stories);
   const story = visible.find(item => item.id === id);
   if (!story) notFound();
   const desk = desks.find(d => matchesDeskCategory(d.slug, story.category));
