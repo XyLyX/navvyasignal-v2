@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ShareLinks from '@/components/ShareLinks';
 import { notFound } from 'next/navigation';
 import { getStories, getLongReadBlocks } from '@/lib/notion';
 import { desks, matchesDeskCategory } from '@/lib/desks';
@@ -39,6 +40,7 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
       {articleParagraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
     </section> : <p className="empty">No additional full article text is available for this record. The Signal Brief above is not presented as a full article.</p>}
     <p><small>Editorial record sourced from Notion. The record creation date is not necessarily the original publication date.</small></p>
+    <ShareLinks title={story.title} url={`https://navvyasignal.com/signals/${story.id}`} />
     <section className="article-discovery" aria-label="Explore related intelligence">
       <h2>Continue exploring</h2>
       {desk && <p><Link href={`/desks/${desk.slug}`}>Explore the {desk.name} desk →</Link></p>}
