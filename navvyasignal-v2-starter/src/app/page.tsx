@@ -60,10 +60,11 @@ export default async function Home() {
           <span className="network-home-visual">{v.image ? <img src={v.image} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className={`network-visual-fallback network-visual-${v.slug}`} aria-hidden="true"><span>{v.name}</span></span>}</span>
           <span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span>
         </a>)}
-        <a href="https://thewasam.com/" target="_blank" rel="noopener noreferrer" className="network-home-card">
-          <span className="network-home-visual network-wasam-visual"><span>THE WASAM</span></span>
-          <span className="network-home-info"><span className="kicker">THE NAVVYA NETWORK</span><strong>The Wasam ↗</strong><small>Explore The Wasam.</small></span>
-        </a>
+        {networkCards.filter(v => v.slug === 'the-wasam').map(v =>
+          <a key={v.slug} href={v.url} target="_blank" rel="noopener noreferrer" className="network-home-card">
+            <span className="network-home-visual">{v.image ? <img src={v.image} alt="The Wasam website cover or logo" loading="lazy" referrerPolicy="no-referrer" /> : <span className="network-wasam-visual"><span>THE WASAM</span></span>}</span>
+            <span className="network-home-info"><span className="kicker">{v.category}</span><strong>{v.name} ↗</strong><small>{v.displayDescription}</small></span>
+          </a>)}
         {[1,2].map(n => <div key={n} className="network-home-card network-coming-soon" aria-label={`Coming soon — future network venture ${n}`}>
           <span className="network-home-visual network-soon-visual"><span>COMING SOON</span></span>
           <span className="network-home-info"><span className="kicker">FUTURE VENTURE</span><strong>Coming Soon</strong><small>Another venture will join the network.</small></span>
