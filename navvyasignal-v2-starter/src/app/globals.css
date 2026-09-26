@@ -368,3 +368,12 @@ body:has(.arabic-shell) > .footer {display:none}
 .watch-grid .watch-card-page .watch-meta{font-size:10px}
 .watch-grid .watch-card-page .watch-more{margin-top:10px}
 @media(max-width:600px){.desk-detail-hero{width:100%;height:250px;opacity:.11}.signal-feed-page::before,.watch-page::before{width:100%;opacity:.08}.watch-grid .watch-card-page{padding:16px}}
+
+/* Final launch polish: visible but restrained editorial header photography. */
+.signal-feed-page::before,.watch-page::before{opacity:.34;filter:grayscale(1) saturate(.3) contrast(1.1);width:min(61%,800px);height:255px;-webkit-mask-image:linear-gradient(to left,#000 0%,rgba(0,0,0,.8) 45%,transparent 100%);mask-image:linear-gradient(to left,#000 0%,rgba(0,0,0,.8) 45%,transparent 100%)}
+.signal-feed-page>h1,.watch-page>h1{position:relative;text-shadow:0 1px 0 #fff}
+.watch-grid .watch-card-page .watch-details{margin-top:6px;font-size:13px}
+.watch-grid .watch-card-page .watch-details summary{font:600 12px Arial,sans-serif;color:#163d60;cursor:pointer;padding:4px 0}
+.watch-grid .watch-card-page .watch-details[open]{border-top:1px solid #e5ddcf;padding-top:7px}
+.watch-grid .watch-card-page .watch-excerpt{font-size:13px;line-height:1.5;margin:7px 0}
+@media(max-width:600px){.signal-feed-page::before,.watch-page::before{opacity:.22;height:210px}}
