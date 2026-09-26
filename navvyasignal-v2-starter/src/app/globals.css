@@ -435,3 +435,11 @@ body:has(.arabic-shell) > .footer {display:none}
 
 /* Expanded lower editorial cards must override the collapsed four-line clamp. */
 .editorial-panel .editorial-expandable.is-open .editorial-preview-text{display:block;-webkit-line-clamp:unset;line-clamp:unset;overflow-y:auto}
+
+/* V2 homepage layout correction: centered full-width subscription and tighter section rhythm. */
+.subscribe-brief.container{margin:12px auto 24px;width:min(1120px,calc(100% - 40px))}
+.whatsapp-channel-invite.container{margin:0 auto 28px;width:min(1120px,calc(100% - 40px))}
+.content.container{padding-top:42px;padding-bottom:34px;align-items:start}
+.desk-section{padding-top:44px;padding-bottom:52px}
+.editorial-bottom.container{padding-top:42px;padding-bottom:44px}
+@media(max-width:760px){.content.container{padding-top:30px;padding-bottom:25px}.desk-section{padding-top:36px;padding-bottom:40px}.editorial-bottom.container{padding-top:32px;padding-bottom:34px}}
