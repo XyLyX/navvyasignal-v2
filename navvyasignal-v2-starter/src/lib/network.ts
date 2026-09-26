@@ -10,4 +10,5 @@ export const networkVentures: NetworkVenture[] = [
   {slug:'design-code',name:'Design Code Studios',url:'https://designcode.ae/',category:'Design and fit-out',description:'Interiors and turnkey fit-out.',feedStatus:'verified'},
   {slug:'fils-only',name:'FilsOnly',url:'https://filsonly.com/',category:'AI productivity',description:'AI-powered business productivity.',feedStatus:'unverified'},
   {slug:'d6-kitchens',name:'D6 Kitchens',url:'https://d6kitchens.com/',category:'Kitchens and interiors',description:'Kitchen design, projects and product updates.',feedStatus:'verified'},
+  {slug:'the-wasam',name:'The Wasam',url:'https://thewasam.com/',category:'The Navvya Network',description:'Explore The Wasam.',feedStatus:'unverified'},
 ];
