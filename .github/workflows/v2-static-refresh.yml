@@ -1,12 +1,11 @@
 name: V2 static content refresh
 
-# GitHub scheduled workflows only run from the repository default branch (main).
-# This workflow is staged on the draft branch and cannot run on a schedule until merged.
-# It only POSTs the isolated V2 Netlify site's build hook; it never touches Framer V1, Kit, Whapi or Notion.
+# Optional safety net; keep disabled while Netlify build credits are limited.
+# It only POSTs the isolated V2 Netlify site's build hook.
 on:
   schedule:
-    # Dubai is UTC+4 year-round: 00:10 GST, plus every four hours.
-    - cron: '10 0,4,8,12,16,20 * * *'
+    # 07:10 Dubai, once daily only when the separate safety-net flag is enabled.
+    - cron: '10 3 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -23,7 +22,7 @@ concurrency:
 
 jobs:
   refresh:
-    if: github.repository == 'XyLyX/navvyasignal-v2'
+    if: github.repository == 'XyLyX/navvyasignal-v2' && (vars.V2_REFRESH_SAFETY_NET_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: v2-preview

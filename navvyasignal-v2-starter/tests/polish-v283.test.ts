@@ -109,8 +109,10 @@ test('directory keeps Rate Manifest and FilsOnly as venture entries, never as RS
   // The homepage deliberately uses the approved three-row order, not the old directory filter.
   const homepageOrder = ['om4biz','fils-only','rate-manifest','zen-homes','design-code','d6-kitchens'];
   for (const slug of homepageOrder) assert.ok(networkVentures.some(v => v.slug === slug), slug);
-  assert.match(page, /networkCards\.find\(v => v\.slug === slug\)/, 'homepage renders ordered venture entries');
-  assert.match(page, /the-wasam/, 'third row contains The Wasam');
-  assert.match(page, /\[1,2\]\.map\(n =>/, 'third row reserves two Coming Soon cards');
+  // Approved change (commit d0e181a): the homepage no longer renders its own venture-card rows or Coming Soon
+  // placeholders; ventures appear only through the shared NetworkPanels section and on /network.
+  assert.doesNotMatch(page, /networkCards\.find\(v => v\.slug === slug\)/, 'no homepage venture-card rows');
+  assert.doesNotMatch(page, /Coming Soon|\[1,2\]\.map\(n =>/, 'no homepage Coming Soon placeholders');
+  assert.match(page, /<NetworkPanels data=\{feeds\} heading="From the Navvya Network" \/>/, 'ventures reach the homepage via NetworkPanels');
   assert.match(read('src/app/network/page.tsx'), /cards\.map\(v=>/);
 });
