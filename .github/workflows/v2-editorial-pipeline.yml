@@ -1,7 +1,7 @@
 name: V2 editorial pipeline
 
 # This runs only from the default branch. V2_PIPELINE_ENABLED is false until
-# the old sender is disabled and the new credentials/build target are verified.
+# both V2_PIPELINE_ENABLED and V2_LEGACY_SENDER_DISABLED are true after\n# the old sender is disabled and the new credentials/build target are verified.
 on:
   schedule:
     - cron: '33 1 * * *'   # West Asia, 05:33 Dubai
@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   editorial:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && (vars.V2_PIPELINE_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
+    if: github.repository == 'XyLyX/navvyasignal-v2' && ((vars.V2_PIPELINE_ENABLED == 'true' && vars.V2_LEGACY_SENDER_DISABLED == 'true') || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
     runs-on: ubuntu-latest
     environment: v2-preview
     timeout-minutes: 30
