@@ -5,7 +5,7 @@ import type { Story } from '@/lib/notion';
 export type WatchEntry = Pick<Story, 'id' | 'title' | 'brief' | 'watchStatus' | 'nextReview'>;
 import { watchExcerpt } from '@/lib/watchExcerpt';
 
-export const WATCH_EXCERPT_ASIDE = 220;
+export const WATCH_EXCERPT_ASIDE = 135;
 export const WATCH_EXCERPT_PAGE = 155;
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}/;

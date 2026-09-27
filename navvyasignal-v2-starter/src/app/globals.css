@@ -176,16 +176,16 @@
 @media(min-width:761px){.desk-grid{grid-template-columns:repeat(12,minmax(0,1fr))}.desk{grid-column:span 3}.desk:nth-child(n+5){grid-column:span 4}}
 @media(min-width:441px) and (max-width:760px){.desk:last-child{grid-column:1 / -1}}
 /* V2.8.4 Watchlist: excerpt cards, sidebar width, responsive parent grid, accessible colours */
-.content{grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:48px}
+.content{grid-template-columns:minmax(0,1fr) minmax(340px,360px);gap:32px}
 .content>*{min-width:0}
-aside{min-width:0;box-sizing:border-box;padding-left:28px}
+aside{min-width:0;box-sizing:border-box;padding-left:20px}
 .watch-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px;margin:16px 0 14px}
 .watch-card{display:flex;flex-direction:column;gap:8px;min-width:0;box-sizing:border-box;padding:16px 16px 14px;background:#fff;border:1px solid #e0d8c9;border-top:3px solid var(--gold);overflow-wrap:anywhere}
 .watch-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
 .watch-card .status{font:700 11px Arial,sans-serif;letter-spacing:.08em;color:#6b4c10}
 .watch-review{font:12px Arial,sans-serif;color:#44515c}
 .watch-card h3{margin:0;font-size:19px;line-height:1.3;font-weight:400;color:var(--navy)}
-.watch-card-aside h3{font-size:17px}
+.watch-card-aside h3{font-size:18px}
 .watch-card h3 a{color:var(--navy)}
 .watch-card h3 a:hover{text-decoration:underline;text-underline-offset:3px}
 .watch-card .watch-excerpt{margin:0;font-size:15px;line-height:1.55;color:#33424f}
@@ -453,3 +453,5 @@ body:has(.arabic-shell) > .footer {display:none}
 .subscribe-brief.container{margin-bottom:14px}
 @media(max-width:760px){.whatsapp-channel-invite.container{grid-template-columns:1fr;gap:16px;padding:22px 20px;margin-bottom:20px}.whatsapp-channel-invite a{justify-self:start;min-width:0;white-space:normal}.whatsapp-channel-invite h2{font-size:25px}}
 @media(max-width:420px){.whatsapp-channel-invite a{width:100%}}
+
+.edition-line{margin:0 0 18px;font:12px Arial,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#8e671c}.edition-line strong{font-weight:700}

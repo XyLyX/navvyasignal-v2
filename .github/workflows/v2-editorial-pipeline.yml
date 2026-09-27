@@ -1,0 +1,93 @@
+name: V2 editorial pipeline
+
+# This runs only from the default branch. V2_PIPELINE_ENABLED is false until
+# the old sender is disabled and the new credentials/build target are verified.
+on:
+  schedule:
+    - cron: '33 1 * * *'   # West Asia, 05:33 Dubai
+    - cron: '33 2 * * *'   # Maritime, 06:33
+    - cron: '33 10 * * *'  # Technology, 14:33
+    - cron: '3 11 * * *'   # UAE, 15:03
+    - cron: '33 11 * * *'  # India, 15:33
+    - cron: '3 12 * * *'   # Global Politics, 16:03
+    - cron: '33 12 * * *'  # Markets, 16:33
+    - cron: '15 19 * * *'  # Compile and send, 23:15 Dubai; allow delayed desks
+    - cron: '4 12 * * 5'  # Weekly synthesis, Friday 16:04
+  workflow_dispatch:
+    inputs:
+      run_type:
+        description: Desk key, compile_send or weekly_synthesis
+        required: true
+        type: choice
+        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, compile_send, weekly_synthesis]
+      dry_run:
+        description: Suppress Notion writes, Kit, Whapi and refresh
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+concurrency:
+  group: v2-editorial-${{ github.event.schedule || inputs.run_type || 'manual' }}
+  cancel-in-progress: false
+
+jobs:
+  editorial:
+    if: github.repository == 'XyLyX/navvyasignal-v2' && (vars.V2_PIPELINE_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Research, publish and compile
+        id: editorial
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          KIT_API_KEY: ${{ secrets.KIT_API_KEY }}
+          KIT_FROM_EMAIL: ${{ secrets.KIT_FROM_EMAIL }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          WHAPI_CHANNEL_ID: ${{ secrets.WHAPI_CHANNEL_ID }}
+          OPS_NOTIFY_NUMBER: ${{ secrets.OPS_NOTIFY_NUMBER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CRON_SCHEDULE: ${{ github.event.schedule }}
+          RUN_TYPE: ${{ inputs.run_type }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python main.py
+      - name: Request isolated V2 refresh
+        if: always() && steps.editorial.outputs.notion_stage_attempted == 'true' && vars.V2_REFRESH_ENABLED == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if ! python3 - <<'PY'
+          import json, os, sys
+          try:
+              m = json.load(open('notion-stage-attempted.json'))
+              valid = (str(m.get('run_id')) == os.environ['GH_RUN_ID']
+                       and str(m.get('attempt')) == os.environ['GH_RUN_ATTEMPT'])
+          except (OSError, ValueError, KeyError):
+              valid = False
+          sys.exit(0 if valid else 1)
+          PY
+          then
+            echo 'V2 refresh marker missing or invalid'; exit 0
+          fi
+          if ! printf '%s' "${V2_NETLIFY_BUILD_HOOK:-}" | grep -Eq '^https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+$'; then
+            echo 'V2 refresh hook missing or malformed'; exit 0
+          fi
+          curl --fail --silent --show-error --retry 2 --max-time 30 -X POST "$V2_NETLIFY_BUILD_HOOK" \
+            && echo 'V2 refresh queued' || echo 'V2 refresh request failed'

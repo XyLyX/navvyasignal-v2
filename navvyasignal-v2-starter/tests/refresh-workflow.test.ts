@@ -29,10 +29,11 @@ function simulate(env: Record<string, string>) {
   return { status: r.status, out: `${r.stdout}${r.stderr}`, calls: Number(/CURL_CALLS=(\d+)/.exec(r.stdout)?.[1] ?? -1) };
 }
 
-test('schedule: every four hours at :10 UTC, from the default branch only, V2 repository only', () => {
-  assert.match(wf, /cron: '10 0,4,8,12,16,20 \* \* \*'/);
-  assert.match(wf, /GitHub scheduled workflows only run from the repository default branch \(main\)/);
+test('safety schedule: one optional daily check for the V2 repository', () => {
+  assert.match(wf, /cron: '10 3 \* \* \*'/);
+  assert.match(wf, /Optional safety net/);
   assert.match(wf, /if: github\.repository == 'XyLyX\/navvyasignal-v2'/);
+  assert.match(wf, /vars\.V2_REFRESH_SAFETY_NET_ENABLED == 'true'/);
   assert.match(wf, /timeout-minutes: 5/);
   assert.match(wf, /concurrency:\s+group: v2-static-content-refresh\s+cancel-in-progress: false/);
   assert.match(wf, /permissions:\s+contents: read/);

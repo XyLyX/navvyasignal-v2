@@ -86,9 +86,9 @@ test('both pages use the shared card; selection criteria and status handling are
 });
 
 test('layout: parent grid, sidebar width, wrapping, breakpoints and no fixed heights that clip', () => {
-  assert.match(css, /\.content\{grid-template-columns:minmax\(0,2fr\) minmax\(280px,1fr\);gap:48px\}/);
+  assert.match(css, /\.content\{grid-template-columns:minmax\(0,1fr\) minmax\(340px,360px\);gap:32px\}/);
   assert.match(css, /\.content>\*\{min-width:0\}/);
-  assert.match(css, /aside\{min-width:0;box-sizing:border-box;padding-left:28px\}/);
+  assert.match(css, /aside\{min-width:0;box-sizing:border-box;padding-left:20px\}/);
   assert.match(css, /@media\(max-width:900px\)\{\.content\{grid-template-columns:1fr;gap:40px;padding:48px 0\}aside\{border-left:0;border-top:1px solid #d9d5cb/);
   assert.match(css, /\.watch-list\{display:grid;grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,260px\),1fr\)\)/);
   assert.match(css, /\.watch-grid\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(min\(100%,320px\),1fr\)\);gap:18px;align-items:start/);

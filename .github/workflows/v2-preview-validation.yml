@@ -1,7 +1,7 @@
 name: V2 preview validation
 on:
   push:
-    branches: [notion-readonly, release/v2-english]
+    branches: [notion-readonly, release/v2-english, feature/v2-unified-pipeline]
   workflow_dispatch:
 
 permissions:
@@ -29,3 +29,14 @@ jobs:
           NOTION_TOKEN: ''
           NOTION_DATA_SOURCE_ID: ''
           V2_CI_STATIC_FIXTURE: '1'
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r pipeline/requirements.txt
+      - run: python -m unittest pipeline.test_pipeline -v
+        env:
+          ANTHROPIC_API_KEY: test-only
