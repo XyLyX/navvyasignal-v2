@@ -49,7 +49,7 @@ once-daily credit cost is acceptable. No preview or production deploy is part of
 4. Merge the validated branch to the default branch only after approval. A manual dry run
    suppresses Notion writes, Kit, Whapi, and refresh. Compare its desk output against Notion.
 5. At one agreed daily boundary, disable the old `navvyasignal-automation` workflow **before**
-   setting `V2_PIPELINE_ENABLED=true`. Enable `V2_REFRESH_ENABLED=true` only after the V2
+   setting `V2_LEGACY_SENDER_DISABLED=true` and `V2_PIPELINE_ENABLED=true`. Both variables are required by the scheduled job. Enable `V2_REFRESH_ENABLED=true` only after the V2
    hook, credentials, and target branch have been verified. This order prevents duplicate sends.
 6. Observe all seven desk runs, exactly one Kit and Whapi send, and a successful V2 preview
    rebuild whose article counts match the day's Notion records. Confirm that no Framer sync
