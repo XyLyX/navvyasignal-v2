@@ -24,9 +24,10 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
   const briefParagraphs = story.brief.split(/(?:<br\s*\/?\s*>\s*){1,}|\n{2,}/gi)
     .map(part => part.trim()).filter(Boolean);
   const sources = story.body.trim();
-  // Current V2 records can contain a full report in page blocks even when
-  // Text 1 holds source links. Retrieve those blocks for published routes.
-  const fullEditorial = await getLongReadBlocks(story.id);
+  // Notion page blocks on short Signals can contain unreviewed working notes.
+  // Only explicitly classified Long Reads expose the full page body.
+  const fullEditorial = story.contentType === 'Long Read'
+    ? await getLongReadBlocks(story.id) : [];
   const recordedDate = new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(story.createdAt));
