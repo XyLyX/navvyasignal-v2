@@ -57,11 +57,8 @@ DESKS = [
     "Maritime Energy & Supply Chains Desk",
 ]
 
-# Every desk gets its own solo dispatch (own isolated GitHub Actions job) — no more multi-desk
-# groups. West Asia, Maritime/Energy/Supply Chains, and Technology & AI are all treated as
-# "heavy" desks (all three intersect with the ongoing conflict narrative) and are scheduled at
-# different times from each other for extra safety, not just solo status — see
-# daily-briefing.yml for the actual trigger times.
+# Each desk receives its own roundup and breaking-news research pass. The three
+# heavy desks are staggered so one conflict narrative cannot crowd out another.
 GROUPS = {
     "west_asia": ["West Asia Desk"],
     "maritime_energy": ["Maritime Energy & Supply Chains Desk"],
@@ -80,15 +77,15 @@ GROUPS = {
 # separate logic embedded in the YAML. workflow_dispatch runs set RUN_TYPE directly and never
 # touch this mapping at all.
 CRON_TO_RUN_TYPE = {
-    "33 1 * * *": "west_asia",           # 05:33 GST
-    "33 2 * * *": "maritime_energy",     # 06:33 GST
-    "33 10 * * *": "technology_ai",      # 14:33 GST
-    "3 11 * * *": "uae",                 # 15:03 GST
-    "33 11 * * *": "india",              # 15:33 GST
-    "3 12 * * *": "global_politics",     # 16:03 GST
-    "33 12 * * *": "markets_capital",    # 16:33 GST
-    "15 19 * * *": "compile_send",       # 23:15 GST, after delayed desk runs
-    "4 12 * * 5": "weekly_synthesis",    # 16:04 GST, Fridays only
+    "30 0 * * *": "maritime_energy",     # 04:30 Dubai
+    "30 3 * * *": "west_asia",           # 07:30 Dubai
+    "30 13 * * *": "india",              # 17:30 Dubai
+    "30 9 * * *": "uae",                 # 13:30 Dubai
+    "30 23 * * *": "technology_ai",      # 03:30 Dubai (UTC date +1)
+    "30 4 * * *": "global_politics",     # 08:30 Dubai
+    "30 1 * * *": "markets_capital",     # 05:30 Dubai
+    "30 17 * * *": "site_only",          # 21:30 Dubai, choose homepage without sending
+    "15 15 * * 0": "weekly_synthesis",   # 19:15 Dubai, Sundays only
 }
 
 CRON_SCHEDULE = os.environ.get("CRON_SCHEDULE", "")
@@ -912,27 +909,25 @@ def _concern_overlaps(prev_flags, current_flags, threshold=0.5):
 
 def verify_with_gemini_loop(briefing_data, max_rounds=2):
     """Cross-verification loop: Gemini reviews, Claude responds to flags, Gemini re-reviews.
-    If the SAME concern persists across rounds, Claude is forced to hedge/strip rather than
-    reconfirm. On the final round, any remaining concern is treated as unresolved and forced
-    into a hedge/strip response rather than shipped as flatly stated fact."""
+    Unresolved concerns block the entire desk batch before any Notion write."""
     prev_flags = []
     for round_num in range(1, max_rounds + 1):
         log(f"Gemini verification round {round_num}...")
         review = gemini_review(json.dumps(briefing_data))
         if review is None:
-            if not DRY_RUN:
-                fail_hard("Fact-review provider unavailable; desk publication withheld")
-            log("DRY RUN: fact-review provider unavailable; no publication will occur.")
-            return briefing_data
+            fail_hard("Fact-review provider unavailable; desk publication withheld")
 
-        flags_count = 0
+        flags_count = None
         for line in review.splitlines():
             if line.strip().upper().startswith("FLAGS:"):
                 try:
-                    flags_count = int("".join(c for c in line.split(":")[1] if c.isdigit()) or "0")
+                    flags_count = int(line.split(":", 1)[1].strip())
                 except ValueError:
-                    flags_count = 0
+                    fail_hard("Fact-review response malformed; desk publication withheld")
                 break
+
+        if flags_count is None or flags_count < 0:
+            fail_hard("Fact-review response missing valid FLAGS count; desk publication withheld")
 
         if flags_count == 0:
             log("Gemini review: no concerns raised.")
@@ -947,8 +942,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
             log("WARNING: at least one concern appears to be a repeat from the prior round — "
                 "forcing hedge/strip instead of allowing reconfirmation.")
         if is_final_round and flags_count > 0:
-            log("Final verification round still has open concerns — forcing hedge/strip "
-                "rather than shipping the disputed claim(s) as flatly stated.")
+            fail_hard("Final verification round has open concerns; desk publication withheld")
         briefing_data = claude_respond_to_flags(briefing_data, review, is_repeat_concern=force_hedge)
         prev_flags = current_flags
 
@@ -1539,9 +1533,11 @@ def main():
         "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY,
         "NOTION_API_KEY": NOTION_API_KEY,
         "NOTION_DATABASE_ID": NOTION_DATABASE_ID,
-        "KIT_API_KEY": KIT_API_KEY,
-        "GEMINI_API_KEY": GEMINI_API_KEY,
     }
+    if RUN_TYPE != "site_only":
+        required["GEMINI_API_KEY"] = GEMINI_API_KEY
+    if RUN_TYPE == "compile_send":
+        required["KIT_API_KEY"] = KIT_API_KEY
     missing = [name for name, value in required.items() if not value]
     if missing:
         fail_hard(f"Missing required secret(s): {', '.join(missing)}. Check GitHub Actions secrets.")
@@ -1555,6 +1551,8 @@ def main():
 
     if RUN_TYPE in GROUPS:
         return run_group(RUN_TYPE)
+    elif RUN_TYPE == "site_only":
+        return run_site_only()
     elif RUN_TYPE == "compile_send":
         return run_compile_send()
     elif RUN_TYPE == "weekly_synthesis":
@@ -1637,6 +1635,22 @@ def run_whapi_test():
     log("whapi_test: send_whapi call completed without raising — check WhatsApp to confirm delivery.")
 
     return {"edition_label": "whapi_test", "entry_count": 1, "notion_summary": [latest["title"]], "sent_output": True}
+
+
+def run_site_only():
+    """Select an edition from approved Notion entries; no email or WhatsApp."""
+    todays_entries = fetch_todays_entries_for_compile()
+    selected_ids = select_todays_intelligence(todays_entries)
+    if selected_ids and not DRY_RUN and os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write("notion_stage_attempted=true\n")
+        with open("notion-stage-attempted.json", "w") as marker:
+            json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
+                       "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                       "edition_date": dubai_today()}, marker)
+    return {"edition_label": dubai_today(), "entry_count": len(todays_entries),
+            "notion_summary": [f"Selected {len(selected_ids)} homepage entries"],
+            "sent_output": False}
 
 
 def run_compile_send():
