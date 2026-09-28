@@ -27,6 +27,25 @@ def page(identifier, created, kind='Signal', ready=True):
 
 
 class PipelineTests(unittest.TestCase):
+    def test_repeated_fact_concern_never_reaches_notion(self):
+        draft = {'notion_entries': [{'title': 'Disputed claim'}]}
+        with patch.object(main, 'gemini_review', side_effect=[
+                'FLAGS: 1\n- Officeholder is wrong',
+                'FLAGS: 1\n- Officeholder is wrong']), \
+                patch.object(main, 'claude_respond_to_flags', return_value=draft), \
+                patch.object(main, 'push_to_notion') as publish:
+            with self.assertRaises(SystemExit):
+                reviewed = main.verify_with_gemini_loop(draft)
+                main.push_to_notion(reviewed, set())
+        publish.assert_not_called()
+
+    def test_fact_review_rejects_missing_count_and_provider_failure(self):
+        for response in ('No concerns', None):
+            with self.subTest(response=response), \
+                    patch.object(main, 'gemini_review', return_value=response):
+                with self.assertRaises(SystemExit):
+                    main.verify_with_gemini_loop({'notion_entries': []})
+
     def test_compilation_reads_all_pages_and_excludes_previous_dubai_day(self):
         seen = []
 
