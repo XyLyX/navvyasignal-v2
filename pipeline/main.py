@@ -912,27 +912,25 @@ def _concern_overlaps(prev_flags, current_flags, threshold=0.5):
 
 def verify_with_gemini_loop(briefing_data, max_rounds=2):
     """Cross-verification loop: Gemini reviews, Claude responds to flags, Gemini re-reviews.
-    If the SAME concern persists across rounds, Claude is forced to hedge/strip rather than
-    reconfirm. On the final round, any remaining concern is treated as unresolved and forced
-    into a hedge/strip response rather than shipped as flatly stated fact."""
+    Unresolved concerns block the entire desk batch before any Notion write."""
     prev_flags = []
     for round_num in range(1, max_rounds + 1):
         log(f"Gemini verification round {round_num}...")
         review = gemini_review(json.dumps(briefing_data))
         if review is None:
-            if not DRY_RUN:
-                fail_hard("Fact-review provider unavailable; desk publication withheld")
-            log("DRY RUN: fact-review provider unavailable; no publication will occur.")
-            return briefing_data
+            fail_hard("Fact-review provider unavailable; desk publication withheld")
 
-        flags_count = 0
+        flags_count = None
         for line in review.splitlines():
             if line.strip().upper().startswith("FLAGS:"):
                 try:
-                    flags_count = int("".join(c for c in line.split(":")[1] if c.isdigit()) or "0")
+                    flags_count = int(line.split(":", 1)[1].strip())
                 except ValueError:
-                    flags_count = 0
+                    fail_hard("Fact-review response malformed; desk publication withheld")
                 break
+
+        if flags_count is None or flags_count < 0:
+            fail_hard("Fact-review response missing valid FLAGS count; desk publication withheld")
 
         if flags_count == 0:
             log("Gemini review: no concerns raised.")
@@ -947,8 +945,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
             log("WARNING: at least one concern appears to be a repeat from the prior round — "
                 "forcing hedge/strip instead of allowing reconfirmation.")
         if is_final_round and flags_count > 0:
-            log("Final verification round still has open concerns — forcing hedge/strip "
-                "rather than shipping the disputed claim(s) as flatly stated.")
+            fail_hard("Final verification round has open concerns; desk publication withheld")
         briefing_data = claude_respond_to_flags(briefing_data, review, is_repeat_concern=force_hedge)
         prev_flags = current_flags
 
