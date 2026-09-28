@@ -27,6 +27,20 @@ def page(identifier, created, kind='Signal', ready=True):
 
 
 class PipelineTests(unittest.TestCase):
+    def test_site_only_selects_homepage_without_sending(self):
+        entries = [{'id': 'a', 'title': 'Approved signal'}]
+        with patch.object(main, 'DRY_RUN', True), \
+                patch.object(main, 'fetch_todays_entries_for_compile', return_value=entries), \
+                patch.object(main, 'select_todays_intelligence', return_value=['a']) as select, \
+                patch.object(main, 'send_kit') as kit, \
+                patch.object(main, 'send_whapi') as whapi:
+            result = main.run_site_only()
+        select.assert_called_once_with(entries)
+        kit.assert_not_called()
+        whapi.assert_not_called()
+        self.assertFalse(result['sent_output'])
+        self.assertEqual(result['entry_count'], 1)
+
     def test_repeated_fact_concern_never_reaches_notion(self):
         draft = {'notion_entries': [{'title': 'Disputed claim'}]}
         with patch.object(main, 'gemini_review', side_effect=[
