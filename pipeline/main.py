@@ -87,7 +87,7 @@ CRON_TO_RUN_TYPE = {
     "33 11 * * *": "india",              # 15:33 GST
     "3 12 * * *": "global_politics",     # 16:03 GST
     "33 12 * * *": "markets_capital",    # 16:33 GST
-    "15 19 * * *": "compile_send",       # 23:15 GST, after delayed desk runs
+    "15 19 * * *": "site_only",          # 23:15 GST, choose homepage without sending
     "4 12 * * 5": "weekly_synthesis",    # 16:04 GST, Fridays only
 }
 
@@ -1552,6 +1552,8 @@ def main():
 
     if RUN_TYPE in GROUPS:
         return run_group(RUN_TYPE)
+    elif RUN_TYPE == "site_only":
+        return run_site_only()
     elif RUN_TYPE == "compile_send":
         return run_compile_send()
     elif RUN_TYPE == "weekly_synthesis":
@@ -1634,6 +1636,22 @@ def run_whapi_test():
     log("whapi_test: send_whapi call completed without raising — check WhatsApp to confirm delivery.")
 
     return {"edition_label": "whapi_test", "entry_count": 1, "notion_summary": [latest["title"]], "sent_output": True}
+
+
+def run_site_only():
+    """Select an edition from approved Notion entries; no email or WhatsApp."""
+    todays_entries = fetch_todays_entries_for_compile()
+    selected_ids = select_todays_intelligence(todays_entries)
+    if selected_ids and not DRY_RUN and os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write("notion_stage_attempted=true\n")
+        with open("notion-stage-attempted.json", "w") as marker:
+            json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
+                       "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                       "edition_date": dubai_today()}, marker)
+    return {"edition_label": dubai_today(), "entry_count": len(todays_entries),
+            "notion_summary": [f"Selected {len(selected_ids)} homepage entries"],
+            "sent_output": False}
 
 
 def run_compile_send():
