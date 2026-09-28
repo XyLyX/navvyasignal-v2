@@ -2,7 +2,7 @@
 
 ## Scope
 
-`pipeline/main.py` runs the seven isolated desks, Friday synthesis, daily compilation,
+`pipeline/main.py` runs the seven isolated desks, Sunday synthesis, optional compilation,
 Notion writes, Kit and Whapi. It is a self-contained V2-owned migration of the working
 editorial engine, with Framer writes removed. Its V2 selection writes `Today's Intelligence`,
 Dubai `Homepage Date`, and positive `Homepage Priority`. Compilation paginates all approved
@@ -10,10 +10,12 @@ Signals created on the current Dubai day. `v2-editorial-pipeline.yml` requests a
 after the Notion stage even if a later send fails; `v2-static-refresh.yml` is an optional
 once-daily safety net. No runtime job calls the old repositories or Framer.
 
-The compilation runs at 23:15 Dubai time. On 2026-09-27 the live database had
-approved desk entries created between 19:17 and 20:36 Dubai, after the old
-18:03 compilation slot. The later time allows these delayed desk runs to join
-the same day's edition.
+The scheduled 21:30 Dubai run selects the homepage edition without Kit or Whapi.
+The optional `compile_send` path has no scheduled trigger. Desk checks run at
+03:30 Technology, 04:30 Maritime, 05:30 Markets, 07:30 West Asia, 08:30
+Global Politics, 13:30 UAE, and 17:30 India (Dubai time). Sunday synthesis
+runs at 19:15. GitHub Actions may delay jobs; the edition uses whichever
+approved entries are available when selection starts.
 
 The copied editorial research and provider adapters still need a separate quality review;
 moving their ownership does not improve their factual accuracy. In particular, Gemini
@@ -40,26 +42,34 @@ once-daily credit cost is acceptable. No preview or production deploy is part of
    desk and article counts. Check the Netlify site, deploy branch, production domain, and
    auto-publishing lock. `NOTION_DATA_SOURCE_ID` belongs to the website build;
    `NOTION_DATABASE_ID` belongs to the Python writer. Do not interchange them.
-3. In the V2 repo, configure the existing provider secrets by name: `ANTHROPIC_API_KEY`,
+3. In the V2 repo's `v2-preview` environment, configure the existing provider secrets by name: `ANTHROPIC_API_KEY`,
    `NOTION_API_KEY`, `NOTION_DATABASE_ID`, `GEMINI_API_KEY`, `KIT_API_KEY`, `KIT_FROM_EMAIL`,
    `WHAPI_TOKEN`, `WHAPI_CHANNEL_ID`, `OPS_NOTIFY_NUMBER`. The preview build hook must
    be `V2_NETLIFY_BUILD_HOOK` and must point only at the isolated V2 preview site.
-   Do not copy secret values into git or logs. Keep `V2_PIPELINE_ENABLED` and
-   `V2_REFRESH_ENABLED` unset initially.
+   Do not copy secret values into git or logs. Keep `V2_PIPELINE_ENABLED`,
+   `V2_SITE_ONLY_ENABLED`, and `V2_REFRESH_ENABLED` unset initially.
 4. Merge the validated branch to the default branch only after approval. A manual dry run
    suppresses Notion writes, Kit, Whapi, and refresh. Compare its desk output against Notion.
-5. At one agreed daily boundary, disable the old `navvyasignal-automation` workflow **before**
-   setting `V2_LEGACY_SENDER_DISABLED=true` and `V2_PIPELINE_ENABLED=true`. Both variables are required by the scheduled job. Enable `V2_REFRESH_ENABLED=true` only after the V2
-   hook, credentials, and target branch have been verified. This order prevents duplicate sends.
-6. Observe all seven desk runs, exactly one Kit and Whapi send, and a successful V2 preview
-   rebuild whose article counts match the day's Notion records. Confirm that no Framer sync
-   property changed. Keep the old repository archived and restorable through this cycle.
+5. Enable `V2_PIPELINE_ENABLED=true` for scheduled research after checking the
+   Notion writer access and Gemini/Anthropic credentials. Enable
+   `V2_SITE_ONLY_ENABLED=true` for nightly selection. Neither scheduled path sends
+   Kit or Whapi. Enable `V2_REFRESH_ENABLED=true` only after verifying the V2
+   Netlify build hook, target branch, and available build credits. Keep the
+   independent refresh safety net off to avoid a second daily build.
+6. Observe all seven desk runs, the selected Notion edition, and one successful
+   V2 rebuild whose article counts match the day's Notion records. Disable the
+   Framer synchronization workflow; its external dispatch is still active.
+   Keep the old repositories archived and restorable through this cycle.
+7. If sending is later needed, disable the old `navvyasignal-automation`
+   workflow first, verify that the sender stopped, then set
+   `V2_LEGACY_SENDER_DISABLED=true` before manually dispatching `compile_send`.
 
 ## Current blockers
 
 - Repository and Netlify secrets and deployment settings cannot be verified from public git.
 - GitHub schedules run from the default branch only; staged workflows do not run on a timer.
-- Old automation is still active. Do not enable V2 sending until the old job is disabled.
+- Old automation is still active. Do not manually enable V2 sending until the old job is disabled.
+- The Framer sync is externally dispatched every three hours despite lacking a cron in its own workflow; disable that workflow before relying on a single V2 publishing path.
 - The static V2 website cannot show new posts until a successful build with real read-only
   Notion credentials occurs. A queued build hook alone is not proof of deployment.
 - Live Signal Feed inspection on 2026-09-27 confirmed the three homepage properties
@@ -71,6 +81,6 @@ once-daily credit cost is acceptable. No preview or production deploy is part of
 
 ## Rollback
 
-Set `V2_PIPELINE_ENABLED=false`, then restore the old workflow only after confirming V2
-cannot send. Set `V2_REFRESH_ENABLED=false` to stop refresh requests. Preserve the last
+Set `V2_PIPELINE_ENABLED=false` and `V2_SITE_ONLY_ENABLED=false` to stop research
+and selection. Set `V2_REFRESH_ENABLED=false` to stop refresh requests. Preserve the last
 known-good website deploy. Never run both senders with production credentials simultaneously.
