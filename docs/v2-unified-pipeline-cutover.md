@@ -44,8 +44,10 @@ once-daily credit cost is acceptable. No preview or production deploy is part of
    `NOTION_DATABASE_ID` belongs to the Python writer. Do not interchange them.
 3. In the V2 repo's `v2-preview` environment, configure the existing provider secrets by name: `ANTHROPIC_API_KEY`,
    `NOTION_API_KEY`, `NOTION_DATABASE_ID`, `GEMINI_API_KEY`, `KIT_API_KEY`, `KIT_FROM_EMAIL`,
-   `WHAPI_TOKEN`, `WHAPI_CHANNEL_ID`, `OPS_NOTIFY_NUMBER`. The preview build hook must
-   be `V2_NETLIFY_BUILD_HOOK` and must point only at the isolated V2 preview site.
+   `WHAPI_TOKEN`, `WHAPI_CHANNEL_ID`, `OPS_NOTIFY_NUMBER`. The build hook must
+   be `V2_NETLIFY_BUILD_HOOK` and must target the V2 Netlify project and its
+   production branch `release/v2-english`; the project's production alias is
+   `navvyasignal.com`. A hook for another branch will not refresh the live site.
    Do not copy secret values into git or logs. Keep `V2_PIPELINE_ENABLED`,
    `V2_SITE_ONLY_ENABLED`, and `V2_REFRESH_ENABLED` unset initially.
 4. Merge the validated branch to the default branch only after approval. A manual dry run
@@ -66,7 +68,9 @@ once-daily credit cost is acceptable. No preview or production deploy is part of
 
 ## Current blockers
 
-- Repository and Netlify secrets and deployment settings cannot be verified from public git.
+- GitHub Actions variable/secret values and the build-hook target cannot be
+  verified from public git. Netlify has `NOTION_TOKEN` in production and
+  `NOTION_DATA_SOURCE_ID` in all contexts, but the hook itself remains unverified.
 - GitHub schedules run from the default branch only; staged workflows do not run on a timer.
 - Old automation is still active. Do not manually enable V2 sending until the old job is disabled.
 - The Framer sync is externally dispatched every three hours despite lacking a cron in its own workflow; disable that workflow before relying on a single V2 publishing path.
