@@ -1,25 +1,25 @@
 name: V2 editorial pipeline
 
-# This runs only from the default branch. V2_PIPELINE_ENABLED is false until
-# the old sender is disabled and the new credentials/build target are verified.
+# Scheduled jobs run only from the default branch. Research and site publication
+# have separate gates; email/WhatsApp remain off until explicitly cut over.
 on:
   schedule:
-    - cron: '33 1 * * *'   # West Asia, 05:33 Dubai
-    - cron: '33 2 * * *'   # Maritime, 06:33
-    - cron: '33 10 * * *'  # Technology, 14:33
-    - cron: '3 11 * * *'   # UAE, 15:03
-    - cron: '33 11 * * *'  # India, 15:33
-    - cron: '3 12 * * *'   # Global Politics, 16:03
-    - cron: '33 12 * * *'  # Markets, 16:33
-    - cron: '15 19 * * *'  # Compile and send, 23:15 Dubai; allow delayed desks
-    - cron: '4 12 * * 5'  # Weekly synthesis, Friday 16:04
+    - cron: '30 0 * * *'   # Maritime, 04:30 Dubai
+    - cron: '30 3 * * *'   # West Asia, 07:30 Dubai
+    - cron: '30 13 * * *'  # India, 17:30 Dubai
+    - cron: '30 9 * * *'   # UAE, 13:30 Dubai
+    - cron: '30 23 * * *'  # Technology, 03:30 Dubai (next UTC date)
+    - cron: '30 4 * * *'   # Global Politics, 08:30 Dubai
+    - cron: '30 1 * * *'   # Markets, 05:30 Dubai
+    - cron: '30 17 * * *'  # Site edition only, 21:30 Dubai; no sends
+    - cron: '15 15 * * 0' # Weekly synthesis, Sunday 19:15 Dubai
   workflow_dispatch:
     inputs:
       run_type:
-        description: Desk key, compile_send or weekly_synthesis
+        description: Desk group, site_only, compile_send or weekly_synthesis
         required: true
         type: choice
-        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, compile_send, weekly_synthesis]
+        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, site_only, compile_send, weekly_synthesis]
       dry_run:
         description: Suppress Notion writes, Kit, Whapi and refresh
         type: boolean
@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   editorial:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && (vars.V2_PIPELINE_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
+    if: github.repository == 'XyLyX/navvyasignal-v2' && ((github.event_name == 'schedule' && ((github.event.schedule == '30 17 * * *' && vars.V2_SITE_ONLY_ENABLED == 'true') || (github.event.schedule != '30 17 * * *' && vars.V2_PIPELINE_ENABLED == 'true'))) || (github.event_name == 'workflow_dispatch' && (inputs.dry_run || (inputs.run_type == 'site_only' && vars.V2_SITE_ONLY_ENABLED == 'true') || (inputs.run_type != 'site_only' && vars.V2_PIPELINE_ENABLED == 'true' && (inputs.run_type != 'compile_send' || vars.V2_LEGACY_SENDER_DISABLED == 'true')))))
     runs-on: ubuntu-latest
     environment: v2-preview
     timeout-minutes: 30
