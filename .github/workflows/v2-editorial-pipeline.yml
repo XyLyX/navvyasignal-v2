@@ -1,7 +1,7 @@
 name: V2 editorial pipeline
 
 # This runs only from the default branch. V2_PIPELINE_ENABLED is false until
-# both V2_PIPELINE_ENABLED and V2_LEGACY_SENDER_DISABLED are true after\n# the old sender is disabled and the new credentials/build target are verified.
+# site-only scheduling can start after the old Notion writer is disabled; sending remains gated.
 on:
   schedule:
     - cron: '33 1 * * *'   # West Asia, 05:33 Dubai
@@ -11,15 +11,15 @@ on:
     - cron: '33 11 * * *'  # India, 15:33
     - cron: '3 12 * * *'   # Global Politics, 16:03
     - cron: '33 12 * * *'  # Markets, 16:33
-    - cron: '15 19 * * *'  # Compile and send, 23:15 Dubai; allow delayed desks
+    - cron: '15 19 * * *'  # Select homepage, 23:15 Dubai; no Kit or Whapi
     - cron: '4 12 * * 5'  # Weekly synthesis, Friday 16:04
   workflow_dispatch:
     inputs:
       run_type:
-        description: Desk key, compile_send or weekly_synthesis
+        description: Desk key, site_only, compile_send or weekly_synthesis
         required: true
         type: choice
-        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, compile_send, weekly_synthesis]
+        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, site_only, compile_send, weekly_synthesis]
       dry_run:
         description: Suppress Notion writes, Kit, Whapi and refresh
         type: boolean
@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   editorial:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && ((vars.V2_PIPELINE_ENABLED == 'true' && vars.V2_LEGACY_SENDER_DISABLED == 'true') || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
+    if: github.repository == 'XyLyX/navvyasignal-v2' && ((github.event_name == 'schedule' && github.event.schedule != '4 12 * * 5' && vars.V2_SITE_ONLY_ENABLED == 'true') || (vars.V2_PIPELINE_ENABLED == 'true' && vars.V2_LEGACY_SENDER_DISABLED == 'true') || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
     runs-on: ubuntu-latest
     environment: v2-preview
     timeout-minutes: 30
