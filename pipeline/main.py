@@ -718,6 +718,40 @@ per your instructions."""
     return data
 
 
+def fit_signal_briefs(briefing_data):
+    """Rewrite a model overrun into the agreed Signal format before fact review.
+
+    Never cut a sentence or silently publish a long-form article as a Signal.
+    The subsequent Gemini pass reviews the final wording, including any rewrite.
+    """
+    for entry in briefing_data["notion_entries"]:
+        body = entry.get("body_markdown", "")
+        if not isinstance(body, str) or not body.strip():
+            fail_hard(f"Desk entry has no brief: {entry.get('title', '')[:90]}")
+        if len(body) <= 1800:
+            continue
+        for attempt in range(2):
+            prompt = ("Edit this NavvyaSignal Signal Brief to at most 1,700 characters. "
+                      "Use plain prose with one or two paragraphs on what happened, then one "
+                      "paragraph on why it matters. No headings, markdown, new claims, or "
+                      "unsupported inference. Preserve material dates, figures, attribution, "
+                      "uncertainty, and the actual conclusion. Return only the edited prose.\n\n"
+                      f"Title: {entry['title']}\nSources: {entry.get('sources_text', '')}\n"
+                      f"Original brief:\n{body}")
+            with client.messages.stream(
+                model="claude-sonnet-4-5", max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                response = stream.get_final_message()
+            body = "\n".join(b.text for b in response.content if b.type == "text").strip()
+            if 0 < len(body) <= 1800 and "\n\n" in body and "##" not in body:
+                entry["body_markdown"] = body
+                break
+        else:
+            fail_hard(f"Could not fit Signal Brief within 1,800 characters: {entry['title'][:90]}")
+    return briefing_data
+
+
 COMPILE_SYSTEM_PROMPT = """You are the compilation editor for NavvyaSignal, a daily intelligence \
 publication. You do NOT research or write new facts — you assemble the final daily email and \
 WhatsApp send from already-researched, already-validated entries provided to you below. Every \
@@ -953,12 +987,12 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
 
 def push_to_notion(entries, valid_existing_ids):
     import re as _re
-    # Validate the entire batch before the first write. Preserve a complete brief
-    # across Notion rich-text blocks instead of rejecting a model's modest overrun.
+    # Validate the entire batch before the first write. A Signal is a concise
+    # report, not a long-form article split across Notion rich-text blocks.
     for entry in entries:
         body = entry.get("body_markdown", "")
         sources = entry.get("sources_text", "")
-        if not isinstance(body, str) or not body.strip() or len(body) > 6000:
+        if not isinstance(body, str) or not body.strip() or len(body) > 1800:
             fail_hard(f"Desk entry has missing or overlong brief: {entry.get('title', '')[:90]}")
         if not isinstance(sources, str) or len(sources) > 1900 or not _re.search(r"https://\S+", sources):
             fail_hard(f"Desk entry lacks a direct source URL: {entry.get('title', '')[:90]}")
@@ -982,10 +1016,7 @@ def push_to_notion(entries, valid_existing_ids):
         properties = {
             "Name": {"title": [{"text": {"content": entry["title"]}}]},
             "Category": {"select": {"name": desk}},
-            "Signal Brief": {"rich_text": [
-                {"text": {"content": signal_brief[i:i + 1900]}}
-                for i in range(0, len(signal_brief), 1900)
-            ]},
+            "Signal Brief": {"rich_text": [{"text": {"content": signal_brief}}]},
             "Text 1": {"rich_text": [{"text": {"content": sources_text}}]},
             "Long Read": {"checkbox": False},
             "Ready to Post": {"checkbox": True},  # fully automatic, per instruction
@@ -1600,7 +1631,9 @@ def run_group(run_type):
                 f"'{entry.get('desk')}' — not in this run's scope ({', '.join(scope_desks)}).")
     briefing["notion_entries"] = in_scope_entries
 
-    briefing = verify_with_gemini_loop(briefing)
+    briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
+    if any(len(e.get("body_markdown", "")) > 1800 for e in briefing["notion_entries"]):
+        briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
 
     valid_existing_ids = {e["id"] for e in existing}
     notion_summary = push_to_notion(briefing["notion_entries"], valid_existing_ids)

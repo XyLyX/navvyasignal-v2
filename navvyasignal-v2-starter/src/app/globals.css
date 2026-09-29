@@ -356,6 +356,18 @@ body:has(.arabic-shell) > .footer {display:none}
 .desk-detail-content{position:relative;min-height:250px}
 .desk-detail-content>p:not(.eyebrow){max-width:690px}
 .desk-detail-content .story{max-width:900px;background:rgba(255,255,255,.93)}
+.desk-detail-header{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;justify-content:center;min-height:300px;padding:38px 42px;background-color:#142f49;background-size:cover;background-position:center;color:#fff}
+.desk-detail-header::before{content:"";position:absolute;z-index:-1;inset:0;background:linear-gradient(90deg,rgba(9,27,44,.92),rgba(9,27,44,.72) 48%,rgba(9,27,44,.25));pointer-events:none}
+.desk-detail-header .eyebrow{color:#efd4a1}
+.desk-detail-header h1{color:#fff;margin:10px 0 8px;text-shadow:0 2px 12px rgba(0,0,0,.5)}
+.desk-detail-header p:not(.eyebrow){color:#fff;margin:0;text-shadow:0 1px 8px rgba(0,0,0,.65)}
+.desk-detail-content{padding-top:22px}
+.desk-detail-content .story{max-width:none;padding:24px 0;background:transparent}
+.desk-detail-content .story p{max-width:780px;line-height:1.65}
+.desk-story-link{font:600 12px Arial,sans-serif;color:var(--deep);text-decoration:underline;text-underline-offset:3px}
+.signal-sources{white-space:pre-line;overflow-wrap:anywhere}
+.signal-invitation{padding-top:20px;border-top:1px solid #d9d5cb}
+@media(max-width:600px){.desk-detail-header{min-height:250px;padding:28px 24px}}
 /* Signal Feed and Watchlist: understated archival/observation photography. */
 .signal-feed-page,.watch-page{position:relative;isolation:isolate}
 .signal-feed-page::before,.watch-page::before{content:"";position:absolute;z-index:-1;top:45px;right:0;width:min(58%,760px);height:230px;background-size:cover;background-position:center;filter:grayscale(1) saturate(.25);opacity:.12;-webkit-mask-image:linear-gradient(to left,#000 5%,transparent 100%);mask-image:linear-gradient(to left,#000 5%,transparent 100%);pointer-events:none}

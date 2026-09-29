@@ -21,7 +21,7 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
   const desk = desks.find(d => matchesDeskCategory(d.slug, story.category));
   const related = visible.filter(item => item.id !== story.id && item.category === story.category).slice(0, 3);
   // Current pipeline: Signal Brief is editorial prose; Text 1 is sources, never article body.
-  const briefParagraphs = story.brief.split(/(?:<br\s*\/?\s*>\s*){1,}|\n{2,}/gi)
+  const briefParagraphs = story.brief.replace(/\\n/g, '\n').split(/(?:<br\s*\/?\s*>\s*){1,}|\n{2,}/gi)
     .map(part => part.trim()).filter(Boolean);
   const sources = story.body.trim();
   // Notion page blocks on short Signals can contain unreviewed working notes.
@@ -36,14 +36,15 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
     <p className="kicker">{story.category}{story.contentType ? ` · ${story.contentType}` : ''}</p>
     <h1>{story.title}</h1>
     <p><small>Notion record created: {recordedDate}. This is not a verified original publication date.</small></p>
-    {briefParagraphs.length > 0 ? <section aria-label="Signal report">
-      <h2>Signal report</h2>
+    {briefParagraphs.length > 0 ? <section aria-label="Signal brief">
+      <h2>Signal brief</h2>
       {briefParagraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
     </section> : <p className="empty">No report text is available for this record.</p>}
     {fullEditorial.length > 0 && <section aria-label="Long read"><h2>Long read</h2>
       {fullEditorial.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
     </section>}
-    {sources && <section aria-label="Sources"><h2>Sources</h2><p>{sources}</p></section>}
+    {sources && <section aria-label="Sources"><h2>Sources</h2><p className="signal-sources">{sources}</p></section>}
+    <p className="signal-invitation">Follow the next development at <Link href="/">navvyasignal.com</Link>.</p>
     <p><small>Editorial record sourced from Notion. The record creation date is not necessarily the original publication date.</small></p>
     <ShareLinks title={story.title} url={`https://navvyasignal.com/signals/${story.id}`} />
     <section className="article-discovery" aria-label="Explore related intelligence">

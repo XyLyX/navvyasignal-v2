@@ -20,7 +20,7 @@ export default function ExpandableEditorial({ story, label, className = '' }: { 
   <p className="editorial-preview-text">{story.brief}</p>
   <div className="editorial-preview-actions">
    <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}>{open ? 'Show less ↑' : 'Highlights · Read more ↓'}</button>
-   <Link href={`/signals/${story.id}`}>Full report ↗</Link>
+   <Link href={`/signals/${story.id}`}>Open report ↗</Link>
   </div>
  </article>;
 }

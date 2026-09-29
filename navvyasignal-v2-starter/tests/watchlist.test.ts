@@ -59,10 +59,10 @@ test('full text is preserved: paragraphs rejoin to the original brief', () => {
 
 test('cards: excerpts only, links only to the existing /signals/<id> page, never an invented URL', () => {
   assert.match(card, /const href = `\/signals\/\$\{story\.id\}`/);
-  assert.equal((card.match(/href=/g) ?? []).length, 2, 'title link and Read full analysis link only');
+  assert.equal((card.match(/href=/g) ?? []).length, 2, 'title link and Read signal link only');
   assert.doesNotMatch(card, /https?:\/\//, 'no external or invented URLs');
   assert.doesNotMatch(card, /dangerouslySetInnerHTML/);
-  assert.match(card, /Read full analysis/);
+  assert.match(card, /Read signal/);
   assert.match(card, /variant === 'page' && excerpt/, 'page briefs remain collapsed until requested');
   assert.match(card, /<details className="watch-details"><summary>Show brief<\/summary>/);
   assert.match(card, /variant === 'aside' && excerpt/, 'sidebar excerpt is conditional');

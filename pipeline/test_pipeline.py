@@ -106,11 +106,11 @@ class PipelineTests(unittest.TestCase):
                 main.push_to_notion([good, bad], set())
             post.assert_not_called()
             with self.assertRaises(ValueError):
-                main.push_to_notion([{**good, 'body_markdown': 'x' * 6001}], set())
+                main.push_to_notion([{**good, 'body_markdown': 'x' * 1801}], set())
             post.assert_not_called()
 
-    def test_overlong_brief_is_preserved_across_notion_blocks(self):
-        body = 'What happened. ' * 140 + 'Why it matters. ' * 70
+    def test_signal_brief_fits_one_notion_block(self):
+        body = 'What happened. ' * 45 + '\n\nWhy it matters. ' * 30
         entry = {'action': 'create', 'title': 'Verified development',
                  'desk': 'West Asia Desk', 'body_markdown': body,
                  'sources_text': 'Agency: https://agency.example/story'}
@@ -118,8 +118,22 @@ class PipelineTests(unittest.TestCase):
                 patch.object(main.requests, 'post', return_value=Response()) as post:
             main.push_to_notion([entry], set())
         blocks = post.call_args.kwargs['json']['properties']['Signal Brief']['rich_text']
-        self.assertTrue(all(len(b['text']['content']) <= 1900 for b in blocks))
-        self.assertEqual(''.join(b['text']['content'] for b in blocks), body)
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]['text']['content'], body)
+
+    def test_overlong_signal_is_rewritten_before_review(self):
+        entry = {'title': 'A development', 'body_markdown': 'A' * 2000,
+                 'sources_text': 'Reuters: https://example.com/report'}
+        class Stream:
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+            def get_final_message(self):
+                return type('Message', (), {'content': [type('Block', (), {
+                    'type': 'text', 'text': 'A factual paragraph.\n\nWhy this matters.'})()]})()
+        with patch.object(main.client.messages, 'stream', return_value=Stream()):
+            draft = main.fit_signal_briefs({'notion_entries': [entry]})
+        self.assertEqual(draft['notion_entries'][0]['body_markdown'],
+                         'A factual paragraph.\n\nWhy this matters.')
 
 
 if __name__ == '__main__':

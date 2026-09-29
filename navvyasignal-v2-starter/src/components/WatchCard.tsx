@@ -11,7 +11,7 @@ export const WATCH_EXCERPT_PAGE = 155;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}/;
 
 /**
- * One Watchlist entry. The excerpt is display-only; the title and "Read full analysis" link go to the existing
+ * One Watchlist entry. The excerpt is display-only; the title and signal link go to the existing
  * /signals/<id> page that every approved record has, and the /watchlist variant also offers the full brief inline.
  */
 export default function WatchCard({ story, variant }: { story: WatchEntry; variant: 'aside' | 'page' }) {
@@ -26,6 +26,6 @@ export default function WatchCard({ story, variant }: { story: WatchEntry; varia
     <h3><Link href={href}>{story.title}</Link></h3>
     {variant === 'aside' && excerpt ? <p className="watch-excerpt">{excerpt}</p> : null}
     {variant === 'page' && excerpt ? <details className="watch-details"><summary>Show brief</summary><p className="watch-excerpt">{excerpt}</p></details> : null}
-    <Link className="watch-more" href={href}>Read full analysis →</Link>
+    <Link className="watch-more" href={href}>Read signal →</Link>
   </article>;
 }
