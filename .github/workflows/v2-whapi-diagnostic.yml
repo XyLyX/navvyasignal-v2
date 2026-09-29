@@ -12,13 +12,14 @@ jobs:
     environment: v2-preview
     timeout-minutes: 5
     steps:
+      - run: python -m pip install requests
       - name: Inspect configured channel and recent posts (read only)
         env:
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           WHAPI_CHANNEL_ID: ${{ secrets.WHAPI_CHANNEL_ID }}
         run: |
           python - <<'PY'
-          import json, os, re, urllib.request, urllib.error
+          import json, os, re, requests
           from urllib.parse import quote
           token = os.environ.get("WHAPI_TOKEN", "").strip()
           channel = os.environ.get("WHAPI_CHANNEL_ID", "").strip()
@@ -29,13 +30,22 @@ jobs:
           if not token or not valid:
               raise SystemExit("Invalid WhatsApp channel configuration; no message sent")
           def get(path):
-              req = urllib.request.Request("https://gate.whapi.cloud" + path,
-                  headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
+              response = requests.get("https://gate.whapi.cloud" + path,
+                  headers={"Authorization": "Bearer " + token, "Accept": "application/json"},
+                  timeout=25)
               try:
-                  with urllib.request.urlopen(req, timeout=25) as response:
-                      return response.status, json.load(response)
-              except urllib.error.HTTPError as error:
-                  return error.code, {}
+                  body = response.json()
+              except ValueError:
+                  body = {}
+              if response.status_code != 200:
+                  error = body.get("error", {}) if isinstance(body, dict) else {}
+                  if isinstance(error, dict):
+                      code = error.get("code")
+                      message = str(error.get("message", ""))
+                      print("Whapi error code:", code)
+                      print("Whapi error message:",
+                            message.replace(token, "[redacted]").replace(channel, "[redacted]")[:160])
+              return response.status_code, body
           status, listing = get("/newsletters?count=100")
           print("Channel list HTTP status:", status)
           if status != 200:
