@@ -728,7 +728,8 @@ def fit_signal_briefs(briefing_data):
         body = entry.get("body_markdown", "")
         if not isinstance(body, str) or not body.strip():
             fail_hard(f"Desk entry has no brief: {entry.get('title', '')[:90]}")
-        if len(body) <= 1800:
+        if len(body) <= 1800 and "\n\n" in body and not any(
+                label in body.lower() for label in ("why it matters:", "what happened:", "##", "**")):
             continue
         for attempt in range(2):
             prompt = ("Edit this NavvyaSignal Signal Brief to at most 1,700 characters. "
@@ -744,7 +745,9 @@ def fit_signal_briefs(briefing_data):
             ) as stream:
                 response = stream.get_final_message()
             body = "\n".join(b.text for b in response.content if b.type == "text").strip()
-            if 0 < len(body) <= 1800 and "\n\n" in body and "##" not in body:
+            if (0 < len(body) <= 1800 and "\n\n" in body and not any(
+                    label in body.lower() for label in
+                    ("why it matters:", "what happened:", "##", "**"))):
                 entry["body_markdown"] = body
                 break
         else:
@@ -994,6 +997,9 @@ def push_to_notion(entries, valid_existing_ids):
         sources = entry.get("sources_text", "")
         if not isinstance(body, str) or not body.strip() or len(body) > 1800:
             fail_hard(f"Desk entry has missing or overlong brief: {entry.get('title', '')[:90]}")
+        if "\n\n" not in body or any(label in body.lower() for label in
+                                     ("why it matters:", "what happened:", "##", "**")):
+            fail_hard(f"Desk entry lacks plain-prose paragraph structure: {entry.get('title', '')[:90]}")
         if not isinstance(sources, str) or len(sources) > 1900 or not _re.search(r"https://\S+", sources):
             fail_hard(f"Desk entry lacks a direct source URL: {entry.get('title', '')[:90]}")
         if entry.get("action") == "update" and entry.get("existing_id") not in valid_existing_ids:

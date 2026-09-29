@@ -135,6 +135,21 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(draft['notion_entries'][0]['body_markdown'],
                          'A factual paragraph.\n\nWhy this matters.')
 
+    def test_short_unstructured_signal_is_rewritten(self):
+        entry = {'title': 'A development',
+                 'body_markdown': 'What Happened: A factual paragraph. Why It Matters: A consequence.',
+                 'sources_text': 'Reuters: https://example.com/report'}
+        class Stream:
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+            def get_final_message(self):
+                return type('Message', (), {'content': [type('Block', (), {
+                    'type': 'text', 'text': 'A factual paragraph.\n\nA consequence.'})()]})()
+        with patch.object(main.client.messages, 'stream', return_value=Stream()):
+            draft = main.fit_signal_briefs({'notion_entries': [entry]})
+        self.assertEqual(draft['notion_entries'][0]['body_markdown'],
+                         'A factual paragraph.\n\nA consequence.')
+
 
 if __name__ == '__main__':
     unittest.main()
