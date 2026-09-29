@@ -31,21 +31,29 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
   const recordedDate = new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(story.createdAt));
-  return <main className="container inner">
+  const sourceParts = sources.split(/(https?:\/\/[^\s<>]+)/g);
+  return <main className="container inner signal-article">
     <p className="eyebrow">CURRENT INTELLIGENCE · V2</p>
     <p className="kicker">{story.category}{story.contentType ? ` · ${story.contentType}` : ''}</p>
     <h1>{story.title}</h1>
-    <p><small>Notion record created: {recordedDate}. This is not a verified original publication date.</small></p>
+    <p className="signal-date">Record added <time dateTime={story.createdAt}>{recordedDate}</time></p>
     {briefParagraphs.length > 0 ? <section aria-label="Signal brief">
-      <h2>Signal brief</h2>
+      
       {briefParagraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
     </section> : <p className="empty">No report text is available for this record.</p>}
     {fullEditorial.length > 0 && <section aria-label="Long read"><h2>Long read</h2>
       {fullEditorial.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
     </section>}
-    {sources && <section aria-label="Sources"><h2>Sources</h2><p className="signal-sources">{sources}</p></section>}
+    {sources && <section aria-label="Sources"><h2>Sources</h2><p className="signal-sources">{sourceParts.map((part, index) => {
+        if (!/^https?:\/\//.test(part)) return <span key={index}>{part}</span>;
+        const href = part.replace(/[.,;:)\]]+$/, '');
+        try {
+          const url = new URL(href);
+          return <span key={index}><a href={href} target="_blank" rel="noopener noreferrer">{url.hostname.replace(/^www\./, '')}</a>{part.slice(href.length)}</span>;
+        } catch { return <span key={index}>{part}</span>; }
+      })}</p></section>}
     <p className="signal-invitation">Follow the next development at <Link href="/">navvyasignal.com</Link>.</p>
-    <p><small>Editorial record sourced from Notion. The record creation date is not necessarily the original publication date.</small></p>
+    <p className="signal-date-note">The record date indicates when this Signal was added, rather than the date of the reported event.</p>
     <ShareLinks title={story.title} url={`https://navvyasignal.com/signals/${story.id}`} />
     <section className="article-discovery" aria-label="Explore related intelligence">
       <h2>Continue exploring</h2>
@@ -55,3 +63,4 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
     </section>
   </main>;
 }
+
