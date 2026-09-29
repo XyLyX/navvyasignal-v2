@@ -469,6 +469,17 @@ independent reporting for material contested claims. For each entry put direct h
 to the specific pages actually consulted in sources_text, with publisher and date. A list
 of outlet names, homepages, or second-hand claims of verification is insufficient. If a
 crucial claim lacks a retrievable source, omit that claim or omit the entry.
+- The title must state only supported claims. Aim for 8–18 words: identify the actor,
+action and material consequence; put secondary names, figures and chronology in the brief.
+- Every desk uses the same editorial structure. A Signal earns its place through a material
+policy, economic, security, technology or cross-desk consequence. Do not fill a desk quota
+with routine arrests, celebrity appearances or general public-service announcements unless
+you can establish a material consequence supported by the consulted reporting.
+- The final paragraph must explain a concrete consequence: who is affected, how the
+change affects them, and a relevant constraint or uncertainty. Distinguish analytical
+inference from reported fact. Never substitute "transformational", "underscores", "reflects
+commitment", or "significant development" for an explanation. Do not invent implications
+or a prediction merely to satisfy this requirement; omit a weak story instead.
 - The title must state only supported claims. Use one or two paragraphs on what happened
 with attribution and dates, then a separate paragraph on why it matters. Use plain prose,
 without section labels or markdown. Keep body_markdown below 1800 characters and the
@@ -745,7 +756,7 @@ def fit_signal_briefs(briefing_data):
         return (
             isinstance(text, str)
             and 0 < len(text.strip()) <= 1800
-            and "\n\n" in text
+            and 2 <= len([p for p in text.strip().split("\n\n") if p.strip()]) <= 3
             and not any(label in text.lower() for label in forbidden_labels)
         )
 
@@ -775,7 +786,9 @@ def fit_signal_briefs(briefing_data):
                 + f"Edit this NavvyaSignal Signal Brief to at most {target} "
                 "characters INCLUDING spaces and paragraph breaks. "
                 "Use plain prose with one or two paragraphs on what happened, "
-                "then one paragraph on why it matters. "
+                "then one distinct final paragraph explaining who is affected, the concrete "
+                "consequence and a relevant constraint or uncertainty supported by the sources. "
+                "Avoid promotional adjectives and generic importance statements. "
                 "Separate paragraphs with a blank line. "
                 "No headings, markdown, preamble, new claims, or unsupported "
                 "inference. Preserve material dates, figures, attribution, "
@@ -1984,3 +1997,4 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
+
