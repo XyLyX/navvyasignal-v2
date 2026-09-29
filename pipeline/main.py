@@ -14,6 +14,8 @@ import json
 import time
 import datetime
 import html
+import re
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 import requests
 import anthropic
@@ -1649,14 +1651,40 @@ def send_whapi(text):
         return
     if not WHAPI_TOKEN or not WHAPI_CHANNEL_ID:
         fail_hard("Whapi credentials not configured; WhatsApp send withheld")
-    url = "https://gate.whapi.cloud/messages/text"
+    if not re.fullmatch(r"[0-9]{10,18}@newsletter", WHAPI_CHANNEL_ID):
+        fail_hard("Whapi channel ID is not a newsletter address")
     headers = {"Authorization": f"Bearer {WHAPI_TOKEN}", "Content-Type": "application/json"}
+    channel_path = quote(WHAPI_CHANNEL_ID, safe="@")
+    marker = text.splitlines()[0]
+    def read(path):
+        response = requests.get("https://gate.whapi.cloud" + path, headers=headers, timeout=30)
+        if response.status_code != 200:
+            fail_hard(f"Whapi channel verification failed: HTTP {response.status_code}")
+        return response.json()
+    metadata = read(f"/newsletters/{channel_path}")
+    if metadata.get("role") not in ("admin", "creator", "owner"):
+        fail_hard("Whapi account is not a channel admin or creator")
+    def contains_edition(data):
+        return any(marker in json.dumps(item, ensure_ascii=False)
+                   for item in data.get("messages", []))
+    history_path = f"/newsletters/{channel_path}/messages?count=100"
+    if contains_edition(read(history_path)):
+        log("Today's WhatsApp edition is already visible in channel history; skipping duplicate.")
+        return
+    if contains_edition(read(f"/messages/list/{channel_path}?count=100")):
+        fail_hard("Today's WhatsApp edition is already queued or sent; withholding duplicate")
+    url = "https://gate.whapi.cloud/messages/text"
     payload = {"to": WHAPI_CHANNEL_ID, "body": text}
     resp = requests.post(url, headers=headers, json=payload, timeout=30)
     if resp.status_code != 200 or not resp.json().get("sent"):
         fail_hard(f"Whapi send failed: HTTP {resp.status_code}")
-    log("Whapi message sent successfully.")
-
+    log("Whapi accepted message; checking channel history for publication.")
+    for _ in range(12):
+        time.sleep(15)
+        if contains_edition(read(history_path)):
+            log("WhatsApp edition confirmed in channel history.")
+            return
+    fail_hard("Whapi accepted message, but channel publication was not confirmed")
 
 # ---------- MAIN ----------
 

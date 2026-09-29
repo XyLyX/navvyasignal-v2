@@ -191,6 +191,35 @@ class PipelineTests(unittest.TestCase):
         fetch.assert_not_called()
         send.assert_not_called()
 
+    def test_whapi_confirms_channel_history_after_acceptance(self):
+        marker = 'NavvyaSignal · 2026-09-29'
+        empty = Response({'messages': []})
+        visible = Response({'messages': [{'text': {'body': marker + ' published'}}]})
+        with patch.object(main, 'DRY_RUN', False), \
+                patch.object(main, 'WHAPI_TOKEN', 'test-token'), \
+                patch.object(main, 'WHAPI_CHANNEL_ID', '120363171744447809@newsletter'), \
+                patch.object(main.requests, 'get', side_effect=[
+                    Response({'role': 'admin'}), empty, empty, visible]), \
+                patch.object(main.requests, 'post',
+                             return_value=Response({'sent': True})) as post, \
+                patch.object(main.time, 'sleep'):
+            main.send_whapi(marker + '\n\nEdition')
+        post.assert_called_once()
+
+    def test_whapi_withholds_duplicate_queued_edition(self):
+        marker = 'NavvyaSignal · 2026-09-29'
+        with patch.object(main, 'DRY_RUN', False), \
+                patch.object(main, 'WHAPI_TOKEN', 'test-token'), \
+                patch.object(main, 'WHAPI_CHANNEL_ID', '120363171744447809@newsletter'), \
+                patch.object(main.requests, 'get', side_effect=[
+                    Response({'role': 'admin'}), Response({'messages': []}),
+                    Response({'messages': [{'body': marker, 'status': 'pending'}]})]), \
+                patch.object(main.requests, 'post') as post, \
+                patch.object(main, 'fail_hard', side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                main.send_whapi(marker + '\n\nEdition')
+        post.assert_not_called()
+
     def test_send_only_does_not_write_notion_or_repeat_empty_edition(self):
         with patch.object(main, 'DRY_RUN', True), \
                 patch.object(main, 'fetch_todays_entries_for_compile', return_value=[]), \
