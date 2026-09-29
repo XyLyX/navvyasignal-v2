@@ -65,6 +65,7 @@ jobs:
           print("Target channel metadata HTTP status:", info_status)
           if info_status == 200 and isinstance(info, dict):
               print("Target channel response fields:", sorted(info.keys()))
+              print("Connected account channel role:", info.get("role"))
           status, history = get(base + "/messages?count=25")
           print("Channel history HTTP status:", status)
           if status != 200:
