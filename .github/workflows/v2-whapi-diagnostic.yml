@@ -39,7 +39,7 @@ jobs:
           status, listing = get("/newsletters?count=100")
           print("Channel list HTTP status:", status)
           if status != 200:
-              raise SystemExit("Unable to inspect channel list")
+              print("Channel listing unavailable; checking configured channel directly.")
           def find_channel(obj):
               if isinstance(obj, dict):
                   if obj.get("id") == channel or obj.get("newsletter_id") == channel:
@@ -48,11 +48,17 @@ jobs:
               if isinstance(obj, list):
                   return any(find_channel(v) for v in obj)
               return False
-          print("Configured channel appears in account list:", find_channel(listing))
-          status, history = get("/newsletters/" + quote(channel, safe="@") + "/messages?count=25")
+          if status == 200:
+              print("Configured channel appears in account list:", find_channel(listing))
+          base = "/newsletters/" + quote(channel, safe="@")
+          info_status, info = get(base)
+          print("Target channel metadata HTTP status:", info_status)
+          if info_status == 200 and isinstance(info, dict):
+              print("Target channel response fields:", sorted(info.keys()))
+          status, history = get(base + "/messages?count=25")
           print("Channel history HTTP status:", status)
           if status != 200:
-              raise SystemExit("Unable to inspect configured channel history")
+              raise SystemExit("Whapi denied the direct channel history check; no post sent")
           serialized = json.dumps(history, ensure_ascii=False).lower()
           print("Today's NavvyaSignal edition visible in channel history:",
                 "navvyasignal" in serialized and "2026-09-29" in serialized)
