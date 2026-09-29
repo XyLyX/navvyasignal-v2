@@ -190,9 +190,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_send_only_does_not_write_notion_or_repeat_empty_edition(self):
         with patch.object(main, 'DRY_RUN', True), \
-                patch.object(main, 'compile_daily_signals', return_value=(
-                    {'email_subject': 'Daily', 'email_html': '<p>Daily</p>',
-                     'whatsapp_text': 'Daily'}, [])), \
+                patch.object(main, 'fetch_todays_entries_for_compile', return_value=[]), \
                 patch.object(main, 'select_todays_intelligence') as select, \
                 patch.object(main, 'generate_cross_desk_signal') as cross, \
                 patch.object(main, 'fail_hard', side_effect=ValueError):
@@ -200,6 +198,23 @@ class PipelineTests(unittest.TestCase):
                 main.run_compile_send()
         select.assert_not_called()
         cross.assert_not_called()
+
+    def test_send_digest_uses_approved_text_and_homepage_order(self):
+        entries = [
+            {'id': 'a', 'title': 'A & B', 'desk': 'West Asia Desk',
+             'body': 'A source reported the event.\n\nWhy it matters.',
+             'sources': 'Reuters https://example.com/a', 'homepage_priority': 2},
+            {'id': 'b', 'title': 'Second report', 'desk': 'India Desk',
+             'body': 'India reported another event.\n\nIts effect.',
+             'sources': 'AP https://example.com/b', 'homepage_priority': 1},
+        ]
+        with patch.object(main, 'dubai_today', return_value='2026-09-29'):
+            digest = main.assemble_daily_send(entries)
+        self.assertIn('A &amp; B', digest['email_html'])
+        self.assertIn('https://navvyasignal.com/signals/a', digest['email_html'])
+        self.assertNotIn('Why it matters.', digest['email_html'])
+        self.assertLess(digest['whatsapp_text'].index('Second report'),
+                        digest['whatsapp_text'].index('A & B'))
 
 
 if __name__ == '__main__':

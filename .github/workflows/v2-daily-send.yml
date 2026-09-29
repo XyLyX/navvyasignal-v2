@@ -37,10 +37,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Compile and send one daily edition
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           KIT_API_KEY: ${{ secrets.KIT_API_KEY }}
           KIT_FROM_EMAIL: ${{ secrets.KIT_FROM_EMAIL || 'hello@navvyasignal.com' }}
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}

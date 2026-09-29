@@ -13,6 +13,7 @@ import sys
 import json
 import time
 import datetime
+import html
 from zoneinfo import ZoneInfo
 import requests
 import anthropic
@@ -272,6 +273,10 @@ def fetch_todays_entries_for_compile():
             "desk": desk,
             "body": body,
             "sources": sources,
+            "homepage_priority": ((props.get("Homepage Priority", {}).get("number") or 0)
+                                  if props.get("Today's Intelligence", {}).get("checkbox") and
+                                  (props.get("Homepage Date", {}).get("date") or {}).get("start") == edition_date
+                                  else 0),
         })
     return sorted(entries, key=lambda e: (DESKS.index(e["desk"]), e["title"], e["id"]))
 
@@ -1190,6 +1195,39 @@ def compile_daily_signals():
     return briefing, todays_entries
 
 
+def assemble_daily_send(entries):
+    """Format already approved reporting without generating new factual claims."""
+    grouped = []
+    for desk in DESKS:
+        desk_entries = [entry for entry in entries if entry["desk"] == desk]
+        if not desk_entries:
+            continue
+        stories = []
+        for entry in desk_entries:
+            if not entry.get("body") or "https://" not in entry.get("sources", ""):
+                fail_hard(f"Approved Signal lacks report or direct sources: {entry['title'][:90]}")
+            url = f"https://navvyasignal.com/signals/{entry['id']}"
+            first_paragraph = entry["body"].replace("\\n", "\n").split("\n\n", 1)[0].strip()
+            stories.append(f'<li><a href="{html.escape(url, quote=True)}">'
+                           f'{html.escape(entry["title"])}</a><p>{html.escape(first_paragraph)}</p></li>')
+        grouped.append(f'<section><h2>{html.escape(desk.removesuffix(" Desk"))}</h2>'
+                       f'<ul>{"".join(stories)}</ul></section>')
+    subject = f"NavvyaSignal Daily Brief — {dubai_today()}"
+    email = ('<h1>NavvyaSignal Daily Brief</h1>'
+             f'<p>{html.escape(dubai_today())} · Independent global intelligence</p>'
+             + ''.join(grouped) +
+             '<p>Follow the next development at <a href="https://navvyasignal.com">'
+             'navvyasignal.com</a>.</p>')
+    selected = sorted((e for e in entries if e.get("homepage_priority", 0) > 0),
+                      key=lambda e: e["homepage_priority"])
+    whatsapp_entries = (selected or entries)[:7]
+    whatsapp = (f"NavvyaSignal · {dubai_today()}\n\n" +
+                "\n".join(f"{i}. {e['title']}" for i, e in enumerate(whatsapp_entries, 1)) +
+                "\n\nRead today's intelligence: https://navvyasignal.com")
+    return {"edition_label": dubai_today(), "email_subject": subject,
+            "email_html": email, "whatsapp_text": whatsapp}
+
+
 TODAYS_INTELLIGENCE_SYSTEM_PROMPT = """You select which of today's already-published NavvyaSignal \
 entries deserve featured placement as "Today's Intelligence" on the homepage. You do NOT research \
 or alter any facts — you are choosing from what's already written, based on genuine real-world \
@@ -1636,12 +1674,10 @@ def main():
         # it doesn't call either.
         return run_whapi_test()
 
-    required = {
-        "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY,
-        "NOTION_API_KEY": NOTION_API_KEY,
-        "NOTION_DATABASE_ID": NOTION_DATABASE_ID,
-    }
-    if RUN_TYPE != "site_only":
+    required = {"NOTION_API_KEY": NOTION_API_KEY,
+                "NOTION_DATABASE_ID": NOTION_DATABASE_ID}
+    if RUN_TYPE not in ("site_only", "compile_send"):
+        required["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
         required["GEMINI_API_KEY"] = GEMINI_API_KEY
     if RUN_TYPE == "compile_send":
         required["KIT_API_KEY"] = KIT_API_KEY
@@ -1770,9 +1806,14 @@ def run_site_only():
 def run_compile_send():
     """Compile approved Signals and send one edition; site selection is independent."""
     ensure_daily_send_not_started()
-    briefing, todays_entries = compile_daily_signals()
+    todays_entries = fetch_todays_entries_for_compile()
+    log(f"Fetched {len(todays_entries)} approved Signals for the Dubai edition.")
     if not todays_entries:
         fail_hard("No approved Signals from the current Dubai day; daily send withheld")
+    briefing = assemble_daily_send(todays_entries)
+    log(f"Assembled {len(todays_entries)} email stories and "
+        f"{min(len([e for e in todays_entries if e.get('homepage_priority', 0) > 0]) or len(todays_entries), 7)} "
+        "WhatsApp headlines from approved Signals.")
     broadcast_id = send_kit(briefing["email_subject"], briefing["email_html"])
     if not verify_kit_sent(broadcast_id):
         fail_hard("Kit broadcast not confirmed; WhatsApp send withheld to avoid divergent editions")
