@@ -1529,6 +1529,7 @@ def send_kit(subject, html_content):
     payload = {
         "subject": subject,
         "content": html_content,
+        "description": f"NavvyaSignal V2 daily {dubai_today()}",
         "public": False,
         "published_at": send_at,
         "send_at": send_at,
@@ -1540,6 +1541,41 @@ def send_kit(subject, html_content):
     broadcast_id = resp.json()["broadcast"]["id"]
     log(f"Kit broadcast created: id={broadcast_id}, send_at={send_at}")
     return broadcast_id
+
+
+def ensure_daily_send_not_started():
+    """Fail closed if Kit already has a V2 broadcast for this Dubai day.
+
+    A newly scheduled Kit broadcast is the durable marker for the paired send.
+    Re-dispatching after a partial failure requires operator review, not a second
+    automatic broadcast to the whole list.
+    """
+    if DRY_RUN:
+        return
+    marker = f"NavvyaSignal V2 daily {dubai_today()}"
+    cursor = None
+    seen = set()
+    for _ in range(100):
+        params = {"per_page": 1000, "slim": "true"}
+        if cursor:
+            params["after"] = cursor
+        resp = requests.get("https://api.kit.com/v4/broadcasts",
+                            headers={"X-Kit-Api-Key": KIT_API_KEY}, params=params, timeout=30)
+        if resp.status_code != 200:
+            fail_hard(f"Kit duplicate-send check failed: HTTP {resp.status_code}")
+        data = resp.json()
+        if not isinstance(data.get("broadcasts"), list):
+            fail_hard("Kit duplicate-send check returned an invalid response")
+        if any(b.get("description") == marker for b in data["broadcasts"]):
+            fail_hard(f"V2 daily send already started for {dubai_today()}; review Kit and Whapi")
+        page = data.get("pagination") or {}
+        if not page.get("has_next_page"):
+            return
+        cursor = page.get("end_cursor")
+        if not cursor or cursor in seen:
+            fail_hard("Kit duplicate-send check pagination failed")
+        seen.add(cursor)
+    fail_hard("Kit duplicate-send check exceeded 100 pages")
 
 
 def verify_kit_sent(broadcast_id, wait_seconds=420):
@@ -1589,6 +1625,10 @@ def main():
     log(f"Starting NavvyaSignal automated run (type={RUN_TYPE})")
     if RUN_TYPE == 'compile_send' and not DRY_RUN and int(os.environ.get('GITHUB_RUN_ATTEMPT', '1')) > 1:
         fail_hard('compile_send rerun blocked to prevent a duplicate Kit/WhatsApp edition')
+    if RUN_TYPE == 'compile_send' and not DRY_RUN and (
+            os.environ.get('V2_SENDER_ENABLED') != 'true' or
+            os.environ.get('V2_LEGACY_SENDER_DISABLED') != 'true'):
+        fail_hard('V2 sender and legacy cutover gates must both be true')
 
     if RUN_TYPE == "whapi_test":
         # Test-only path, manual trigger via workflow_dispatch only (never on a schedule).
@@ -1605,6 +1645,8 @@ def main():
         required["GEMINI_API_KEY"] = GEMINI_API_KEY
     if RUN_TYPE == "compile_send":
         required["KIT_API_KEY"] = KIT_API_KEY
+        required["WHAPI_TOKEN"] = WHAPI_TOKEN
+        required["WHAPI_CHANNEL_ID"] = WHAPI_CHANNEL_ID
     missing = [name for name, value in required.items() if not value]
     if missing:
         fail_hard(f"Missing required secret(s): {', '.join(missing)}. Check GitHub Actions secrets.")
@@ -1726,45 +1768,11 @@ def run_site_only():
 
 
 def run_compile_send():
-    """Orchestrates the daily compile + send, plus the new Today's Intelligence / Cross-Desk /
-    Watchlist stages. Each new stage is independently wrapped — a failure in any one of them is
-    logged and skipped, never blocking the core email/WhatsApp send. The core flow (fetch ->
-    compile -> Kit -> verify -> Whapi) behaves exactly as it did before this refactor unless one
-    of the new stages explicitly fails, per the specified design."""
+    """Compile approved Signals and send one edition; site selection is independent."""
+    ensure_daily_send_not_started()
     briefing, todays_entries = compile_daily_signals()
-
-    outcomes = {}
-    try:
-        select_todays_intelligence(todays_entries)
-        outcomes["selection"] = "ran"
-    except Exception as e:
-        outcomes["selection"] = "raised"
-        log(f"WARNING: select_todays_intelligence raised an exception (skipped, not fatal): {e}")
-
-    try:
-        generate_cross_desk_signal(todays_entries)
-        outcomes["cross_desk"] = "ran"
-    except Exception as e:
-        outcomes["cross_desk"] = "raised"
-        log(f"WARNING: generate_cross_desk_signal raised an exception (skipped, not fatal): {e}")
-
-    try:
-        resolve_watchlist_items(todays_entries)
-        outcomes["watchlist"] = "ran"
-    except Exception as e:
-        outcomes["watchlist"] = "raised"
-        log(f"WARNING: resolve_watchlist_items raised an exception (skipped, not fatal): {e}")
-
-    if not DRY_RUN and os.environ.get("GITHUB_RUN_ID") and os.environ.get("GITHUB_RUN_ATTEMPT"):
-        marker = {"run_id": os.environ["GITHUB_RUN_ID"], "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-                  "edition_date": dubai_today(), "outcomes": outcomes}
-        with open("notion-stage-attempted.json", "w") as f:
-            json.dump(marker, f)
-        if os.environ.get("GITHUB_OUTPUT"):
-            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write("notion_stage_attempted=true\n")
-        log(f"V2 Notion stage attempted; outcomes={outcomes}")
-
+    if not todays_entries:
+        fail_hard("No approved Signals from the current Dubai day; daily send withheld")
     broadcast_id = send_kit(briefing["email_subject"], briefing["email_html"])
     if not verify_kit_sent(broadcast_id):
         fail_hard("Kit broadcast not confirmed; WhatsApp send withheld to avoid divergent editions")

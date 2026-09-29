@@ -1,0 +1,52 @@
+name: V2 daily email and WhatsApp
+
+# Runs after the 21:30 Dubai homepage edition. This job only reads approved
+# Signals from Notion and sends them; it never requests a site rebuild.
+on:
+  schedule:
+    - cron: '0 18 * * *' # 22:00 Dubai
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Compile and validate without Kit or WhatsApp delivery
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+concurrency:
+  group: v2-daily-send
+  cancel-in-progress: false
+
+jobs:
+  send:
+    if: github.repository == 'XyLyX/navvyasignal-v2' && (github.event_name == 'workflow_dispatch' && inputs.dry_run || (vars.V2_SENDER_ENABLED == 'true' && vars.V2_LEGACY_SENDER_DISABLED == 'true'))
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Compile and send one daily edition
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          KIT_API_KEY: ${{ secrets.KIT_API_KEY }}
+          KIT_FROM_EMAIL: ${{ secrets.KIT_FROM_EMAIL || 'hello@navvyasignal.com' }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          WHAPI_CHANNEL_ID: ${{ secrets.WHAPI_CHANNEL_ID }}
+          RUN_TYPE: compile_send
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          V2_SENDER_ENABLED: ${{ vars.V2_SENDER_ENABLED }}
+          V2_LEGACY_SENDER_DISABLED: ${{ vars.V2_LEGACY_SENDER_DISABLED }}
+        run: python main.py

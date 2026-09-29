@@ -1,7 +1,7 @@
 name: V2 editorial pipeline
 
 # Scheduled jobs run only from the default branch. Research and site publication
-# have separate gates; email/WhatsApp remain off until explicitly cut over.
+# have separate gates; email/WhatsApp use the isolated V2 daily send workflow.
 on:
   schedule:
     - cron: '30 0 * * *'   # Maritime, 04:30 Dubai
@@ -16,10 +16,10 @@ on:
   workflow_dispatch:
     inputs:
       run_type:
-        description: Desk group, site_only, compile_send or weekly_synthesis
+        description: Desk group, site_only or weekly_synthesis
         required: true
         type: choice
-        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, site_only, compile_send, weekly_synthesis]
+        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, site_only, weekly_synthesis]
       dry_run:
         description: Suppress Notion writes, Kit, Whapi and refresh
         type: boolean
@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   editorial:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && ((github.event_name == 'schedule' && ((github.event.schedule == '30 17 * * *' && vars.V2_SITE_ONLY_ENABLED == 'true') || (github.event.schedule != '30 17 * * *' && vars.V2_PIPELINE_ENABLED == 'true'))) || (github.event_name == 'workflow_dispatch' && (inputs.dry_run || (inputs.run_type == 'site_only' && vars.V2_SITE_ONLY_ENABLED == 'true') || (inputs.run_type != 'site_only' && vars.V2_PIPELINE_ENABLED == 'true' && (inputs.run_type != 'compile_send' || vars.V2_LEGACY_SENDER_DISABLED == 'true')))))
+    if: github.repository == 'XyLyX/navvyasignal-v2' && ((github.event_name == 'schedule' && ((github.event.schedule == '30 17 * * *' && vars.V2_SITE_ONLY_ENABLED == 'true') || (github.event.schedule != '30 17 * * *' && vars.V2_PIPELINE_ENABLED == 'true'))) || (github.event_name == 'workflow_dispatch' && inputs.run_type != 'compile_send' && (inputs.dry_run || (inputs.run_type == 'site_only' && vars.V2_SITE_ONLY_ENABLED == 'true') || (inputs.run_type != 'site_only' && vars.V2_PIPELINE_ENABLED == 'true'))))
     runs-on: ubuntu-latest
     environment: v2-preview
     timeout-minutes: 30
