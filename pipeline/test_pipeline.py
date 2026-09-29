@@ -177,16 +177,19 @@ class PipelineTests(unittest.TestCase):
                         main.push_to_notion([base, entry], set())
         post.assert_not_called()
 
-    def test_duplicate_daily_kit_broadcast_blocks_new_send(self):
+    def test_duplicate_daily_kit_broadcast_skips_new_send(self):
         marker = 'NavvyaSignal V2 daily 2026-09-29'
         with patch.object(main, 'DRY_RUN', False), \
                 patch.object(main, 'dubai_today', return_value='2026-09-29'), \
                 patch.object(main.requests, 'get', return_value=Response({
                     'broadcasts': [{'description': marker, 'status': 'scheduled'}],
                     'pagination': {'has_next_page': False},
-                })), patch.object(main, 'fail_hard', side_effect=ValueError):
-            with self.assertRaises(ValueError):
-                main.ensure_daily_send_not_started()
+                })), patch.object(main, 'fetch_todays_entries_for_compile') as fetch, \
+                patch.object(main, 'send_kit') as send:
+            result = main.run_compile_send()
+        self.assertFalse(result['sent_output'])
+        fetch.assert_not_called()
+        send.assert_not_called()
 
     def test_send_only_does_not_write_notion_or_repeat_empty_edition(self):
         with patch.object(main, 'DRY_RUN', True), \

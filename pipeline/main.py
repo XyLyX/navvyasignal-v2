@@ -1605,10 +1605,11 @@ def ensure_daily_send_not_started():
         if not isinstance(data.get("broadcasts"), list):
             fail_hard("Kit duplicate-send check returned an invalid response")
         if any(b.get("description") == marker for b in data["broadcasts"]):
-            fail_hard(f"V2 daily send already started for {dubai_today()}; review Kit and Whapi")
+            log(f"V2 daily send already started for {dubai_today()}; skipping duplicate delivery.")
+            return False
         page = data.get("pagination") or {}
         if not page.get("has_next_page"):
-            return
+            return True
         cursor = page.get("end_cursor")
         if not cursor or cursor in seen:
             fail_hard("Kit duplicate-send check pagination failed")
@@ -1805,7 +1806,10 @@ def run_site_only():
 
 def run_compile_send():
     """Compile approved Signals and send one edition; site selection is independent."""
-    ensure_daily_send_not_started()
+    if ensure_daily_send_not_started() is False:
+        return {"edition_label": dubai_today(), "entry_count": 0,
+                "notion_summary": ["Daily edition already sent; duplicate delivery skipped"],
+                "sent_output": False}
     todays_entries = fetch_todays_entries_for_compile()
     log(f"Fetched {len(todays_entries)} approved Signals for the Dubai edition.")
     if not todays_entries:
