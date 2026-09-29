@@ -1,0 +1,65 @@
+name: Diagnose V2 WhatsApp channel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 5
+    steps:
+      - name: Inspect configured channel and recent posts (read only)
+        env:
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          WHAPI_CHANNEL_ID: ${{ secrets.WHAPI_CHANNEL_ID }}
+        run: |
+          python - <<'PY'
+          import json, os, re, urllib.request, urllib.error
+          from urllib.parse import quote
+          token = os.environ.get("WHAPI_TOKEN", "").strip()
+          channel = os.environ.get("WHAPI_CHANNEL_ID", "").strip()
+          valid = bool(re.fullmatch(r"[0-9]{10,18}@newsletter", channel))
+          print("Token configured:", bool(token))
+          print("Channel ID configured:", bool(channel))
+          print("Channel ID is a newsletter address:", valid)
+          if not token or not valid:
+              raise SystemExit("Invalid WhatsApp channel configuration; no message sent")
+          def get(path):
+              req = urllib.request.Request("https://gate.whapi.cloud" + path,
+                  headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=25) as response:
+                      return response.status, json.load(response)
+              except urllib.error.HTTPError as error:
+                  return error.code, {}
+          status, listing = get("/newsletters?count=100")
+          print("Channel list HTTP status:", status)
+          if status != 200:
+              raise SystemExit("Unable to inspect channel list")
+          def find_channel(obj):
+              if isinstance(obj, dict):
+                  if obj.get("id") == channel or obj.get("newsletter_id") == channel:
+                      return True
+                  return any(find_channel(v) for v in obj.values())
+              if isinstance(obj, list):
+                  return any(find_channel(v) for v in obj)
+              return False
+          print("Configured channel appears in account list:", find_channel(listing))
+          status, history = get("/newsletters/" + quote(channel, safe="@") + "/messages?count=25")
+          print("Channel history HTTP status:", status)
+          if status != 200:
+              raise SystemExit("Unable to inspect configured channel history")
+          serialized = json.dumps(history, ensure_ascii=False).lower()
+          print("Today's NavvyaSignal edition visible in channel history:",
+                "navvyasignal" in serialized and "2026-09-29" in serialized)
+          if isinstance(history, dict):
+              print("History response fields:", sorted(history.keys()))
+              for key in ("messages", "data", "items"):
+                  if isinstance(history.get(key), list):
+                      print("Recent history item count:", len(history[key]))
+                      break
+          PY
