@@ -1,0 +1,54 @@
+name: V2 manual desk publication
+
+# This workflow can publish one desk to Notion. It carries no Kit or Whapi
+# credentials and has no site-refresh step. The daily edition is selected later.
+on:
+  workflow_dispatch:
+    inputs:
+      desk:
+        description: Desk to research and publish to Signal Feed
+        required: true
+        type: choice
+        options:
+          - maritime_energy
+          - west_asia
+          - markets_capital
+          - technology_ai
+          - global_politics
+          - uae
+          - india
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-manual-desk-${{ inputs.desk }}
+  cancel-in-progress: false
+
+jobs:
+  desk:
+    if: github.repository == 'XyLyX/navvyasignal-v2' && vars.V2_PIPELINE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Publish selected desk to Notion
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RUN_TYPE: ${{ inputs.desk }}
+          DRY_RUN: 'false'
+          SEND_OUTPUT: 'false'
+        run: python main.py
