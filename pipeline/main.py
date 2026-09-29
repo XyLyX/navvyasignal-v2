@@ -953,12 +953,12 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
 
 def push_to_notion(entries, valid_existing_ids):
     import re as _re
-    # Validate the entire batch before the first write. Never publish a partial story
-    # or silently cut its final sentence to fit a Notion rich-text block.
+    # Validate the entire batch before the first write. Preserve a complete brief
+    # across Notion rich-text blocks instead of rejecting a model's modest overrun.
     for entry in entries:
         body = entry.get("body_markdown", "")
         sources = entry.get("sources_text", "")
-        if not isinstance(body, str) or not body.strip() or len(body) > 1900:
+        if not isinstance(body, str) or not body.strip() or len(body) > 6000:
             fail_hard(f"Desk entry has missing or overlong brief: {entry.get('title', '')[:90]}")
         if not isinstance(sources, str) or len(sources) > 1900 or not _re.search(r"https://\S+", sources):
             fail_hard(f"Desk entry lacks a direct source URL: {entry.get('title', '')[:90]}")
@@ -982,7 +982,10 @@ def push_to_notion(entries, valid_existing_ids):
         properties = {
             "Name": {"title": [{"text": {"content": entry["title"]}}]},
             "Category": {"select": {"name": desk}},
-            "Signal Brief": {"rich_text": [{"text": {"content": signal_brief}}]},
+            "Signal Brief": {"rich_text": [
+                {"text": {"content": signal_brief[i:i + 1900]}}
+                for i in range(0, len(signal_brief), 1900)
+            ]},
             "Text 1": {"rich_text": [{"text": {"content": sources_text}}]},
             "Long Read": {"checkbox": False},
             "Ready to Post": {"checkbox": True},  # fully automatic, per instruction

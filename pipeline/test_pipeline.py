@@ -106,8 +106,20 @@ class PipelineTests(unittest.TestCase):
                 main.push_to_notion([good, bad], set())
             post.assert_not_called()
             with self.assertRaises(ValueError):
-                main.push_to_notion([{**good, 'body_markdown': 'x' * 1901}], set())
+                main.push_to_notion([{**good, 'body_markdown': 'x' * 6001}], set())
             post.assert_not_called()
+
+    def test_overlong_brief_is_preserved_across_notion_blocks(self):
+        body = 'What happened. ' * 140 + 'Why it matters. ' * 70
+        entry = {'action': 'create', 'title': 'Verified development',
+                 'desk': 'West Asia Desk', 'body_markdown': body,
+                 'sources_text': 'Agency: https://agency.example/story'}
+        with patch.object(main, 'DRY_RUN', False), \
+                patch.object(main.requests, 'post', return_value=Response()) as post:
+            main.push_to_notion([entry], set())
+        blocks = post.call_args.kwargs['json']['properties']['Signal Brief']['rich_text']
+        self.assertTrue(all(len(b['text']['content']) <= 1900 for b in blocks))
+        self.assertEqual(''.join(b['text']['content'] for b in blocks), body)
 
 
 if __name__ == '__main__':
