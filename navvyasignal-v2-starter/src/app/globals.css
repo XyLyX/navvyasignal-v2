@@ -258,6 +258,10 @@ aside{min-width:0;box-sizing:border-box;padding-left:20px}
 @media(max-width:760px){.arabic-desk-grid{grid-template-columns:1fr}.arabic-hero{padding:40px 0}}
 
 /* One masthead per edition; paired language choices remain together. */
+.mast .brand{display:inline-flex;align-items:center;gap:10px;min-width:max-content}
+.mast .brand img{display:block;width:42px;height:42px;object-fit:contain;border-radius:4px}
+.mast .brand .brand-copy{color:#fff;line-height:1.05}
+.mast .brand .brand-copy>span{color:var(--gold)}
 body:has(.arabic-shell) > .mast,
 body:has(.arabic-shell) > .footer {display:none}
 .language-switch{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;direction:ltr;border:1px solid rgba(223,196,141,.65);border-radius:4px;padding:6px 10px;font:600 13px Arial,Tahoma,sans-serif;letter-spacing:normal;text-transform:none}
