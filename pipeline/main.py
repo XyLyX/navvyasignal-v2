@@ -1,455 +1,80 @@
-#!/usr/bin/env python3
-"""
-NavvyaSignal Daily Briefing Automation
-Runs on a schedule (via GitHub Actions), generates a fact-checked briefing,
-pushes validated entries to Notion, and sends via Kit (email) and Whapi (WhatsApp).
-
-Fully automatic: no human approval step. Notion 'Ready to Post' is set to True
-on every entry. Kit and Whapi sends fire immediately after generation.
-"""
-
-import os
-import sys
-import json
-import time
-import datetime
-import html
-import re
-from urllib.parse import quote
-from zoneinfo import ZoneInfo
-import requests
-import anthropic
-
-# ---------- CONFIG ----------
-
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-NOTION_API_KEY = os.environ.get("NOTION_API_KEY", "")
-NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID", "")
-KIT_API_KEY = os.environ.get("KIT_API_KEY", "")
-KIT_FROM_EMAIL = os.environ.get("KIT_FROM_EMAIL", "hello@navvyasignal.com")
-WHAPI_TOKEN = os.environ.get("WHAPI_TOKEN", "")
-WHAPI_CHANNEL_ID = os.environ.get("WHAPI_CHANNEL_ID", "")
-OPS_NOTIFY_NUMBER = os.environ.get("OPS_NOTIFY_NUMBER", "")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
-# Which run this is: one of the 7 solo desk keys (research + Notion push for that one desk,
-# no send), "compile_send" (compiles today's entries into the daily email + WhatsApp send, plus
-# Today's Intelligence / Cross-Desk / Watchlist resolution), "weekly_synthesis" (Friday Briefing,
-# built from the week's existing material — no new research), or "whapi_test" (manual only).
-RUN_TYPE = os.environ.get("RUN_TYPE", "compile_send")
-# Whether this run should actually send email/WhatsApp. Only ever true for compile_send —
-# desk runs never send regardless of this flag (enforced in main(), not just here).
-SEND_OUTPUT = os.environ.get("SEND_OUTPUT", "true").lower() == "true"
-# When true, every Notion write across the whole script (existing Signal writes AND the new
-# Today's Intelligence / Cross-Desk / Watchlist / Briefing writes) is logged instead of actually
-# performed. Use this to test new logic paths without touching live data.
-DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
-
-# V2's seven editorial desks. This copy lives in V2 and has no runtime dependency
-# on the old automation or the Framer synchronization project.
-# 7-desk structure, replacing the old 9-desk one (Sports and Trends & Forecasting removed
-# entirely; Real Estate & Infrastructure becomes a Coverage Theme tag rather than its own desk;
-# Maritime & Energy broadened to include supply chains; Technology & AI is new).
-DESKS = [
-    "West Asia Desk",
-    "India Desk",
-    "UAE Desk",
-    "Global Politics Desk",
-    "Markets & Capital Desk",
-    "Technology & AI Desk",
-    "Maritime Energy & Supply Chains Desk",
-]
-
-# Each desk receives its own roundup and breaking-news research pass. The three
-# heavy desks are staggered so one conflict narrative cannot crowd out another.
-GROUPS = {
-    "west_asia": ["West Asia Desk"],
-    "maritime_energy": ["Maritime Energy & Supply Chains Desk"],
-    "technology_ai": ["Technology & AI Desk"],
-    "uae": ["UAE Desk"],
-    "india": ["India Desk"],
-    "global_politics": ["Global Politics Desk"],
-    "markets_capital": ["Markets & Capital Desk"],
-}
-
-# Single source of truth mapping native GitHub Actions cron expressions to RUN_TYPE values.
-# The workflow YAML passes the raw matched cron string through as CRON_SCHEDULE (only set for
-# schedule-triggered runs) instead of resolving it itself via a bash elif-chain — this keeps
-# exactly one place (here) that knows which cron maps to which run, so future desk/run-type
-# changes only ever need updating in this one file, not silently drifting out of sync with
-# separate logic embedded in the YAML. workflow_dispatch runs set RUN_TYPE directly and never
-# touch this mapping at all.
-CRON_TO_RUN_TYPE = {
-    "30 0 * * *": "maritime_energy",     # 04:30 Dubai
-    "30 3 * * *": "west_asia",           # 07:30 Dubai
-    "30 13 * * *": "india",              # 17:30 Dubai
-    "30 9 * * *": "uae",                 # 13:30 Dubai
-    "30 23 * * *": "technology_ai",      # 03:30 Dubai (UTC date +1)
-    "30 4 * * *": "global_politics",     # 08:30 Dubai
-    "30 1 * * *": "markets_capital",     # 05:30 Dubai
-    "30 17 * * *": "site_only",          # 21:30 Dubai, choose homepage without sending
-    "15 15 * * 0": "weekly_synthesis",   # 19:15 Dubai, Sundays only
-}
-
-CRON_SCHEDULE = os.environ.get("CRON_SCHEDULE", "")
-if CRON_SCHEDULE:
-    if CRON_SCHEDULE in CRON_TO_RUN_TYPE:
-        RUN_TYPE = CRON_TO_RUN_TYPE[CRON_SCHEDULE]
-        SEND_OUTPUT = RUN_TYPE == "compile_send"
-    else:
-        # Fail loudly rather than silently falling back to the RUN_TYPE default — an
-        # unrecognized cron string here means CRON_TO_RUN_TYPE and the workflow's schedule
-        # list have drifted out of sync, which is exactly the failure mode this mapping exists
-        # to catch early instead of masking.
-        print(f"FATAL: CRON_SCHEDULE '{CRON_SCHEDULE}' has no entry in CRON_TO_RUN_TYPE — "
-              f"the workflow's schedule list and this mapping are out of sync.")
-        sys.exit(1)
-
-# Controls whether the new metadata properties (Content Type, Coverage Theme, Today's
-# Intelligence, Watchlist, Watch Status, Watch Trigger, Next Review, Resolution Signal,
-# Related Desks) are actually included in Notion write payloads. Flipped True 2026-09-10 —
-# Stage 1C confirmed all 9 new properties exist live in the Signal Feed database.
-NEW_METADATA_STAGE_LIVE = True
-
-# The channel transport is configured through the V2 repository's secrets.
-WHAPI_ENABLED = True
-
-COMPILE_WINDOW_HOURS = 24
-
-
-def dubai_today():
-    return datetime.datetime.now(ZoneInfo("Asia/Dubai")).date().isoformat()
-
-NOTION_VERSION = "2022-06-28"
-NOTION_HEADERS = {
-    "Authorization": f"Bearer {NOTION_API_KEY}",
-    "Notion-Version": NOTION_VERSION,
-    "Content-Type": "application/json",
-}
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-
-def log(msg):
-    ts = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-    print(f"[{ts}] {msg}", flush=True)
-
-
-def fail_hard(msg):
-    """Log an error and exit non-zero so GitHub Actions marks the run as failed.
-    We deliberately do NOT send partial/broken content."""
-    log(f"FATAL: {msg}")
-    sys.exit(1)
-
-
-# ---------- STEP 1: Fetch existing Notion entries (for dedup) ----------
-
-def _is_test_record(title):
-    """Permanent safety filter: any Notion page whose title starts with '[TEST' or
-    '[DUPLICATE' is excluded from every fetch function below, so test/verification records
-    and known-bad duplicates can never accidentally reach a real compile, send, Today's
-    Intelligence selection, Cross-Desk synthesis, or weekly Briefing."""
-    stripped = title.strip()
-    return stripped.startswith("[TEST") or stripped.startswith("[DUPLICATE")
-
-
-def fetch_existing_entries():
-    """Pull recent Signal Feed entries so the model can decide update vs. new.
-    Includes a content snippet and creation time so matching isn't based on
-    title text alone — this is what lets same-day stories with slightly
-    different figures get recognized as updates rather than duplicates."""
-    url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    payload = {
-        "page_size": 100,
-        "sorts": [{"timestamp": "created_time", "direction": "descending"}],
-    }
-    resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
-    if resp.status_code != 200:
-        fail_hard(f"Notion query failed: {resp.status_code} {resp.text}")
-    results = resp.json().get("results", [])
-
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=48)
-    entries = []
-    for page in results:
-        created_time_str = page.get("created_time", "")
-        try:
-            created_dt = datetime.datetime.strptime(created_time_str[:19], "%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            created_dt = None
-        # Only include entries from the last 48h in the dedup context — older
-        # entries are very unlikely to be the "same story" as today's news,
-        # and keeping the list short/recent makes matching far more reliable.
-        if created_dt and created_dt < cutoff:
-            continue
-
-        props = page.get("properties", {})
-        title = ""
-        if "Name" in props and props["Name"].get("title"):
-            title = "".join([t.get("plain_text", "") for t in props["Name"]["title"]])
-        if _is_test_record(title):
-            continue
-        category = ""
-        if "Category" in props and props["Category"].get("select"):
-            category = props["Category"]["select"].get("name", "")
-        brief_snippet = ""
-        if "Signal Brief" in props and props["Signal Brief"].get("rich_text"):
-            brief_snippet = "".join([t.get("plain_text", "") for t in props["Signal Brief"]["rich_text"]])[:300]
-
-        entries.append({
-            "id": page["id"],
-            "title": title,
-            "category": category,
-            "created_time": created_time_str,
-            "content_snippet": brief_snippet,
-        })
-    return entries
-
-
-def fetch_todays_entries_for_compile():
-    """Read every approved Signal created on the current Dubai calendar day.
-
-    The old 15-hour, one-page, last-edited query lost early desk work when GitHub
-    delayed the compilation and could include yesterday's edited records.
-    """
-    url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    edition_date = dubai_today()
-    start = datetime.datetime.combine(
-        datetime.date.fromisoformat(edition_date), datetime.time.min,
-        tzinfo=ZoneInfo("Asia/Dubai"),
-    ).astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-    payload = {
-        "page_size": 100,
-        "filter": {"timestamp": "created_time", "created_time": {"on_or_after": start}},
-        "sorts": [{"timestamp": "created_time", "direction": "descending"}],
-    }
-    results, cursor, seen = [], None, set()
-    for _ in range(500):
-        query = {**payload, **({"start_cursor": cursor} if cursor else {})}
-        resp = requests.post(url, headers=NOTION_HEADERS, json=query, timeout=30)
-        if resp.status_code != 200:
-            fail_hard(f"Notion query failed: HTTP {resp.status_code}")
-        data = resp.json()
-        results.extend(data.get("results", []))
-        if not data.get("has_more"):
-            break
-        cursor = data.get("next_cursor")
-        if not cursor or cursor in seen:
-            fail_hard("Notion pagination returned a missing or repeated cursor")
-        seen.add(cursor)
-    else:
-        fail_hard("Notion pagination exceeded 500 pages")
-
-    entries = []
-    for page in results:
-        created = page.get("created_time", "")
-        if not created or datetime.datetime.fromisoformat(created.replace("Z", "+00:00")).astimezone(
-                ZoneInfo("Asia/Dubai")).date().isoformat() != edition_date:
-            continue
-
-        props = page.get("properties", {})
-        if not props.get("Ready to Post", {}).get("checkbox"):
-            continue
-        kind = (props.get("Content Type", {}).get("select") or {}).get("name", "Signal")
-        if kind != "Signal":
-            continue
-        title = ""
-        if "Name" in props and props["Name"].get("title"):
-            title = "".join([t.get("plain_text", "") for t in props["Name"]["title"]])
-        if _is_test_record(title):
-            continue
-        desk = ""
-        if "Category" in props and props["Category"].get("select"):
-            desk = props["Category"]["select"].get("name", "")
-        body = ""
-        if "Signal Brief" in props and props["Signal Brief"].get("rich_text"):
-            body = "".join([t.get("plain_text", "") for t in props["Signal Brief"]["rich_text"]])
-        sources = ""
-        if "Text 1" in props and props["Text 1"].get("rich_text"):
-            sources = "".join([t.get("plain_text", "") for t in props["Text 1"]["rich_text"]])
-
-        if not title or desk not in DESKS:
-            continue
-        entries.append({
-            "id": page["id"],
-            "title": title,
-            "desk": desk,
-            "body": body,
-            "sources": sources,
-            "homepage_priority": ((props.get("Homepage Priority", {}).get("number") or 0)
-                                  if props.get("Today's Intelligence", {}).get("checkbox") and
-                                  (props.get("Homepage Date", {}).get("date") or {}).get("start") == edition_date
-                                  else 0),
-        })
-    return sorted(entries, key=lambda e: (DESKS.index(e["desk"]), e["title"], e["id"]))
-
-
-WEEKLY_SYNTHESIS_WINDOW_HOURS = 24 * 7
-
-
-def fetch_week_entries_for_synthesis():
-    """7-day window, existing material only — no new research. Filters out prior Briefing
-    entries (once Content Type exists) so weekly synthesis doesn't re-summarize itself."""
-    url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    payload = {
-        "page_size": 100,
-        "sorts": [{"timestamp": "last_edited_time", "direction": "descending"}],
-    }
-    resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
-    if resp.status_code != 200:
-        fail_hard(f"Notion query failed: {resp.status_code} {resp.text}")
-    results = resp.json().get("results", [])
-
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=WEEKLY_SYNTHESIS_WINDOW_HOURS)
-    entries = []
-    for page in results:
-        edited_time_str = page.get("last_edited_time", "")
-        try:
-            edited_dt = datetime.datetime.strptime(edited_time_str[:19], "%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            edited_dt = None
-        if edited_dt and edited_dt < cutoff:
-            continue
-
-        props = page.get("properties", {})
-        # Once Content Type exists (Stage 1C), skip prior Briefing entries so the weekly
-        # synthesis doesn't summarize its own past output. Harmless no-op until then, since the
-        # property won't be present on any page and this check simply won't match.
-        content_type = ""
-        if "Content Type" in props and props["Content Type"].get("select"):
-            content_type = props["Content Type"]["select"].get("name", "")
-        if content_type == "Briefing":
-            continue
-
-        title = ""
-        if "Name" in props and props["Name"].get("title"):
-            title = "".join([t.get("plain_text", "") for t in props["Name"]["title"]])
-        if _is_test_record(title):
-            continue
-        desk = ""
-        if "Category" in props and props["Category"].get("select"):
-            desk = props["Category"]["select"].get("name", "")
-        body = ""
-        if "Signal Brief" in props and props["Signal Brief"].get("rich_text"):
-            body = "".join([t.get("plain_text", "") for t in props["Signal Brief"]["rich_text"]])
-
-        entries.append({"id": page["id"], "title": title, "desk": desk, "body": body})
-    return entries
-
-
-WEEKLY_BRIEFING_SYSTEM_PROMPT = """You write NavvyaSignal's weekly Briefing — a synthesis of \
-the past week's already-published entries. You do NOT do new research. The editorial question \
-is "what did the week's individual signals collectively reveal" — not another news article \
-restating the week's events one by one.
-
-Look for genuine patterns: separate signals that, together, show a trend a reader wouldn't see \
-from any single entry alone (e.g. three separate signals showing escalating pressure, gradually \
-repricing risk, a policy shift playing out across desks). If the week was genuinely disconnected \
-with no real pattern, say so honestly rather than manufacturing a narrative thread.
-
-Output ONLY valid JSON, no preamble, no code fences:
-{
-  "title": "string, e.g. 'Gulf Briefing — Week 37'",
-  "body": "string, flowing prose, plain text no markdown — the pattern(s) of the week and what they mean",
-  "sources_text": "string, referencing which entries this draws from"
-}
-"""
-
-
-def generate_weekly_briefing(week_entries):
-    user_prompt = f"""This week's entries (desk | title | body):
-{json.dumps([{"desk": e["desk"], "title": e["title"], "body": e["body"]} for e in week_entries], indent=2)}
-
-Write this week's Briefing per your instructions."""
-
-    with client.messages.stream(
-        model="claude-sonnet-4-5",
-        max_tokens=8000,
-        system=WEEKLY_BRIEFING_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
-    ) as stream:
-        response = stream.get_final_message()
-
-    text = "\n".join(b.text for b in response.content if b.type == "text").strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end == -1:
-        fail_hard(f"generate_weekly_briefing produced no parseable JSON.\nRaw output:\n{text[:2000]}")
-    try:
-        data = json.loads(text[start:end + 1])
-    except json.JSONDecodeError as e:
-        fail_hard(f"generate_weekly_briefing JSON parse failed: {e}\n{text[:2000]}")
-
-    for k in ["title", "body", "sources_text"]:
-        if k not in data:
-            fail_hard(f"generate_weekly_briefing output missing required key: {k}")
-    return data
-
-
-def fetch_todays_briefing():
-    """Checks for a Briefing already created today, so rerunning weekly_synthesis on the same
-    day updates that Briefing instead of creating a duplicate — same idempotency pattern as
-    Cross-Desk. Weekly Briefings are naturally keyed by time period rather than content
-    similarity, so a same-day check is the right idempotency boundary here (unlike Cross-Desk,
-    which needs content-based dedup since it could plausibly run more than once a day)."""
-    if not NEW_METADATA_STAGE_LIVE:
-        return None
-    url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    payload = {
-        "filter": {"property": "Content Type", "select": {"equals": "Briefing"}},
-        "page_size": 5,
-        "sorts": [{"timestamp": "created_time", "direction": "descending"}],
-    }
-    resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
-    if resp.status_code != 200:
-        log(f"WARNING: fetch_todays_briefing failed: {resp.status_code} {resp.text[:500]}")
-        return None
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=20)
-    for page in resp.json().get("results", []):
-        created_time_str = page.get("created_time", "")
-        try:
-            created_dt = datetime.datetime.strptime(created_time_str[:19], "%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            continue
-        if created_dt >= cutoff:
-            props = page.get("properties", {})
-            title = "".join(t.get("plain_text", "") for t in props.get("Name", {}).get("title", []))
-            if _is_test_record(title):
-                continue
-            return page["id"]
-    return None
-
-
-def run_weekly_synthesis():
-    """Independently runnable RUN_TYPE — no Worker-side Friday automation wired up yet (the
-    Worker isn't deployed). Manual/workflow_dispatch only for now, per the specified sequencing:
-    get this working standalone first, then decide the trigger mechanism."""
-    week_entries = fetch_week_entries_for_synthesis()
-    log(f"Fetched {len(week_entries)} entries from the last {WEEKLY_SYNTHESIS_WINDOW_HOURS // 24} days for weekly synthesis.")
-
-    if not week_entries:
-        log("WARNING: no entries found in the weekly window — skipping Briefing generation this run.")
-        return {"edition_label": "weekly_synthesis (no entries)", "entry_count": 0, "notion_summary": [], "sent_output": False}
-
-    existing_briefing_id = fetch_todays_briefing()
-    if existing_briefing_id:
-        log(f"Found today's existing Briefing ({existing_briefing_id}) — will update instead of creating a duplicate.")
-
-    briefing_data = generate_weekly_briefing(week_entries)
-    page_id = write_special_entry(
-        title=briefing_data["title"],
-        body=briefing_data["body"],
-        sources_text=briefing_data.get("sources_text", ""),
-        content_type="Briefing",
-        existing_id=existing_briefing_id,
+def fit_signal_briefs(briefing_data):
+    """Fit briefs to the agreed format before Gemini fact review."""
+    forbidden_labels = (
+        "why it matters:",
+        "what happened:",
+        "##",
+        "**",
     )
 
-    log("Weekly synthesis complete.")
-    return {
-        "edition_label": briefing_data["title"],
-        "entry_count": len(week_entries),
-        "notion_summary": [briefing_data["title"]] if page_id or DRY_RUN or not NEW_METADATA_STAGE_LIVE else [],
-        "sent_output": False,
-    }
+    def valid_brief(text):
+        return (
+            isinstance(text, str)
+            and 0 < len(text.strip()) <= 1800
+            and "\n\n" in text
+            and not any(label in text.lower() for label in forbidden_labels)
+        )
 
+    for entry in briefing_data["notion_entries"]:
+        original_body = entry.get("body_markdown", "")
+        title = entry.get("title", "")
+
+        if not isinstance(original_body, str) or not original_body.strip():
+            fail_hard(f"Desk entry has no brief: {title[:90]}")
+
+        body = original_body.strip()
+        if valid_brief(body):
+            entry["body_markdown"] = body
+            continue
+
+        for attempt, target in enumerate((1500, 1200, 1000)):
+            feedback = ""
+            if attempt:
+                feedback = (
+                    f"The previous draft contained {len(body)} characters "
+                    "and failed the length or plain-prose paragraph check. "
+                    "Rewrite more concisely and follow the format exactly. "
+                )
+
+            prompt = (
+                feedback
+                + f"Edit this NavvyaSignal Signal Brief to at most {target} "
+                "characters INCLUDING spaces and paragraph breaks. "
+                "Use plain prose with one or two paragraphs on what happened, "
+                "then one paragraph on why it matters. "
+                "Separate paragraphs with a blank line. "
+                "No headings, markdown, preamble, new claims, or unsupported "
+                "inference. Preserve material dates, figures, attribution, "
+                "uncertainty, and the actual conclusion. "
+                "Return only the edited prose.\n\n"
+                f"Title: {title}\n"
+                f"Sources: {entry.get('sources_text', '')}\n"
+                f"Original brief:\n{original_body}"
+            )
+
+            with client.messages.stream(
+                model="claude-sonnet-4-5",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                response = stream.get_final_message()
+
+            body = "\n".join(
+                block.text
+                for block in response.content
+                if block.type == "text"
+            ).strip()
+
+            if valid_brief(body):
+                entry["body_markdown"] = body
+                break
+        else:
+            fail_hard(
+                f"Signal Brief still fails length or format checks "
+                f"after 3 rewrites ({len(body)} characters): {title[:90]}"
+            )
+
+    return briefing_data
 
 # ---------- STEP 2: Generate briefing via Claude ----------
 
