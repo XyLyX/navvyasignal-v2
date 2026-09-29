@@ -96,7 +96,10 @@ class PipelineTests(unittest.TestCase):
 
     def test_editorial_batch_rejects_unlinked_or_truncated_story_before_writing(self):
         good = {'action': 'create', 'title': 'Verified development',
-                'desk': 'West Asia Desk', 'body_markdown': 'Complete brief.',
+                'desk': 'West Asia Desk', 'desk_ambiguous': False,
+                'coverage_theme': [], 'related_desks': [], 'watchlist': False,
+                'watch_trigger': '', 'next_review': '',
+                'body_markdown': 'What happened.\n\nWhy it matters.',
                 'sources_text': 'Agency: https://agency.example/story'}
         bad = {**good, 'title': 'Unlinked development',
                'sources_text': 'Sources: several news sites'}
@@ -112,7 +115,9 @@ class PipelineTests(unittest.TestCase):
     def test_signal_brief_fits_one_notion_block(self):
         body = 'What happened. ' * 45 + '\n\nWhy it matters. ' * 30
         entry = {'action': 'create', 'title': 'Verified development',
-                 'desk': 'West Asia Desk', 'body_markdown': body,
+                 'desk': 'West Asia Desk', 'desk_ambiguous': False,
+                 'coverage_theme': [], 'related_desks': [], 'watchlist': False,
+                 'watch_trigger': '', 'next_review': '', 'body_markdown': body,
                  'sources_text': 'Agency: https://agency.example/story'}
         with patch.object(main, 'DRY_RUN', False), \
                 patch.object(main.requests, 'post', return_value=Response()) as post:
@@ -149,6 +154,28 @@ class PipelineTests(unittest.TestCase):
             draft = main.fit_signal_briefs({'notion_entries': [entry]})
         self.assertEqual(draft['notion_entries'][0]['body_markdown'],
                          'A factual paragraph.\n\nA consequence.')
+
+    def test_future_metadata_must_be_complete_before_any_notion_write(self):
+        base = {'action': 'create', 'title': 'Verified development',
+                'desk': 'West Asia Desk', 'desk_ambiguous': False,
+                'coverage_theme': [], 'related_desks': [], 'watchlist': False,
+                'watch_trigger': '', 'next_review': '',
+                'body_markdown': 'What happened.\n\nWhy it matters.',
+                'sources_text': 'Agency: https://agency.example/story'}
+        invalid = [
+            {**base, 'desk_ambiguous': True},
+            {**base, 'coverage_theme': ['a', 'b', 'c', 'd']},
+            {**base, 'watchlist': True, 'watch_trigger': '', 'next_review': '2026-10-01'},
+            {**base, 'watchlist': True, 'watch_trigger': 'Pending decision', 'next_review': 'invalid'},
+            {**base, 'related_desks': ['West Asia Desk']},
+        ]
+        with patch.object(main.requests, 'post') as post, \
+                patch.object(main, 'fail_hard', side_effect=ValueError):
+            for entry in invalid:
+                with self.subTest(entry=entry):
+                    with self.assertRaises(ValueError):
+                        main.push_to_notion([base, entry], set())
+        post.assert_not_called()
 
 
 if __name__ == '__main__':

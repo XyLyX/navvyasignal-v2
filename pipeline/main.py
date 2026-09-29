@@ -462,10 +462,15 @@ independent reporting for material contested claims. For each entry put direct h
 to the specific pages actually consulted in sources_text, with publisher and date. A list
 of outlet names, homepages, or second-hand claims of verification is insufficient. If a
 crucial claim lacks a retrievable source, omit that claim or omit the entry.
-- The title must state only supported claims. Use two complete short paragraphs in
-body_markdown: what happened with attribution and dates, then why it matters as analysis.
-Keep the whole body below 1900 characters and the source field below 1900 characters;
+- The title must state only supported claims. Use one or two paragraphs on what happened
+with attribution and dates, then a separate paragraph on why it matters. Use plain prose,
+without section labels or markdown. Keep body_markdown below 1800 characters and the
+source field below 1900 characters;
 never end with a cut-off sentence. Do not add decorative urgency or unsourced statistics.
+- Search live for every material figure, checking its event date, measurement and unit
+against the cited source. When credible sources give different figures, attribute the
+difference in the brief if material and explain it in editor_note; otherwise omit the
+disputed figure. Never present a model's recollection as figure verification.
 - For each validated development, decide whether it UPDATES an existing Notion entry \
 (provided below, with title, category, creation time, and a content snippet) or is genuinely NEW.
 - CRITICAL: when setting "existing_id" for an update, copy the id string EXACTLY character-for-character \
@@ -492,8 +497,9 @@ new for an in-scope desk, that's a legitimate zero — but it must follow a real
 search of that desk's beat, not an inference from the presence of unrelated existing entries.
 - Assign each entry to exactly one of these desks: West Asia Desk, India Desk, UAE Desk, \
 Global Politics Desk, Markets & Capital Desk, Technology & AI Desk, Maritime Energy & Supply \
-Chains Desk. If genuinely ambiguous, pick the closest fit and note the ambiguity in a "notes" \
-field — do not leave it blank.
+Chains Desk. If the primary desk is genuinely ambiguous, set desk_ambiguous=true and explain \
+the alternatives in notes. That entry will be held for editorial classification; do not \
+silently pick a desk for publication.
 - COVERAGE THEME RULE: some stories cut across desks without having their own desk (e.g. real \
 estate & infrastructure, defence/security, AI policy). These still get exactly one primary \
 Desk (whichever of the 7 fits best — e.g. a UAE real estate story still goes to UAE Desk), but \
@@ -600,8 +606,8 @@ pipeline disruptions, shipping lane closures, critical-minerals supply disruptio
 price/index movements.
 An acute incident with real-world impact (injuries, fatalities, market/operational disruption) is \
 newsworthy on its own and belongs on its desk even without further analytical framing.
-- Each Notion entry body must include full "What Happened" and "Why It Matters" sections \
-with real figures, attributions, and analysis — not a one-line summary.
+- Each Notion entry body must contain substantive reporting and analysis in distinct plain-prose \
+paragraphs; never include "What Happened" or "Why It Matters" labels.
 - Subject lines and headers must use proper case ("Navvya Signal - Daily Briefing"), never \
 all-caps.
 - If nothing meaningful changed since the last run, it is correct to return zero entries \
@@ -640,6 +646,7 @@ Schema:
       "existing_id": "notion page id if action=update, else null",
       "title": "string",
       "desk": "one of the 7 desk names exactly as listed above",
+      "desk_ambiguous": "boolean; true when primary desk needs editorial confirmation",
       "body_markdown": "string, max 1800 chars, flowing prose covering what happened and why it \
 matters — do NOT use markdown syntax like ## headers or ** bold **, since this is stored in a \
 Notion rich-text property that displays plain text literally, not rendered markdown. Structure \
@@ -995,6 +1002,30 @@ def push_to_notion(entries, valid_existing_ids):
     for entry in entries:
         body = entry.get("body_markdown", "")
         sources = entry.get("sources_text", "")
+        if entry.get("desk_ambiguous") is not False:
+            fail_hard(f"Desk classification unconfirmed: {entry.get('title', '')[:90]}")
+        themes = entry.get("coverage_theme")
+        related = entry.get("related_desks")
+        if (not isinstance(themes, list) or len(themes) > 3 or
+                any(not isinstance(t, str) or not t.strip() for t in themes) or
+                not isinstance(related, list) or
+                any(d not in DESKS or d == entry.get("desk") for d in related)):
+            fail_hard(f"Invalid desk/theme metadata: {entry.get('title', '')[:90]}")
+        if not isinstance(entry.get("watchlist"), bool):
+            fail_hard(f"Watchlist decision missing: {entry.get('title', '')[:90]}")
+        trigger = entry.get("watch_trigger")
+        review = entry.get("next_review")
+        if entry["watchlist"]:
+            try:
+                valid_review = (isinstance(review, str) and
+                                datetime.date.fromisoformat(review).isoformat() == review and
+                                review >= dubai_today())
+            except (ValueError, TypeError):
+                valid_review = False
+            if not isinstance(trigger, str) or not trigger.strip() or not valid_review:
+                fail_hard(f"Watchlist trigger or review date invalid: {entry.get('title', '')[:90]}")
+        elif trigger or review:
+            fail_hard(f"Non-Watchlist entry has Watchlist metadata: {entry.get('title', '')[:90]}")
         if not isinstance(body, str) or not body.strip() or len(body) > 1800:
             fail_hard(f"Desk entry has missing or overlong brief: {entry.get('title', '')[:90]}")
         if "\n\n" not in body or any(label in body.lower() for label in
@@ -1030,9 +1061,7 @@ def push_to_notion(entries, valid_existing_ids):
         if entry.get("notes"):
             properties["Internal Note"] = {"rich_text": [{"text": {"content": entry["notes"][:2000]}}]}
 
-        # Diagnostic-only: log what the model generated for the new metadata fields regardless
-        # of NEW_METADATA_STAGE_LIVE, so compliance can be verified before that gate is ever
-        # flipped to True. This never affects what gets written to Notion.
+        # Log the editorial metadata for traceability alongside the Notion write.
         log(f"DIAGNOSTIC (new fields, not yet written to Notion) for '{entry['title']}': "
             f"coverage_theme={entry.get('coverage_theme')!r}, "
             f"related_desks={entry.get('related_desks')!r}, "
@@ -1040,9 +1069,7 @@ def push_to_notion(entries, valid_existing_ids):
             f"watch_trigger={entry.get('watch_trigger')!r}, "
             f"next_review={entry.get('next_review')!r}")
 
-        # New metadata fields — only included once Stage 1C has created these properties in the
-        # live Notion database. Including an unrecognized property name in a Notion write payload
-        # causes the whole request to fail with a 400, so this MUST stay gated until confirmed.
+        # The live Stage 1C schema carries these fields on new Signals.
         if NEW_METADATA_STAGE_LIVE:
             properties["Content Type"] = {"select": {"name": "Signal"}}
             coverage_theme = entry.get("coverage_theme") or []
@@ -1631,7 +1658,10 @@ def run_group(run_type):
     in_scope_entries = []
     for entry in briefing["notion_entries"]:
         if entry.get("desk") in scope_desks:
-            in_scope_entries.append(entry)
+            if entry.get("desk_ambiguous") is True:
+                log(f"HOLD for desk confirmation: '{entry.get('title')}' — {entry.get('notes', '')[:240]}")
+            else:
+                in_scope_entries.append(entry)
         else:
             log(f"WARNING: dropping out-of-scope entry '{entry.get('title')}' for desk "
                 f"'{entry.get('desk')}' — not in this run's scope ({', '.join(scope_desks)}).")
