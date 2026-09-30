@@ -113,6 +113,6 @@ test('directory keeps Rate Manifest and FilsOnly as venture entries, never as RS
   // placeholders; ventures appear only through the shared NetworkPanels section and on /network.
   assert.doesNotMatch(page, /networkCards\.find\(v => v\.slug === slug\)/, 'no homepage venture-card rows');
   assert.doesNotMatch(page, /Coming Soon|\[1,2\]\.map\(n =>/, 'no homepage Coming Soon placeholders');
-  assert.match(page, /<NetworkPanels data=\{feeds\} heading="From the Navvya Network" \/>/, 'ventures reach the homepage via NetworkPanels');
+  assert.match(page, /<LiveFeedSections initial=\{feeds\} includeNavyaa heading="From the Navvya Network" \/>/, 'ventures reach the homepage via NetworkPanels');
   assert.match(read('src/app/network/page.tsx'), /cards\.map\(v=>/);
 });

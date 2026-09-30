@@ -6,8 +6,7 @@ import { dubaiPublicationDate, selectHomepageEdition } from '@/lib/homepageSelec
 import GlobalPulse from '@/components/GlobalPulse';
 import WatchCard from '@/components/WatchCard';
 import { getFeedSections } from '@/lib/feeds';
-import { NavyaaLens } from '@/components/FeedSections';
-import NetworkPanels from '@/components/NetworkPanels';
+import LiveFeedSections from '@/components/LiveFeedSections';
 import ExpandableEditorial from '@/components/ExpandableEditorial';
 
 export default async function Home() {
@@ -60,8 +59,7 @@ export default async function Home() {
           <h2>Beyond the daily signal</h2>{latestLongRead ? <ExpandableEditorial story={latestLongRead} /> : <span className="editorial-pending">Awaiting an approved long read</span>}
         </section>
       </div>
-      <NavyaaLens data={feeds} />
-      <NetworkPanels data={feeds} heading="From the Navvya Network" />
+      <LiveFeedSections initial={feeds} includeNavyaa heading="From the Navvya Network" />
       <section className="sponsor-reserve" aria-label="Future sponsorship placement">
         <span className="kicker">SPONSORSHIP</span><p>Reserved for clearly disclosed sponsorship and contextual advertising. No paid placement is active in this preview.</p>
       </section>

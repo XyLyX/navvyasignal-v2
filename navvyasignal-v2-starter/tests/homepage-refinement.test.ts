@@ -57,12 +57,12 @@ test('only https logos on an allowlisted host are configured', () => {
 });
 
 test('homepage and /network share one panel component; directory and cap preserved', () => {
-  assert.match(page, /import NetworkPanels from '@\/components\/NetworkPanels'/);
-  assert.match(page, /<NetworkPanels data=\{feeds\} heading="From the Navvya Network" \/>/);
+  assert.match(page, /import LiveFeedSections from '@\/components\/LiveFeedSections'/);
+  assert.match(page, /<LiveFeedSections initial=\{feeds\} includeNavyaa heading="From the Navvya Network" \/>/);
   assert.doesNotMatch(page, /NetworkFeed/);
   assert.doesNotMatch(read('src/components/FeedSections.tsx'), /export function NetworkFeed/);
   const net = read('src/app/network/page.tsx');
-  assert.match(net, /<NetworkPanels data=\{feeds\} \/>/);
+  assert.match(net, /<LiveFeedSections initial=\{feeds\} \/>/);
   assert.match(net, /getNetworkCards/, 'network directory kept');
   assert.match(net, /className="network-grid"/);
   // Approved change (commit d0e181a): the duplicate homepage venture-card section was removed; NetworkPanels is the single homepage network section.
@@ -73,9 +73,11 @@ test('homepage and /network share one panel component; directory and cap preserv
 
 test('homepage section order keeps editorial separation', () => {
   const i = (s: string) => page.indexOf(s);
-  assert.ok(i('Today') > 0 && i('<NavyaaLens') > i('editorial-grid') && i('<NetworkPanels') > i('<NavyaaLens'));
+  assert.ok(i('Today') > 0 && i('<LiveFeedSections') > i('editorial-grid'));
+  const live = read('src/components/LiveFeedSections.tsx');
+  assert.ok(live.indexOf('<NetworkPanels') > live.indexOf('<NavyaaLens'));
   assert.equal(i('className="network-home"'), -1, 'no duplicate venture-card section after the network panels');
-  assert.ok(i('<NetworkPanels') > 0, 'the network panels section itself is kept');
+  assert.ok(i('<LiveFeedSections') > 0, 'the network panels section itself is kept');
 });
 
 test('homepage panels are the same six in the same order with Browse fillers and a join preview link', async () => {

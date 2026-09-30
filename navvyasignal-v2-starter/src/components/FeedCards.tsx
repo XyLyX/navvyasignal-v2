@@ -22,8 +22,8 @@ export function FeedCard({ item, label, contentType }: { item: FeedItem; label: 
 }
 
 const EMPTY_TEXT: Record<string, string> = {
-  unavailable: 'This publication’s feed could not be reached when the site was last built.',
-  'all-rejected': 'No valid articles could be read from this publication’s feed when the site was last built.',
+  unavailable: 'This publication’s feed could not be reached at the latest check.',
+  'all-rejected': 'No valid articles could be read from this publication’s feed at the latest check.',
   empty: 'No published articles are listed yet.',
 };
 

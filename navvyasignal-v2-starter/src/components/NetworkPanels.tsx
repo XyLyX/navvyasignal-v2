@@ -4,8 +4,8 @@ import { buildNetworkPanels, type FeedPanel } from '@/lib/networkPanels';
 import { formatPublished } from './FeedCards';
 
 const EMPTY_TEXT: Record<string, string> = {
-  unavailable: 'This publication’s feed could not be reached when the site was last built.',
-  'all-rejected': 'No valid articles could be read from this publication’s feed when the site was last built.',
+  unavailable: 'This publication’s feed could not be reached at the latest check.',
+  'all-rejected': 'No valid articles could be read from this publication’s feed at the latest check.',
   empty: 'No published articles are listed yet.',
 };
 
@@ -55,6 +55,6 @@ export default function NetworkPanels({ data, heading = 'Latest from the network
       </section>)}
     </div>
     {data.fixtureMode ? <p className="np-meta">Offline fixture data; not live publications.</p>
-      : <p className="np-meta">Feeds checked when this page was built, {formatPublished(data.retrievedAt)}. Publication dates are those shown by each source.</p>}
+      : <p className="np-meta">Feeds last checked {new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }).format(new Date(data.retrievedAt))} GST. Publication dates are those shown by each source.</p>}
   </section>;
 }

@@ -3,3 +3,6 @@ command = "npm run build"
 publish = "out"
 
 # Historical article redirects are intentionally disabled until the Framer\n# archive hostname and original V1 article path structure are verified.\n# The /old-archives-v1 landing page links to the existing Framer base address.\n
+[functions]
+directory = "netlify/functions"
+node_bundler = "esbuild"
