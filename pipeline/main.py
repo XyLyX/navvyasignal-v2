@@ -15,7 +15,7 @@ import time
 import datetime
 import html
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo
 import requests
 import anthropic
@@ -1027,6 +1027,35 @@ def _concern_overlaps(prev_flags, current_flags, threshold=0.5):
     return False
 
 
+def has_direct_source_url(entry):
+    """Require an actual HTTPS article/document URL, not just outlet names."""
+    sources = entry.get("sources_text", "")
+    if not isinstance(sources, str) or len(sources) > 1900:
+        return False
+    for candidate in re.findall(r"https://[^\s<>]+", sources):
+        try:
+            url = urlsplit(candidate.rstrip(".,;:)]}"))
+            if (url.scheme == "https" and url.hostname and not url.username
+                    and not url.password and (url.path not in ("", "/") or url.query)):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def sourced_signals(entries):
+    """Withhold unsupported entries independently; never manufacture citations."""
+    accepted = []
+    for entry in entries:
+        if has_direct_source_url(entry):
+            accepted.append(entry)
+        else:
+            log(f"HOLD: missing or invalid direct source URL: {entry.get('title', '')[:120]}")
+    if entries and not accepted:
+        fail_hard("No Signals have valid direct source URLs; desk publication withheld")
+    return accepted
+
+
 def _verify_single_signal(briefing_data, max_rounds=2):
     """Cross-verification loop: Gemini reviews, Claude responds to flags, Gemini re-reviews.
     Unresolved concerns block the entire desk batch before any Notion write."""
@@ -1073,6 +1102,9 @@ def _verify_single_signal(briefing_data, max_rounds=2):
                     for key in ("desk", "action", "existing_id"))):
             log("HOLD: repair changed story identity or returned invalid schema")
             return None
+        if not has_direct_source_url(entries[0]):
+            log("HOLD: repaired Signal lost its direct source URLs")
+            return None
         briefing_data = fit_signal_briefs(repaired)
         prev_flags = current_flags
 
@@ -1081,6 +1113,7 @@ def _verify_single_signal(briefing_data, max_rounds=2):
 
 def verify_with_gemini_loop(briefing_data, max_rounds=2):
     """Review isolated stories; provider failures still stop all publication."""
+    briefing_data["notion_entries"] = sourced_signals(briefing_data["notion_entries"])
     approved = []
     withheld = []
     for entry in briefing_data["notion_entries"]:
@@ -1089,7 +1122,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
         result = _verify_single_signal(isolated, max_rounds=max_rounds)
         if result is None:
             withheld.append(entry.get("title", "Untitled"))
-            log(f"HOLD: unresolved factual concerns: {withheld[-1]}")
+            log(f"HOLD: verification or source requirements unresolved: {withheld[-1]}")
         else:
             approved.extend(result["notion_entries"])
     if withheld and not approved:
@@ -1102,6 +1135,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
 
 
 def push_to_notion(entries, valid_existing_ids):
+    entries = sourced_signals(entries)
     import re as _re
     # Validate the entire batch before the first write. A Signal is a concise
     # report, not a long-form article split across Notion rich-text blocks.
@@ -1873,6 +1907,7 @@ def run_group(run_type):
                 f"'{entry.get('desk')}' — not in this run's scope ({', '.join(scope_desks)}).")
     briefing["notion_entries"] = in_scope_entries
 
+    briefing["notion_entries"] = sourced_signals(briefing["notion_entries"])
     briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
     if any(len(e.get("body_markdown", "")) > 1800 for e in briefing["notion_entries"]):
         briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
@@ -1997,4 +2032,5 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
+
 
