@@ -7,6 +7,10 @@ on:
     - cron: '0 18 * * *' # 22:00 Dubai
   workflow_dispatch:
     inputs:
+      edition_date:
+        description: 'Optional edition date for recovery (YYYY-MM-DD); blank uses the automatic Dubai edition'
+        type: string
+        required: false
       dry_run:
         description: Compile and validate without Kit or WhatsApp delivery
         type: boolean
@@ -43,6 +47,7 @@ jobs:
           KIT_FROM_EMAIL: ${{ secrets.KIT_FROM_EMAIL || 'hello@navvyasignal.com' }}
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           WHAPI_CHANNEL_ID: ${{ secrets.WHAPI_CHANNEL_ID }}
+          V2_SEND_EDITION_DATE: ${{ inputs.edition_date }}
           RUN_TYPE: compile_send
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           V2_SENDER_ENABLED: ${{ vars.V2_SENDER_ENABLED }}

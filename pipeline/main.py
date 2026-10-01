@@ -120,6 +120,28 @@ COMPILE_WINDOW_HOURS = 24
 def dubai_today():
     return datetime.datetime.now(ZoneInfo("Asia/Dubai")).date().isoformat()
 
+
+def daily_send_edition_date(now=None):
+    """Before the first 03:30 Dubai desk run, send the previous day's edition.
+
+    Manual recovery can select a dated edition explicitly. Resolve this once
+    per run so query, labels and duplicate checks always use the same date.
+    """
+    local = (now or datetime.datetime.now(ZoneInfo("Asia/Dubai"))).astimezone(ZoneInfo("Asia/Dubai"))
+    explicit = os.environ.get("V2_SEND_EDITION_DATE", "").strip()
+    if explicit:
+        try:
+            selected = datetime.date.fromisoformat(explicit)
+            if selected.isoformat() != explicit or selected > local.date():
+                raise ValueError("invalid or future edition")
+        except ValueError:
+            fail_hard("Send edition date must be YYYY-MM-DD and cannot be in the future")
+        return explicit
+    edition = local.date()
+    if local.time() < datetime.time(3, 30):
+        edition -= datetime.timedelta(days=1)
+    return edition.isoformat()
+
 NOTION_VERSION = "2022-06-28"
 NOTION_HEADERS = {
     "Authorization": f"Bearer {NOTION_API_KEY}",
@@ -205,14 +227,14 @@ def fetch_existing_entries():
     return entries
 
 
-def fetch_todays_entries_for_compile():
+def fetch_todays_entries_for_compile(edition_date=None):
     """Read every approved Signal created on the current Dubai calendar day.
 
     The old 15-hour, one-page, last-edited query lost early desk work when GitHub
     delayed the compilation and could include yesterday's edited records.
     """
     url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    edition_date = dubai_today()
+    edition_date = edition_date or dubai_today()
     start = datetime.datetime.combine(
         datetime.date.fromisoformat(edition_date), datetime.time.min,
         tzinfo=ZoneInfo("Asia/Dubai"),
@@ -1330,8 +1352,9 @@ def compile_daily_signals():
     return briefing, todays_entries
 
 
-def assemble_daily_send(entries):
+def assemble_daily_send(entries, edition_date=None):
     """Format already approved reporting without generating new factual claims."""
+    edition_date = edition_date or dubai_today()
     grouped = []
     for desk in DESKS:
         desk_entries = [entry for entry in entries if entry["desk"] == desk]
@@ -1347,19 +1370,19 @@ def assemble_daily_send(entries):
                            f'{html.escape(entry["title"])}</a><p>{html.escape(first_paragraph)}</p></li>')
         grouped.append(f'<section><h2>{html.escape(desk.removesuffix(" Desk"))}</h2>'
                        f'<ul>{"".join(stories)}</ul></section>')
-    subject = f"NavvyaSignal Daily Brief — {dubai_today()}"
+    subject = f"NavvyaSignal Daily Brief — {edition_date}"
     email = ('<h1>NavvyaSignal Daily Brief</h1>'
-             f'<p>{html.escape(dubai_today())} · Independent global intelligence</p>'
+             f'<p>{html.escape(edition_date)} · Independent global intelligence</p>'
              + ''.join(grouped) +
              '<p>Follow the next development at <a href="https://navvyasignal.com">'
              'navvyasignal.com</a>.</p>')
     selected = sorted((e for e in entries if e.get("homepage_priority", 0) > 0),
                       key=lambda e: e["homepage_priority"])
     whatsapp_entries = (selected or entries)[:7]
-    whatsapp = (f"NavvyaSignal · {dubai_today()}\n\n" +
+    whatsapp = (f"NavvyaSignal · {edition_date}\n\n" +
                 "\n".join(f"{i}. {e['title']}" for i, e in enumerate(whatsapp_entries, 1)) +
                 "\n\nRead today's intelligence: https://navvyasignal.com")
-    return {"edition_label": dubai_today(), "email_subject": subject,
+    return {"edition_label": edition_date, "email_subject": subject,
             "email_html": email, "whatsapp_text": whatsapp}
 
 
@@ -1690,7 +1713,8 @@ Review for resolutions per your instructions."""
 
 # ---------- STEP 4: Send via Kit ----------
 
-def send_kit(subject, html_content):
+def send_kit(subject, html_content, edition_date=None):
+    edition_date = edition_date or dubai_today()
     if DRY_RUN:
         log("DRY RUN: Kit send suppressed.")
         return None
@@ -1702,7 +1726,7 @@ def send_kit(subject, html_content):
     payload = {
         "subject": subject,
         "content": html_content,
-        "description": f"NavvyaSignal V2 daily {dubai_today()}",
+        "description": f"NavvyaSignal V2 daily {edition_date}",
         "public": False,
         "published_at": send_at,
         "send_at": send_at,
@@ -1716,16 +1740,17 @@ def send_kit(subject, html_content):
     return broadcast_id
 
 
-def ensure_daily_send_not_started():
+def ensure_daily_send_not_started(edition_date=None):
     """Fail closed if Kit already has a V2 broadcast for this Dubai day.
 
     A newly scheduled Kit broadcast is the durable marker for the paired send.
     Re-dispatching after a partial failure requires operator review, not a second
     automatic broadcast to the whole list.
     """
+    edition_date = edition_date or dubai_today()
     if DRY_RUN:
         return
-    marker = f"NavvyaSignal V2 daily {dubai_today()}"
+    marker = f"NavvyaSignal V2 daily {edition_date}"
     cursor = None
     seen = set()
     for _ in range(100):
@@ -1740,7 +1765,7 @@ def ensure_daily_send_not_started():
         if not isinstance(data.get("broadcasts"), list):
             fail_hard("Kit duplicate-send check returned an invalid response")
         if any(b.get("description") == marker for b in data["broadcasts"]):
-            log(f"V2 daily send already started for {dubai_today()}; skipping duplicate delivery.")
+            log(f"V2 daily send already started for {edition_date}; skipping duplicate delivery.")
             return False
         page = data.get("pagination") or {}
         if not page.get("has_next_page"):
@@ -1968,19 +1993,21 @@ def run_site_only():
 
 def run_compile_send():
     """Compile approved Signals and send one edition; site selection is independent."""
-    if ensure_daily_send_not_started() is False:
-        return {"edition_label": dubai_today(), "entry_count": 0,
+    edition_date = daily_send_edition_date()
+    log(f"Compiling Dubai edition: {edition_date}")
+    if ensure_daily_send_not_started(edition_date) is False:
+        return {"edition_label": edition_date, "entry_count": 0,
                 "notion_summary": ["Daily edition already sent; duplicate delivery skipped"],
                 "sent_output": False}
-    todays_entries = fetch_todays_entries_for_compile()
-    log(f"Fetched {len(todays_entries)} approved Signals for the Dubai edition.")
+    todays_entries = fetch_todays_entries_for_compile(edition_date)
+    log(f"Fetched {len(todays_entries)} approved Signals for Dubai edition {edition_date}.")
     if not todays_entries:
-        fail_hard("No approved Signals from the current Dubai day; daily send withheld")
-    briefing = assemble_daily_send(todays_entries)
+        fail_hard(f"No approved Signals for Dubai edition {edition_date}; daily send withheld")
+    briefing = assemble_daily_send(todays_entries, edition_date)
     log(f"Assembled {len(todays_entries)} email stories and "
         f"{min(len([e for e in todays_entries if e.get('homepage_priority', 0) > 0]) or len(todays_entries), 7)} "
         "WhatsApp headlines from approved Signals.")
-    broadcast_id = send_kit(briefing["email_subject"], briefing["email_html"])
+    broadcast_id = send_kit(briefing["email_subject"], briefing["email_html"], edition_date)
     if not verify_kit_sent(broadcast_id):
         fail_hard("Kit broadcast not confirmed; WhatsApp send withheld to avoid divergent editions")
     send_whapi(briefing["whatsapp_text"])
@@ -2032,5 +2059,6 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
+
 
 
