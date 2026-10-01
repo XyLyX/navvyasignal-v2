@@ -1,7 +1,7 @@
 name: V2 manual desk publication
 
 # This workflow can publish one desk to Notion. It carries no Kit or Whapi
-# credentials and has no site-refresh step. The daily edition is selected later.
+# credentials. Successful publication refreshes the site; homepage selection stays separate.
 on:
   workflow_dispatch:
     inputs:
@@ -43,6 +43,7 @@ jobs:
           cache-dependency-path: pipeline/requirements.txt
       - run: pip install -r requirements.txt
       - name: Publish selected desk to Notion
+        id: editorial
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
@@ -52,3 +53,30 @@ jobs:
           DRY_RUN: 'false'
           SEND_OUTPUT: 'false'
         run: python main.py
+      - name: Request isolated V2 refresh
+        if: always() && steps.editorial.outputs.notion_stage_attempted == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if ! python3 - <<'PY'
+          import json, os, sys
+          try:
+              m = json.load(open('notion-stage-attempted.json'))
+              valid = (str(m.get('run_id')) == os.environ['GH_RUN_ID']
+                       and str(m.get('attempt')) == os.environ['GH_RUN_ATTEMPT'])
+          except (OSError, ValueError, KeyError):
+              valid = False
+          sys.exit(0 if valid else 1)
+          PY
+          then
+            echo 'V2 refresh marker missing or invalid'; exit 0
+          fi
+          if ! printf '%s' "${V2_NETLIFY_BUILD_HOOK:-}" | grep -Eq '^https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+$'; then
+            echo 'V2 refresh hook missing or malformed'; exit 0
+          fi
+          curl --fail --silent --show-error --retry 2 --max-time 30 -X POST "$V2_NETLIFY_BUILD_HOOK" \
+            && echo 'V2 refresh queued' || echo 'V2 refresh request failed'

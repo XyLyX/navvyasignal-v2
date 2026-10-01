@@ -1,51 +1,33 @@
 name: V2 static content refresh
-
-# Optional safety net; keep disabled while Netlify build credits are limited.
-# It only POSTs the isolated V2 Netlify site's build hook.
 on:
   schedule:
-    # 07:10 Dubai, once daily only when the separate safety-net flag is enabled.
-    - cron: '10 3 * * *'
+    - cron: '17,47 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Validate the secret and format only; do NOT trigger a build (default: true)'
+        description: Compare approved content without triggering a build
         type: boolean
         default: true
-
 permissions:
   contents: read
-
 concurrency:
   group: v2-static-content-refresh
   cancel-in-progress: false
-
 jobs:
   refresh:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && (vars.V2_REFRESH_SAFETY_NET_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
+    if: github.repository == 'XyLyX/navvyasignal-v2'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     environment: v2-preview
     steps:
-      - name: Trigger isolated V2 Netlify build hook
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Refresh only changed approved public content
         env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
           V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
-          # Manual runs default to a dry run; scheduled runs always trigger the build.
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: |
-          set -euo pipefail
-          if [ -z "${V2_NETLIFY_BUILD_HOOK:-}" ]; then
-            echo 'V2_NETLIFY_BUILD_HOOK is not configured; no deployment triggered.'
-            exit 1
-          fi
-          if ! printf '%s' "$V2_NETLIFY_BUILD_HOOK" | grep -Eq '^https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+$'; then
-            echo 'Invalid Netlify build hook URL format; no deployment triggered.'
-            exit 1
-          fi
-          if [ "${DRY_RUN:-false}" = 'true' ]; then
-            echo 'Dry run: the secret is configured and well formed. No build was triggered.'
-            exit 0
-          fi
-          curl --fail --silent --show-error --retry 2 --max-time 30 \
-            -X POST "$V2_NETLIFY_BUILD_HOOK"
-          echo 'V2 preview build queued; deployment success must be checked separately.'
+        run: python pipeline/refresh_publication.py

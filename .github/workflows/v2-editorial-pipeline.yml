@@ -65,7 +65,7 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: python main.py
       - name: Request isolated V2 refresh
-        if: always() && steps.editorial.outputs.notion_stage_attempted == 'true' && vars.V2_REFRESH_ENABLED == 'true'
+        if: always() && steps.editorial.outputs.notion_stage_attempted == 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:

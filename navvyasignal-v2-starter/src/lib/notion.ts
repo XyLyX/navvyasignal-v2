@@ -48,7 +48,7 @@ function credentials(env: Record<string, string | undefined>): { token: string; 
 async function notionFetch(url: string, init: RequestInit & { next?: unknown }, deps: Required<NotionDeps>): Promise<Response> {
  let attempt = 0;
  for (;;) {
-  const res = await deps.fetchImpl(url, init as RequestInit);
+  // Netlify restores build caches. A unique deployment header prevents a new\n  // publication build from reusing the previous deployment's Notion snapshot.\n  const headers = new Headers(init.headers);\n  if (deps.env.DEPLOY_ID) headers.set('X-Navvya-Build', deps.env.DEPLOY_ID);\n  const res = await deps.fetchImpl(url, { ...init, headers } as RequestInit);
   if (res.ok) return res;
   if (RETRYABLE.has(res.status) && attempt < MAX_RETRIES) {
    const retryAfter = Number(res.headers?.get?.('retry-after'));

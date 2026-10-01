@@ -1156,6 +1156,18 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
 
 
 
+def mark_publication_changed():
+    """Notify the workflow only after a successful live public Notion write."""
+    if DRY_RUN or not os.environ.get("GITHUB_OUTPUT"):
+        return
+    with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+        output.write("notion_stage_attempted=true\n")
+    with open("notion-stage-attempted.json", "w") as marker:
+        json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
+                   "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                   "edition_date": dubai_today()}, marker)
+
+
 def push_to_notion(entries, valid_existing_ids):
     entries = sourced_signals(entries)
     import re as _re
@@ -1277,6 +1289,7 @@ def push_to_notion(entries, valid_existing_ids):
                 f"continuing with the rest of the run. {resp.status_code} {resp.text[:500]}")
             continue
 
+        mark_publication_changed()
         summary.append(f"{action_label} — {entry['title']} ({desk})" + (f" [NOTE: {entry['notes']}]" if entry.get("notes") else ""))
         log(summary[-1])
 
@@ -1329,6 +1342,7 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
     if resp.status_code not in (200, 201):
         log(f"WARNING: Failed to {action} {content_type} entry '{title}': {resp.status_code} {resp.text[:500]}")
         return None
+    mark_publication_changed()
     page_id = existing_id or resp.json().get("id")
     log(f"{'Updated' if existing_id else 'Created'} {content_type} entry: '{title}' (id={page_id})")
     return page_id
