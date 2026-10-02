@@ -1995,6 +1995,12 @@ def run_whapi_test():
 
 def homepage_edition_date(now=None):
     """Keep the scheduled 21:30 edition on its intended Dubai day after delays."""
+    explicit = os.environ.get("V2_EDITION_DATE", "").strip()
+    if explicit:
+        parsed = datetime.date.fromisoformat(explicit)
+        if parsed.isoformat() != explicit:
+            raise ValueError("V2_EDITION_DATE must be YYYY-MM-DD")
+        return explicit
     local = (now or datetime.datetime.now(ZoneInfo("Asia/Dubai"))).astimezone(ZoneInfo("Asia/Dubai"))
     edition = local.date()
     if CRON_SCHEDULE == "30 17 * * *" and local.time() < datetime.time(21, 30):
@@ -2090,6 +2096,7 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
+
 
 
 

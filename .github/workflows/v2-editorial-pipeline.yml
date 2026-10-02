@@ -20,10 +20,20 @@ on:
         required: true
         type: choice
         options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, site_only, weekly_synthesis]
+      edition_date:
+        description: Scheduled Dubai edition date (YYYY-MM-DD)
+        type: string
+        required: false
+      schedule_key:
+        description: External scheduler audit key
+        type: string
+        required: false
       dry_run:
         description: Suppress Notion writes, Kit, Whapi and refresh
         type: boolean
         default: true
+
+run-name: V2 ${{ inputs.schedule_key || inputs.run_type || github.event.schedule }}
 
 permissions:
   contents: read
@@ -41,15 +51,41 @@ jobs:
       run:
         working-directory: pipeline
     steps:
+      - name: Check external scheduler ownership
+        id: timer
+        if: github.event_name == 'schedule'
+        env:
+          SCHEDULER_STATUS_URL: https://navvyasignal.com/api/scheduler-status
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          try:
+              with urllib.request.urlopen(os.environ['SCHEDULER_STATUS_URL'], timeout=15) as response:
+                  status = json.load(response)
+              if status.get('version') != 1 or not isinstance(status.get('active'), bool):
+                  raise RuntimeError('Invalid scheduler ownership response')
+              owned = status['active']
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+              owned = False
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('external=' + str(owned).lower() + '\n')
+          print('Netlify owns scheduling: ' + str(owned))
+          PY
       - uses: actions/checkout@v4
+        if: steps.timer.outputs.external != 'true'
       - uses: actions/setup-python@v5
+        if: steps.timer.outputs.external != 'true'
         with:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: pipeline/requirements.txt
       - run: pip install -r requirements.txt
+        if: steps.timer.outputs.external != 'true'
       - name: Research, publish and compile
         id: editorial
+        if: steps.timer.outputs.external != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
@@ -62,6 +98,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CRON_SCHEDULE: ${{ github.event.schedule }}
           RUN_TYPE: ${{ inputs.run_type }}
+          V2_EDITION_DATE: ${{ inputs.edition_date }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: python main.py
       - name: Request isolated V2 refresh

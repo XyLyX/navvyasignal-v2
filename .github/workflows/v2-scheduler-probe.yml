@@ -1,0 +1,12 @@
+name: V2 scheduler connectivity probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  connectivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Confirm external trigger without research or publishing
+        run: echo "Netlify dispatch reached V2 GitHub Actions; no AI, Notion write, build, email or WhatsApp call"
