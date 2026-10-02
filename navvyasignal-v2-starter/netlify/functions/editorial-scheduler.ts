@@ -3,6 +3,7 @@ import {getStore} from '@netlify/blobs';
 import {schedulerActive,dueJobs,dispatchOnce} from '../../src/lib/editorial-scheduler.ts';
 
 export default async (_req:Request, context:Context) => {
+  // Publish the scheduler credential and probe configuration with this deployment.
   const now = new Date();
   const mode = Netlify.env.get('V2_SCHEDULER_MODE');
   const startAt = Netlify.env.get('V2_SCHEDULER_START_AT');
