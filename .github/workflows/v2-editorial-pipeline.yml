@@ -53,6 +53,8 @@ jobs:
     steps:
       - name: Check external scheduler ownership
         id: timer
+        # This check runs before checkout, so pipeline/ does not exist yet.
+        working-directory: ${{ github.workspace }}
         if: github.event_name == 'schedule'
         env:
           SCHEDULER_STATUS_URL: https://navvyasignal.com/api/scheduler-status
