@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compare approved public Notion fields with the deployed snapshot. No model calls."""
-import hashlib, json, os, re, sys, urllib.request
+import hashlib, json, os, re, sys, time, urllib.request
 
 def request(url, payload=None, token=None):
     headers = {"Cache-Control": "no-cache"}
@@ -70,7 +70,17 @@ def main():
     req = urllib.request.Request(hook, data=b"", method="POST")
     with urllib.request.urlopen(req, timeout=30) as response:
         if response.status not in (200, 201, 202): raise ValueError("Build hook rejected")
-    print("V2 production refresh queued; next check compares against deployed content again.")
+    print("V2 refresh requested; waiting for deployed public content.", flush=True)
+    for attempt in range(12):
+        time.sleep(20)
+        try:
+            live = request("https://navvyasignal.com/publication-state")
+            if live.get("version") == 1 and live.get("entries") == current:
+                print("Production publication verified.", flush=True)
+                return
+        except Exception:
+            pass
+    raise RuntimeError("Build request succeeded, but production content was not published within four minutes")
 
 if __name__ == "__main__":
     try: main()
