@@ -1419,8 +1419,9 @@ Use the exact "id" values from the entries provided — do not invent or alter t
 """
 
 
-def select_todays_intelligence(todays_entries):
+def select_todays_intelligence(todays_entries, edition_date=None):
     """Select the V2 edition and write its Dubai date and ordered priorities."""
+    edition_date = edition_date or dubai_today()
     if not NEW_METADATA_STAGE_LIVE:
         log("select_todays_intelligence: new metadata stage not live yet — skipping.")
         return []
@@ -1456,6 +1457,9 @@ Select today's Today's Intelligence entries per your instructions."""
         return []
     selected_ids = list(dict.fromkeys(i for i in selected_ids if isinstance(i, str) and i in valid_ids))[:7]
 
+    if not selected_ids:
+        fail_hard("Homepage selector returned no valid IDs; prior edition preserved")
+
     # Keep existing edition intact if selection could not be parsed. Once valid,
     # clear only this Dubai day's candidate flags, then set the chosen order.
     for e in todays_entries:
@@ -1469,12 +1473,12 @@ Select today's Today's Intelligence entries per your instructions."""
 
     for priority, entry_id in enumerate(selected_ids, 1):
         if DRY_RUN:
-            log(f"DRY RUN: would select id={entry_id}, date={dubai_today()}, priority={priority}")
+            log(f"DRY RUN: would select id={entry_id}, date={edition_date}, priority={priority}")
             continue
         url = f"https://api.notion.com/v1/pages/{entry_id}"
         resp = requests.patch(url, headers=NOTION_HEADERS, json={"properties": {
             "Today's Intelligence": {"checkbox": True},
-            "Homepage Date": {"date": {"start": dubai_today()}},
+            "Homepage Date": {"date": {"start": edition_date}},
             "Homepage Priority": {"number": priority},
         }}, timeout=30)
         if resp.status_code != 200:
@@ -1989,18 +1993,31 @@ def run_whapi_test():
     return {"edition_label": "whapi_test", "entry_count": 1, "notion_summary": [latest["title"]], "sent_output": True}
 
 
+def homepage_edition_date(now=None):
+    """Keep the scheduled 21:30 edition on its intended Dubai day after delays."""
+    local = (now or datetime.datetime.now(ZoneInfo("Asia/Dubai"))).astimezone(ZoneInfo("Asia/Dubai"))
+    edition = local.date()
+    if CRON_SCHEDULE == "30 17 * * *" and local.time() < datetime.time(21, 30):
+        edition -= datetime.timedelta(days=1)
+    return edition.isoformat()
+
+
 def run_site_only():
     """Select an edition from approved Notion entries; no email or WhatsApp."""
-    todays_entries = fetch_todays_entries_for_compile()
-    selected_ids = select_todays_intelligence(todays_entries)
+    edition_date = homepage_edition_date()
+    log(f"Selecting homepage edition: {edition_date}")
+    todays_entries = fetch_todays_entries_for_compile(edition_date)
+    if not todays_entries:
+        fail_hard(f"No approved Signals for homepage edition {edition_date}; prior edition preserved")
+    selected_ids = select_todays_intelligence(todays_entries, edition_date)
     if selected_ids and not DRY_RUN and os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             output.write("notion_stage_attempted=true\n")
         with open("notion-stage-attempted.json", "w") as marker:
             json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
                        "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
-                       "edition_date": dubai_today()}, marker)
-    return {"edition_label": dubai_today(), "entry_count": len(todays_entries),
+                       "edition_date": edition_date}, marker)
+    return {"edition_label": edition_date, "entry_count": len(todays_entries),
             "notion_summary": [f"Selected {len(selected_ids)} homepage entries"],
             "sent_output": False}
 
