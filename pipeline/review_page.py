@@ -261,6 +261,13 @@ def main():
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as handle:
             handle.write(markdown + "\n")
+    for item in result.get("findings") or []:
+        print("::warning title=Gemini finding::" + item.replace("%", "%25").replace("\r", "").replace("\n", " "))
+    if result.get("error"):
+        print("::error title=Review not completed::" + result["error"].replace("\n", " "))
+    print(f"::notice title=Review result::{result['status']} | model={result.get('model')} | "
+          f"page_last_edited={result.get('page_last_edited')} | newest_block_edit={result.get('newest_block_edit')} | "
+          f"fetched_at={result.get('fetched_at')} | sha256={result.get('content_sha256')}")
     print(f"REVIEW RESULT: {result['status']}")
     sys.exit(code)
 
