@@ -17,7 +17,7 @@ jobs:
   refresh:
     if: github.repository == 'XyLyX/navvyasignal-v2'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: v2-preview
     steps:
       - name: Check external scheduler ownership

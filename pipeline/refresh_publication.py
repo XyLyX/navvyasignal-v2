@@ -52,6 +52,38 @@ def fetch_entries():
         seen.add(cursor)
     raise ValueError("Notion pagination exceeded safety ceiling")
 
+class PublicationTimeout(RuntimeError):
+    """A build was accepted, but its public snapshot is still unverified."""
+
+def wait_for_publication(current, timeout_seconds=600, poll_seconds=20):
+    deadline = time.monotonic() + timeout_seconds
+    last_state = "production snapshot still differs"
+    while time.monotonic() < deadline:
+        time.sleep(min(poll_seconds, max(0, deadline - time.monotonic())))
+        try:
+            live = request("https://navvyasignal.com/publication-state")
+            if live.get("version") == 1 and live.get("entries") == current:
+                print("Production publication verified.", flush=True)
+                return
+            last_state = "production snapshot still differs"
+        except Exception as error:
+            # Report the error type only: URLs can contain credentials.
+            last_state = "publication-state check failed (" + type(error).__name__ + ")"
+        print("Waiting for deployment: " + last_state + ".", flush=True)
+    raise PublicationTimeout(
+        "Build hook accepted, but publication was not verified within ten minutes; "
+        + last_state + ". Notion publication is already complete. "
+        "Do not rerun desk research; inspect Netlify deployment status or the next static refresh."
+    )
+
+def report_failure(error):
+    if isinstance(error, PublicationTimeout):
+        message = str(error)
+    else:
+        # Never print arbitrary exception messages, which may contain secret URLs.
+        message = "Refresh failed (" + type(error).__name__ + "); publication is unverified."
+    print("Publication refresh failed: " + message, file=sys.stderr)
+
 def main():
     current = fetch_entries()
     deployed = request("https://navvyasignal.com/publication-state")
@@ -71,19 +103,10 @@ def main():
     with urllib.request.urlopen(req, timeout=30) as response:
         if response.status not in (200, 201, 202): raise ValueError("Build hook rejected")
     print("V2 refresh requested; waiting for deployed public content.", flush=True)
-    for attempt in range(12):
-        time.sleep(20)
-        try:
-            live = request("https://navvyasignal.com/publication-state")
-            if live.get("version") == 1 and live.get("entries") == current:
-                print("Production publication verified.", flush=True)
-                return
-        except Exception:
-            pass
-    raise RuntimeError("Build request succeeded, but production content was not published within four minutes")
+    wait_for_publication(current)
 
 if __name__ == "__main__":
     try: main()
     except Exception as error:
-        print("Publication refresh failed:", type(error).__name__, file=sys.stderr)
+        report_failure(error)
         sys.exit(1)

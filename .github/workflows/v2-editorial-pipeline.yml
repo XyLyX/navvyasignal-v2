@@ -46,7 +46,7 @@ jobs:
     if: github.repository == 'XyLyX/navvyasignal-v2' && ((github.event_name == 'schedule' && ((github.event.schedule == '30 17 * * *' && vars.V2_SITE_ONLY_ENABLED == 'true') || (github.event.schedule != '30 17 * * *' && vars.V2_PIPELINE_ENABLED == 'true'))) || (github.event_name == 'workflow_dispatch' && inputs.run_type != 'compile_send' && (inputs.dry_run || (inputs.run_type == 'site_only' && vars.V2_SITE_ONLY_ENABLED == 'true') || (inputs.run_type != 'site_only' && vars.V2_PIPELINE_ENABLED == 'true'))))
     runs-on: ubuntu-latest
     environment: v2-preview
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: pipeline
@@ -105,7 +105,7 @@ jobs:
         run: python main.py
       - name: Request isolated V2 refresh
         if: always() && steps.editorial.outputs.notion_stage_attempted == 'true'
-        timeout-minutes: 8
+        timeout-minutes: 15
         env:
           V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
