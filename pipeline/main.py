@@ -802,6 +802,9 @@ def fit_signal_briefs(briefing_data):
             entry["body_markdown"] = body
             continue
 
+        if briefing_data.get('_no_paid_rewrite'):
+            raise ValueError('Signal Brief format requires manual review; no paid rewrite attempted')
+
         for attempt, target in enumerate((1500, 1200, 1000)):
             feedback = ""
             if attempt:
@@ -1175,6 +1178,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
                 raise ValueError("Desk classification requires editorial confirmation")
             if not has_direct_source_url(entry):
                 raise ValueError("Missing or invalid direct source URL")
+            isolated['_no_paid_rewrite'] = True
             isolated = fit_signal_briefs(isolated)
             result = _verify_single_signal(isolated, max_rounds=max_rounds)
             if result is None:
@@ -1191,6 +1195,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
                 reason = "Verification incomplete: Anthropic API credits exhausted."
             elif isinstance(error, ValueError) and str(error) in (
                     "Desk classification requires editorial confirmation", "Missing or invalid direct source URL",
+                    "Signal Brief format requires manual review; no paid rewrite attempted",
                     "Fact-review provider unavailable", "Fact-review response malformed",
                     "Fact-review response missing valid FLAGS count", "Fact-review count and concern lines disagree"):
                 reason = str(error)
