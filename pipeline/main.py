@@ -18,6 +18,7 @@ import re
 from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo
 import requests
+import hashlib
 import anthropic
 
 # ---------- CONFIG ----------
@@ -755,7 +756,14 @@ per your instructions."""
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError as e:
-        fail_hard(f"Model output was not valid JSON: {e}\nExtracted text:\n{json_str[:2000]}")
+        save_unverified_signal({
+            "title": "Unparsed draft — " + ", ".join(scope_desks),
+            "desk": scope_desks[0] if len(scope_desks) == 1 else "",
+            "body_markdown": full_text, "sources_text": "",
+        }, "Generated output could not be parsed as JSON: " + str(e))
+        log("Malformed generation saved to private review; no research rerun.")
+        return {"edition_label": dubai_today(), "notion_entries": [],
+                "email_subject": "", "email_html": "", "whatsapp_text": ""}
 
     required_keys = ["edition_label", "notion_entries", "email_subject", "email_html", "whatsapp_text"]
     for k in required_keys:
@@ -1084,7 +1092,8 @@ def _verify_single_signal(briefing_data, max_rounds=2):
     prev_flags = []
     for round_num in range(1, max_rounds + 1):
         log(f"Gemini verification round {round_num}...")
-        review = gemini_review(json.dumps(briefing_data))
+        briefing_data.setdefault("_reviewed_versions", []).append(dict(briefing_data["notion_entries"][0]))
+        review = gemini_review(json.dumps({k: v for k, v in briefing_data.items() if not k.startswith("_")}))
         if review is None:
             fail_hard("Fact-review provider unavailable; desk publication withheld")
 
@@ -1105,6 +1114,7 @@ def _verify_single_signal(briefing_data, max_rounds=2):
             return briefing_data
 
         log(f"Gemini raised {flags_count} concern(s):\n{review}")
+        briefing_data.setdefault("_verification_findings", []).append(review)
         current_flags = _flag_lines(review)
         if len(current_flags) != flags_count:
             fail_hard("Fact-review count and concern lines disagree; publication withheld")
@@ -1127,30 +1137,109 @@ def _verify_single_signal(briefing_data, max_rounds=2):
         if not has_direct_source_url(entries[0]):
             log("HOLD: repaired Signal lost its direct source URLs")
             return None
+        repaired["_verification_findings"] = briefing_data.get("_verification_findings", [])
+        repaired["_reviewed_versions"] = briefing_data.get("_reviewed_versions", [])
         briefing_data = fit_signal_briefs(repaired)
         prev_flags = current_flags
 
     return briefing_data
 
 
+def _rich_text_chunks(value):
+    value = str(value or "")
+    if len(value) > 190000:
+        raise ValueError("Private draft exceeds property storage limit; not silently truncated")
+    return [{"text": {"content": value[i:i + 1900]}} for i in range(0, len(value), 1900)]
+
+
+def save_unverified_signal(entry, findings):
+    """Private queue only: never change an existing published page or mark ready."""
+    fingerprint = hashlib.sha256(json.dumps(
+        [entry.get("title"), entry.get("desk"), entry.get("body_markdown")],
+        ensure_ascii=False).encode()).hexdigest()
+    marker = "V2_UNVERIFIED_SIGNAL:" + fingerprint
+    if DRY_RUN:
+        log("DRY RUN: would queue unverified draft: " + entry.get("title", "Untitled")[:120])
+        return None
+    # Idempotent recovery: an identical rejected draft is not created twice.
+    response = requests.post(
+        f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query",
+        headers=NOTION_HEADERS,
+        json={"page_size": 100, "filter": {"and": [
+              {"property": "Internal Note", "rich_text": {"contains": marker}},
+              {"property": "Ready to Post", "checkbox": {"equals": False}}]}}, timeout=30)
+    if response.status_code != 200:
+        raise RuntimeError("Private queue lookup failed: HTTP " + str(response.status_code))
+    matches = response.json().get("results", [])
+    if matches:
+        return matches[0]["id"]
+    notes = marker + "\nAwaiting editorial review; not approved for publication.\n" + str(findings)
+    properties = {
+        "Name": {"title": [{"text": {"content": entry.get("title", "Untitled draft")[:500]}}]},
+        "Signal Brief": {"rich_text": _rich_text_chunks(entry.get("body_markdown", ""))},
+        "Text 1": {"rich_text": _rich_text_chunks(entry.get("sources_text", ""))},
+        "Internal Note": {"rich_text": _rich_text_chunks(notes)},
+        "Ready to Post": {"checkbox": False},
+        "Long Read": {"checkbox": False},
+        "Content Type": {"select": {"name": "Signal"}},
+        "Today's Intelligence": {"checkbox": False},
+    }
+    if entry.get("desk") in DESKS:
+        properties["Category"] = {"select": {"name": entry["desk"]}}
+    # Retain the original metadata and rejected update target privately.
+    original = json.dumps(entry, ensure_ascii=False, indent=2)
+    children = [{"object": "block", "type": "paragraph", "paragraph": {
+        "rich_text": [{"type": "text", "text": {"content": original[i:i + 1900]}}]}}
+        for i in range(0, len(original), 1900)]
+    if len(children) > 100:
+        raise ValueError("Private draft exceeds queue storage limit; not silently truncated")
+    response = requests.post("https://api.notion.com/v1/pages", headers=NOTION_HEADERS,
+        json={"parent": {"database_id": NOTION_DATABASE_ID},
+              "properties": properties, "children": children}, timeout=30)
+    if response.status_code not in (200, 201):
+        raise RuntimeError("Private queue write failed: HTTP " + str(response.status_code))
+    log("QUEUED UNVERIFIED: " + entry.get("title", "Untitled")[:120])
+    return response.json()["id"]
+
+
 def verify_with_gemini_loop(briefing_data, max_rounds=2):
-    """Review isolated stories; provider failures still stop all publication."""
-    briefing_data["notion_entries"] = sourced_signals(briefing_data["notion_entries"])
-    approved = []
-    withheld = []
+    """Retain rejected drafts privately; independent approved stories continue."""
+    approved, withheld = [], []
     for entry in briefing_data["notion_entries"]:
         log(f"Reviewing Signal: {entry.get('title', '')[:120]}")
-        isolated = dict(briefing_data, notion_entries=[entry])
-        result = _verify_single_signal(isolated, max_rounds=max_rounds)
-        if result is None:
-            withheld.append(entry.get("title", "Untitled"))
-            log(f"HOLD: verification or source requirements unresolved: {withheld[-1]}")
-        else:
-            approved.extend(result["notion_entries"])
-    if withheld and not approved:
-        fail_hard("No stories passed factual verification; desk publication withheld")
+        isolated = dict(briefing_data, notion_entries=[dict(entry)])
+        isolated["_verification_findings"] = []
+        isolated["_reviewed_versions"] = []
+        try:
+            if entry.get("desk_ambiguous") is not False:
+                raise ValueError("Desk classification requires editorial confirmation")
+            if not has_direct_source_url(entry):
+                raise ValueError("Missing or invalid direct source URL")
+            isolated = fit_signal_briefs(isolated)
+            result = _verify_single_signal(isolated, max_rounds=max_rounds)
+            if result is None:
+                reason = "Gemini concerns remain unresolved."
+            else:
+                approved.extend(result["notion_entries"])
+                continue
+        except (Exception, SystemExit) as error:
+            # Never silently approve on provider/format errors; preserve the draft.
+            reason = "Verification incomplete (" + type(error).__name__ + ")."
+            if "credit balance is too low" in str(error).lower():
+                reason = "Verification incomplete: Anthropic API credits exhausted."
+            elif isinstance(error, ValueError) and str(error) in (
+                    "Desk classification requires editorial confirmation", "Missing or invalid direct source URL"):
+                reason = str(error)
+            log("REVIEW ERROR: " + reason)
+        findings = "\n\n".join(isolated.get("_verification_findings", []))
+        versions = isolated.get("_reviewed_versions", [])
+        queued_entry = dict(versions[-1] if versions else entry)
+        queued_entry["original_draft"] = entry
+        save_unverified_signal(queued_entry, reason + "\n" + findings)
+        withheld.append(entry.get("title", "Untitled"))
     briefing_data["notion_entries"] = approved
-    log(f"Fact review complete: {len(approved)} approved, {len(withheld)} withheld")
+    briefing_data["unverified_count"] = len(withheld)
+    log(f"Fact review complete: {len(approved)} approved, {len(withheld)} queued for private review")
     return briefing_data
 
 
@@ -1941,19 +2030,13 @@ def run_group(run_type):
     in_scope_entries = []
     for entry in briefing["notion_entries"]:
         if entry.get("desk") in scope_desks:
-            if entry.get("desk_ambiguous") is True:
-                log(f"HOLD for desk confirmation: '{entry.get('title')}' — {entry.get('notes', '')[:240]}")
-            else:
-                in_scope_entries.append(entry)
+            in_scope_entries.append(entry)
         else:
             log(f"WARNING: dropping out-of-scope entry '{entry.get('title')}' for desk "
                 f"'{entry.get('desk')}' — not in this run's scope ({', '.join(scope_desks)}).")
     briefing["notion_entries"] = in_scope_entries
 
-    briefing["notion_entries"] = sourced_signals(briefing["notion_entries"])
-    briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
-    if any(len(e.get("body_markdown", "")) > 1800 for e in briefing["notion_entries"]):
-        briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
+    briefing = verify_with_gemini_loop(briefing)
 
     valid_existing_ids = {e["id"] for e in existing}
     notion_summary = push_to_notion(briefing["notion_entries"], valid_existing_ids)

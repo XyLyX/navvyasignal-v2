@@ -27,24 +27,31 @@ def page(identifier, created, kind='Signal', ready=True):
 
 
 class PipelineTests(unittest.TestCase):
-    def test_repeated_fact_concern_never_reaches_notion(self):
-        draft = {'notion_entries': [{'title': 'Disputed claim'}]}
+    def test_repeated_fact_concern_never_reaches_publication(self):
+        entry = {'title': 'Disputed claim', 'desk': 'West Asia Desk',
+                 'desk_ambiguous': False, 'sources_text': 'https://example.com/report',
+                 'body_markdown': 'A factual paragraph.\n\nA consequence.'}
+        draft = {'notion_entries': [entry]}
         with patch.object(main, 'gemini_review', side_effect=[
                 'FLAGS: 1\n- Officeholder is wrong',
                 'FLAGS: 1\n- Officeholder is wrong']), \
-                patch.object(main, 'claude_respond_to_flags', return_value=draft), \
-                patch.object(main, 'push_to_notion') as publish:
-            with self.assertRaises(SystemExit):
-                reviewed = main.verify_with_gemini_loop(draft)
-                main.push_to_notion(reviewed, set())
-        publish.assert_not_called()
+                patch.object(main, 'claude_respond_to_flags', return_value={'notion_entries': [dict(entry)]}), \
+                patch.object(main, 'save_unverified_signal') as queue:
+            reviewed = main.verify_with_gemini_loop(draft)
+        self.assertEqual(reviewed['notion_entries'], [])
+        queue.assert_called_once()
 
-    def test_fact_review_rejects_missing_count_and_provider_failure(self):
+    def test_fact_review_queues_missing_count_and_provider_failure(self):
+        entry = {'title': 'Draft', 'desk': 'West Asia Desk', 'desk_ambiguous': False,
+                 'sources_text': 'https://example.com/report',
+                 'body_markdown': 'Facts.\n\nConsequences.'}
         for response in ('No concerns', None):
             with self.subTest(response=response), \
-                    patch.object(main, 'gemini_review', return_value=response):
-                with self.assertRaises(SystemExit):
-                    main.verify_with_gemini_loop({'notion_entries': []})
+                    patch.object(main, 'gemini_review', return_value=response), \
+                    patch.object(main, 'save_unverified_signal') as queue:
+                result = main.verify_with_gemini_loop({'notion_entries': [dict(entry)]})
+                self.assertEqual(result['notion_entries'], [])
+                queue.assert_called_once()
 
     def test_compilation_reads_all_pages_and_excludes_previous_dubai_day(self):
         seen = []
@@ -62,7 +69,7 @@ class PipelineTests(unittest.TestCase):
 
         with patch.object(main, 'dubai_today', return_value='2026-09-27'), \
                 patch.object(main.requests, 'post', side_effect=request):
-            entries = main.fetch_todays_entries_for_compile()
+            entries = main.fetch_todays_entries_for_compile('2026-09-27')
         self.assertEqual({e['id'] for e in entries}, {'one', 'two'})
         self.assertEqual(seen[1]['start_cursor'], 'cursor-2')
         self.assertEqual(seen[0]['filter']['created_time']['on_or_after'], '2026-09-26T20:00:00Z')
@@ -88,13 +95,13 @@ class PipelineTests(unittest.TestCase):
                 patch.object(main.requests, 'patch', side_effect=write), \
                 patch.object(main.client.messages, 'stream', return_value=Stream()), \
                 patch.object(main, 'DRY_RUN', False):
-            self.assertEqual(main.select_todays_intelligence(entries), ['c', 'a'])
+            self.assertEqual(main.select_todays_intelligence(entries, '2026-09-27'), ['c', 'a'])
         self.assertEqual(len(calls), 5)
         self.assertEqual(calls[-2][1]['Homepage Priority']['number'], 1)
         self.assertEqual(calls[-1][1]['Homepage Priority']['number'], 2)
         self.assertEqual(calls[-1][1]['Homepage Date']['date']['start'], '2026-09-27')
 
-    def test_editorial_batch_rejects_unlinked_or_truncated_story_before_writing(self):
+    def test_editorial_write_filters_unlinked_and_rejects_overlong_briefs(self):
         good = {'action': 'create', 'title': 'Verified development',
                 'desk': 'West Asia Desk', 'desk_ambiguous': False,
                 'coverage_theme': [], 'related_desks': [], 'watchlist': False,
@@ -103,11 +110,13 @@ class PipelineTests(unittest.TestCase):
                 'sources_text': 'Agency: https://agency.example/story'}
         bad = {**good, 'title': 'Unlinked development',
                'sources_text': 'Sources: several news sites'}
-        with patch.object(main.requests, 'post') as post, \
+        with patch.object(main.requests, 'post', return_value=Response()) as post, \
+                patch.object(main, 'DRY_RUN', False), \
                 patch.object(main, 'fail_hard', side_effect=ValueError):
-            with self.assertRaises(ValueError):
-                main.push_to_notion([good, bad], set())
-            post.assert_not_called()
+            main.push_to_notion([good, bad], set())
+            post.assert_called_once()
+            self.assertEqual(post.call_args.kwargs['json']['properties']['Name']['title'][0]['text']['content'], good['title'])
+            post.reset_mock()
             with self.assertRaises(ValueError):
                 main.push_to_notion([{**good, 'body_markdown': 'x' * 1801}], set())
             post.assert_not_called()
@@ -180,7 +189,7 @@ class PipelineTests(unittest.TestCase):
     def test_duplicate_daily_kit_broadcast_skips_new_send(self):
         marker = 'NavvyaSignal V2 daily 2026-09-29'
         with patch.object(main, 'DRY_RUN', False), \
-                patch.object(main, 'dubai_today', return_value='2026-09-29'), \
+                patch.object(main, 'daily_send_edition_date', return_value='2026-09-29'), \
                 patch.object(main.requests, 'get', return_value=Response({
                     'broadcasts': [{'description': marker, 'status': 'scheduled'}],
                     'pagination': {'has_next_page': False},
@@ -241,7 +250,7 @@ class PipelineTests(unittest.TestCase):
              'sources': 'AP https://example.com/b', 'homepage_priority': 1},
         ]
         with patch.object(main, 'dubai_today', return_value='2026-09-29'):
-            digest = main.assemble_daily_send(entries)
+            digest = main.assemble_daily_send(entries, '2026-09-29')
         self.assertIn('A &amp; B', digest['email_html'])
         self.assertIn('https://navvyasignal.com/signals/a', digest['email_html'])
         self.assertNotIn('Why it matters.', digest['email_html'])
