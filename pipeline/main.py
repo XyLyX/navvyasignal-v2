@@ -1095,7 +1095,7 @@ def _verify_single_signal(briefing_data, max_rounds=2):
         briefing_data.setdefault("_reviewed_versions", []).append(dict(briefing_data["notion_entries"][0]))
         review = gemini_review(json.dumps({k: v for k, v in briefing_data.items() if not k.startswith("_")}))
         if review is None:
-            fail_hard("Fact-review provider unavailable; desk publication withheld")
+            raise ValueError("Fact-review provider unavailable")
 
         flags_count = None
         for line in review.splitlines():
@@ -1103,11 +1103,11 @@ def _verify_single_signal(briefing_data, max_rounds=2):
                 try:
                     flags_count = int(line.split(":", 1)[1].strip())
                 except ValueError:
-                    fail_hard("Fact-review response malformed; desk publication withheld")
+                    raise ValueError("Fact-review response malformed")
                 break
 
         if flags_count is None or flags_count < 0:
-            fail_hard("Fact-review response missing valid FLAGS count; desk publication withheld")
+            raise ValueError("Fact-review response missing valid FLAGS count")
 
         if flags_count == 0:
             log("Gemini review: no concerns raised.")
@@ -1117,7 +1117,7 @@ def _verify_single_signal(briefing_data, max_rounds=2):
         briefing_data.setdefault("_verification_findings", []).append(review)
         current_flags = _flag_lines(review)
         if len(current_flags) != flags_count:
-            fail_hard("Fact-review count and concern lines disagree; publication withheld")
+            raise ValueError("Fact-review count and concern lines disagree")
         is_repeat = _concern_overlaps(prev_flags, current_flags)
         is_final_round = round_num == max_rounds
         force_hedge = is_repeat or is_final_round
@@ -1228,7 +1228,9 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
             if "credit balance is too low" in str(error).lower():
                 reason = "Verification incomplete: Anthropic API credits exhausted."
             elif isinstance(error, ValueError) and str(error) in (
-                    "Desk classification requires editorial confirmation", "Missing or invalid direct source URL"):
+                    "Desk classification requires editorial confirmation", "Missing or invalid direct source URL",
+                    "Fact-review provider unavailable", "Fact-review response malformed",
+                    "Fact-review response missing valid FLAGS count", "Fact-review count and concern lines disagree"):
                 reason = str(error)
             log("REVIEW ERROR: " + reason)
         findings = "\n\n".join(isolated.get("_verification_findings", []))
