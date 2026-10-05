@@ -1,0 +1,40 @@
+name: V2 free verification diagnostic
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v2-free-review-diagnostic.yml']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Check Groq authentication and source-backed review
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python - <<'PY'
+          import sys
+          from unittest.mock import patch
+          from pipeline.free_review import review_once
+          draft={'notion_entries':[{'title':'Verification diagnostic fixture','body_markdown':'The price rose from 100 to 110, a gain of 50 percent.','sources_text':'https://example.com/diagnostic-fixture'}]}
+          try:
+              with patch('pipeline.free_review.source_excerpt', return_value='Diagnostic evidence: the price rose from 100 to 110. The percentage increase was 10 percent.'):
+                  result=review_once(draft)
+              count=int(result.splitlines()[0].split(':',1)[1])
+              if count < 1:
+                  print('FAIL: reviewer did not flag the deliberately incorrect percentage.')
+                  sys.exit(1)
+              print('PASS: Groq key accepted; one review flagged the deliberately incorrect percentage.')
+              print('No Notion calls, desk research, publication, sends or deployment.')
+          except ValueError as error:
+              print(str(error))
+              sys.exit(1)
+          PY
