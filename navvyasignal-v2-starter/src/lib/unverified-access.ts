@@ -18,9 +18,9 @@ export function escapeHtml(value:unknown):string {
   return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 }
 type Rich = {plain_text?:string;text?:{content?:string}};
-export type QueuePage = {id:string;created_time:string;properties:Record<string,{title?:Rich[];rich_text?:Rich[];checkbox?:boolean;select?:{name:string}|null}>};
+export type QueuePage = {id:string;created_time:string;archived?:boolean;in_trash?:boolean;properties:Record<string,{title?:Rich[];rich_text?:Rich[];checkbox?:boolean;select?:{name:string}|null}>};
 export function queueText(page:QueuePage,name:string):string { const p=page.properties[name];return (p?.title??p?.rich_text??[]).map(t=>t.plain_text??t.text?.content??'').join(''); }
-export function isQueued(page:QueuePage):boolean {return page.properties['Ready to Post']?.checkbox===false&&queueText(page,'Internal Note').startsWith(queueMarker);}
+export function isQueued(page:QueuePage):boolean {return !page.archived&&!page.in_trash&&page.properties['Ready to Post']?.checkbox===false&&queueText(page,'Internal Note').startsWith(queueMarker);}
 export function sortedQueue(pages:QueuePage[]):QueuePage[]{return pages.filter(isQueued).sort((a,b)=>b.created_time.localeCompare(a.created_time)||b.id.localeCompare(a.id));}
 
 /** Netlify can normalize the request URL to its primary domain while browsers
