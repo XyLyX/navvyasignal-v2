@@ -97,7 +97,7 @@ jobs:
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           WHAPI_CHANNEL_ID: ${{ secrets.WHAPI_CHANNEL_ID }}
           OPS_NOTIFY_NUMBER: ${{ secrets.OPS_NOTIFY_NUMBER }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CRON_SCHEDULE: ${{ github.event.schedule }}
           RUN_TYPE: ${{ inputs.run_type }}
           V2_EDITION_DATE: ${{ inputs.edition_date }}

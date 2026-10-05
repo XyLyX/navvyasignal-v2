@@ -1086,63 +1086,23 @@ def sourced_signals(entries):
     return accepted
 
 
-def _verify_single_signal(briefing_data, max_rounds=2):
-    """Cross-verification loop: Gemini reviews, Claude responds to flags, Gemini re-reviews.
-    Unresolved concerns block the entire desk batch before any Notion write."""
-    prev_flags = []
-    for round_num in range(1, max_rounds + 1):
-        log(f"Gemini verification round {round_num}...")
-        briefing_data.setdefault("_reviewed_versions", []).append(dict(briefing_data["notion_entries"][0]))
-        review = gemini_review(json.dumps({k: v for k, v in briefing_data.items() if not k.startswith("_")}))
-        if review is None:
-            raise ValueError("Fact-review provider unavailable")
-
-        flags_count = None
-        for line in review.splitlines():
-            if line.strip().upper().startswith("FLAGS:"):
-                try:
-                    flags_count = int(line.split(":", 1)[1].strip())
-                except ValueError:
-                    raise ValueError("Fact-review response malformed")
-                break
-
-        if flags_count is None or flags_count < 0:
-            raise ValueError("Fact-review response missing valid FLAGS count")
-
-        if flags_count == 0:
-            log("Gemini review: no concerns raised.")
-            return briefing_data
-
-        log(f"Gemini raised {flags_count} concern(s):\n{review}")
-        briefing_data.setdefault("_verification_findings", []).append(review)
-        current_flags = _flag_lines(review)
-        if len(current_flags) != flags_count:
-            raise ValueError("Fact-review count and concern lines disagree")
-        is_repeat = _concern_overlaps(prev_flags, current_flags)
-        is_final_round = round_num == max_rounds
-        force_hedge = is_repeat or is_final_round
-        if is_repeat:
-            log("WARNING: at least one concern appears to be a repeat from the prior round — "
-                "forcing hedge/strip instead of allowing reconfirmation.")
-        if is_final_round and flags_count > 0:
-            return None
-        repaired = claude_respond_to_flags(briefing_data, review, is_repeat_concern=force_hedge)
-        entries = repaired.get("notion_entries", []) if isinstance(repaired, dict) else []
-        original = briefing_data["notion_entries"][0]
-        if (len(entries) != 1 or not isinstance(entries[0], dict) or
-                any(entries[0].get(key) != original.get(key)
-                    for key in ("desk", "action", "existing_id"))):
-            log("HOLD: repair changed story identity or returned invalid schema")
-            return None
-        if not has_direct_source_url(entries[0]):
-            log("HOLD: repaired Signal lost its direct source URLs")
-            return None
-        repaired["_verification_findings"] = briefing_data.get("_verification_findings", [])
-        repaired["_reviewed_versions"] = briefing_data.get("_reviewed_versions", [])
-        briefing_data = fit_signal_briefs(repaired)
-        prev_flags = current_flags
-
-    return briefing_data
+def _verify_single_signal(briefing_data, max_rounds=1):
+    """Exactly one free-tier review; unresolved drafts require manual review."""
+    try:
+        from .free_review import review_once
+    except ImportError:
+        from free_review import review_once
+    log("Free-tier source-backed verification: one attempt, no paid fallback")
+    briefing_data.setdefault("_reviewed_versions", []).append(dict(briefing_data["notion_entries"][0]))
+    review = review_once(briefing_data)
+    if not isinstance(review, str) or not re.match(r"^FLAGS: \d+(?:\n|$)", review):
+        raise ValueError("Free review returned malformed findings; manual review required")
+    briefing_data.setdefault("_verification_findings", []).append(review)
+    first = review.splitlines()[0]
+    count = int(first.split(":", 1)[1])
+    if len(_flag_lines(review)) != count:
+        raise ValueError("Free review returned inconsistent findings; manual review required")
+    return briefing_data if count == 0 else None
 
 
 def _rich_text_chunks(value):
@@ -1202,7 +1162,7 @@ def save_unverified_signal(entry, findings):
     return response.json()["id"]
 
 
-def verify_with_gemini_loop(briefing_data, max_rounds=2):
+def verify_with_gemini_loop(briefing_data, max_rounds=1):
     """Retain rejected drafts privately; independent approved stories continue."""
     approved, withheld = [], []
     for entry in briefing_data["notion_entries"]:
@@ -1218,14 +1178,16 @@ def verify_with_gemini_loop(briefing_data, max_rounds=2):
             isolated = fit_signal_briefs(isolated)
             result = _verify_single_signal(isolated, max_rounds=max_rounds)
             if result is None:
-                reason = "Gemini concerns remain unresolved."
+                reason = "Free-tier source review raised concerns; manual review required."
             else:
                 approved.extend(result["notion_entries"])
                 continue
         except (Exception, SystemExit) as error:
             # Never silently approve on provider/format errors; preserve the draft.
             reason = "Verification incomplete (" + type(error).__name__ + ")."
-            if "credit balance is too low" in str(error).lower():
+            if isinstance(error, ValueError) and (str(error).startswith("Free review") or str(error).startswith("Source evidence")):
+                reason = str(error)
+            elif "credit balance is too low" in str(error).lower():
                 reason = "Verification incomplete: Anthropic API credits exhausted."
             elif isinstance(error, ValueError) and str(error) in (
                     "Desk classification requires editorial confirmation", "Missing or invalid direct source URL",
@@ -1974,7 +1936,6 @@ def main():
                 "NOTION_DATABASE_ID": NOTION_DATABASE_ID}
     if RUN_TYPE not in ("site_only", "compile_send"):
         required["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
-        required["GEMINI_API_KEY"] = GEMINI_API_KEY
     if RUN_TYPE == "compile_send":
         required["KIT_API_KEY"] = KIT_API_KEY
         required["WHAPI_TOKEN"] = WHAPI_TOKEN
@@ -2181,7 +2142,6 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
-
 
 
 
