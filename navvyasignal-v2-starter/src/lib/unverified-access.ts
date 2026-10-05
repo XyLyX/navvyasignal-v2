@@ -22,3 +22,18 @@ export type QueuePage = {id:string;created_time:string;properties:Record<string,
 export function queueText(page:QueuePage,name:string):string { const p=page.properties[name];return (p?.title??p?.rich_text??[]).map(t=>t.plain_text??t.text?.content??'').join(''); }
 export function isQueued(page:QueuePage):boolean {return page.properties['Ready to Post']?.checkbox===false&&queueText(page,'Internal Note').startsWith(queueMarker);}
 export function sortedQueue(pages:QueuePage[]):QueuePage[]{return pages.filter(isQueued).sort((a,b)=>b.created_time.localeCompare(a.created_time)||b.id.localeCompare(a.id));}
+
+/** Netlify can normalize the request URL to its primary domain while browsers
+ * submit the www alias. Accept only this project's explicit origins, plus the
+ * trusted site URL supplied by Netlify. Never trust forwarded host headers. */
+export function validQueueOrigin(origin:string|null, requestUrl:string, siteUrl?:string):boolean {
+  if(!origin)return false;
+  const allowed=new Set(['https://navvyasignal.com','https://www.navvyasignal.com',
+    'https://navvyasignal-v2-preview.netlify.app',
+    'https://release-v2-english--navvyasignal-v2-preview.netlify.app']);
+  for(const url of [requestUrl,siteUrl]) {
+    if(!url)continue;
+    try {const parsed=new URL(url);if(parsed.protocol==='https:')allowed.add(parsed.origin);} catch {}
+  }
+  return allowed.has(origin);
+}
