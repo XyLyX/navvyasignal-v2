@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from pipeline import main, free_review
+from pipeline import main
 
 
 class Response:
@@ -32,7 +32,7 @@ class PipelineTests(unittest.TestCase):
                  'desk_ambiguous': False, 'sources_text': 'https://example.com/report',
                  'body_markdown': 'A factual paragraph.\n\nA consequence.'}
         draft = {'notion_entries': [entry]}
-        with patch.object(free_review, 'review_once', side_effect=[
+        with patch.object(main, 'gemini_review', side_effect=[
                 'FLAGS: 1\n- Officeholder is wrong',
                 'FLAGS: 1\n- Officeholder is wrong']), \
                 patch.object(main, 'claude_respond_to_flags', return_value={'notion_entries': [dict(entry)]}), \
@@ -47,7 +47,7 @@ class PipelineTests(unittest.TestCase):
                  'body_markdown': 'Facts.\n\nConsequences.'}
         for response in ('No concerns', None):
             with self.subTest(response=response), \
-                    patch.object(free_review, 'review_once', return_value=response), \
+                    patch.object(main, 'gemini_review', return_value=response), \
                     patch.object(main, 'save_unverified_signal') as queue:
                 result = main.verify_with_gemini_loop({'notion_entries': [dict(entry)]})
                 self.assertEqual(result['notion_entries'], [])
@@ -260,3 +260,4 @@ class PipelineTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

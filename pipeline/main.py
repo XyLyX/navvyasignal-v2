@@ -802,9 +802,6 @@ def fit_signal_briefs(briefing_data):
             entry["body_markdown"] = body
             continue
 
-        if briefing_data.get('_no_paid_rewrite'):
-            raise ValueError('Signal Brief format requires manual review; no paid rewrite attempted')
-
         for attempt, target in enumerate((1500, 1200, 1000)):
             feedback = ""
             if attempt:
@@ -986,7 +983,20 @@ round, you MUST either revise the claim to remove the disputed specific detail e
 drop that sentence/clause — do not restate it with invented-sounding verification language.
 """
 
-    prompt = f"""Gemini raised the following concerns about your draft briefing:
+    prompt = f"""Cross Check from all sources.
+You are the final editorial adjudicator after Gemini raised ambiguity. Search all cited
+sources and additional primary/corroborating sources relevant to EACH disputed claim.
+A middle route means the supported common ground, never averaging conflicting figures
+or inventing a compromise. Attribute genuine disagreements. Remove unsupported claims;
+where a non-central detail remains unresolved, explicitly say "couldn't be verified from source"
+in the public brief and explain which detail. If the central claim cannot be verified,
+set ready_to_post=false. Never treat that label as permission to report speculation as fact.
+Add top-level editorial_decision with ready_to_post (boolean), rationale (nonempty string),
+evidence (nonempty list of source URLs and what each establishes), and
+unverified_claims (list of nonempty strings; empty if none). Set ready_to_post=false if
+any material concern makes publication unsafe. Keep this decision private.
+
+Gemini raised the following concerns about your draft briefing:
 
 {gemini_flags_text}
 {repeat_warning}
@@ -1089,23 +1099,51 @@ def sourced_signals(entries):
     return accepted
 
 
-def _verify_single_signal(briefing_data, max_rounds=1):
-    """Exactly one free-tier review; unresolved drafts require manual review."""
-    try:
-        from .free_review import review_once
-    except ImportError:
-        from free_review import review_once
-    log("Free-tier source-backed verification: one attempt, no paid fallback")
-    briefing_data.setdefault("_reviewed_versions", []).append(dict(briefing_data["notion_entries"][0]))
-    review = review_once(briefing_data)
-    if not isinstance(review, str) or not re.match(r"^FLAGS: \d+(?:\n|$)", review):
-        raise ValueError("Free review returned malformed findings; manual review required")
-    briefing_data.setdefault("_verification_findings", []).append(review)
-    first = review.splitlines()[0]
-    count = int(first.split(":", 1)[1])
-    if len(_flag_lines(review)) != count:
-        raise ValueError("Free review returned inconsistent findings; manual review required")
-    return briefing_data if count == 0 else None
+def _verify_single_signal(briefing_data, max_rounds=2):
+    """Gemini checks; Claude resolves ambiguity with live source research."""
+    original = dict(briefing_data["notion_entries"][0])
+    current = briefing_data
+    for round_number in range(2):
+        current.setdefault("_reviewed_versions", []).append(dict(current["notion_entries"][0]))
+        log(f"Gemini cross-check round {round_number + 1}")
+        review = gemini_review(json.dumps({"notion_entries": current["notion_entries"]}))
+        if not isinstance(review, str) or not re.match(r"^FLAGS: \d+(?:\n|$)", review):
+            raise ValueError("Gemini review unavailable or malformed; manual review required")
+        count = int(review.splitlines()[0].split(":", 1)[1])
+        if len(_flag_lines(review)) != count:
+            raise ValueError("Gemini review findings inconsistent; manual review required")
+        briefing_data.setdefault("_verification_findings", []).append(review)
+        if count == 0:
+            return current
+        repaired = claude_respond_to_flags(current, review, is_repeat_concern=round_number > 0)
+        if not isinstance(repaired, dict) or len(repaired.get("notion_entries", [])) != 1:
+            return None
+        entry = repaired["notion_entries"][0]
+        if any(entry.get(k) != original.get(k) for k in ("desk", "action", "existing_id")):
+            raise ValueError("Source cross-check changed story identity; manual review required")
+        decision = repaired.get("editorial_decision", {})
+        briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
+        briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
+        if (decision.get("ready_to_post") is not True or
+                not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip() or
+                not isinstance(decision.get("evidence"), list) or not decision["evidence"] or
+                not all(isinstance(e, str) and "https://" in e for e in decision["evidence"]) or
+                not isinstance(decision.get("unverified_claims"), list) or
+                not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
+            return None
+        if decision["unverified_claims"] and "couldn't be verified from source" not in entry.get("body_markdown", "").lower():
+            return None
+        if entry.get("desk_ambiguous") is not False or not has_direct_source_url(entry):
+            return None
+        repaired = fit_signal_briefs(repaired)
+        if decision["unverified_claims"] and "couldn't be verified from source" not in repaired["notion_entries"][0]["body_markdown"].lower():
+            return None
+        entry = repaired["notion_entries"][0]
+        entry["notes"] = (entry.get("notes", "") + "\nSource cross-check: " + json.dumps(decision)).strip()
+        current = repaired
+    # Claude's source-backed decision resolves a repeated Gemini objection, per policy.
+    log("Claude source cross-check approved supported wording after repeated Gemini concerns")
+    return current
 
 
 def _rich_text_chunks(value):
@@ -1178,11 +1216,10 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
                 raise ValueError("Desk classification requires editorial confirmation")
             if not has_direct_source_url(entry):
                 raise ValueError("Missing or invalid direct source URL")
-            isolated['_no_paid_rewrite'] = True
             isolated = fit_signal_briefs(isolated)
             result = _verify_single_signal(isolated, max_rounds=max_rounds)
             if result is None:
-                reason = "Free-tier source review raised concerns; manual review required."
+                reason = "Claude source cross-check did not approve publication; manual review required."
             else:
                 approved.extend(result["notion_entries"])
                 continue
@@ -2147,6 +2184,7 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
+
 
 
 
