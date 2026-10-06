@@ -915,7 +915,7 @@ a credibility-focused intelligence publication. Review the JSON draft below.
 
 Flag ONLY genuine concerns: factual claims that seem implausible, internally contradictory, \
 unsupported by the stated sources, or that you have reason to believe are outdated or wrong. \
-Do not flag stylistic choices or things you simply cannot verify either way — only flag \
+Flag a headline that states a disputed outcome as settled when the body documents conflicting source reports. Do not flag stylistic choices or things you simply cannot verify either way — only flag \
 things you have an actual, specific reason to doubt.
 
 Respond in this exact format:
@@ -975,7 +975,7 @@ by merely labelling it disputed. Preserve uncertainty only where a real source r
 
 You MUST use live web search this round. Include publisher, publication date and direct
 https article URLs supporting retained disputed claims in sources_text. Keep the same
-single entry and its desk, action and existing_id; do not invent or add replacement stories.
+single entry and its desk, action and existing_id; do not invent or add replacement stories. Preserve the content type and synthesis purpose. Where sources conflict, narrow both title and body to the supported common ground; never assert a disputed outcome in the headline.
 
 Never fabricate or imply verification you did not actually perform this round. If you did not \
 run a new search for a specific claim, you may not describe it as "confirmed."
@@ -1381,11 +1381,12 @@ def write_verified_special_entry(title, body, sources_text, content_type, primar
     return write_special_entry(approved["title"], approved["body_markdown"],
                                approved["sources_text"], content_type,
                                primary_desk=primary_desk, related_desks=related_desks,
-                               existing_id=existing_id)
+                               existing_id=existing_id,
+                               notes=approved.get("notes", "") + "\nPassed Claude/Gemini publication policy.")
 
 
 def write_special_entry(title, body, sources_text, content_type, primary_desk=None,
-                         related_desks=None, existing_id=None):
+                         related_desks=None, existing_id=None, notes=""):
     """Write a Cross-Desk or Briefing entry. Unlike push_to_notion, this does NOT require a
     single validated desk (Cross-Desk pieces span multiple desks by definition) — primary_desk
     is used only if provided (picking the most central desk as Category, per the same
@@ -1407,6 +1408,8 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
         "Ready to Post": {"checkbox": True},
         "Content Type": {"select": {"name": content_type}},
     }
+    if notes:
+        properties["Internal Note"] = {"rich_text": _rich_text_chunks(notes)}
     if primary_desk and primary_desk in DESKS:
         properties["Category"] = {"select": {"name": primary_desk}}
     if related_desks:
