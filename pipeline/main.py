@@ -2105,9 +2105,6 @@ def run_site_only():
     edition_date = homepage_edition_date()
     log(f"Selecting homepage edition: {edition_date}")
     todays_entries = fetch_todays_entries_for_compile(edition_date)
-    # Synthesis is independent of homepage selection and requires approved input.
-    recent_entries = fetch_week_entries_for_synthesis()
-    generate_cross_desk_signal(recent_entries)
     if not todays_entries:
         fail_hard(f"No approved Signals for homepage edition {edition_date}; prior edition preserved")
     selected_ids = select_todays_intelligence(todays_entries, edition_date)
@@ -2118,6 +2115,10 @@ def run_site_only():
             json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
                        "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
                        "edition_date": edition_date}, marker)
+    # Finish homepage selection and mark refresh before independent synthesis.
+    # A review/provider failure must not prevent an approved edition going live.
+    recent_entries = fetch_week_entries_for_synthesis()
+    generate_cross_desk_signal(recent_entries)
     return {"edition_label": edition_date, "entry_count": len(todays_entries),
             "notion_summary": [f"Selected {len(selected_ids)} homepage entries"],
             "sent_output": False}

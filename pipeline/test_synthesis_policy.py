@@ -19,7 +19,12 @@ class SynthesisPolicyTests(unittest.TestCase):
             self.assertEqual(main.write_verified_special_entry('Draft','Body','https://example.com/report','Cross-Desk',primary_desk=main.DESKS[1],existing_id='existing'),'page')
         self.assertEqual(review.call_args.args[0]['notion_entries'][0]['existing_id'],'existing')
         self.assertEqual(writer.call_args.args[:3],('Checked','Checked body','https://example.com/checked'))
-    def test_site_only_reaches_cross_desk_without_daily_edition(self):
+    def test_site_only_preserves_prior_edition_without_approved_signals(self):
         with patch.object(main,'fetch_todays_entries_for_compile',return_value=[]),patch.object(main,'fetch_week_entries_for_synthesis',return_value=[{'id':'approved'}]),patch.object(main,'generate_cross_desk_signal') as generate,patch.object(main,'fail_hard',side_effect=RuntimeError):
             with self.assertRaises(RuntimeError):main.run_site_only()
-        generate.assert_called_once_with([{'id':'approved'}])
+        generate.assert_not_called()
+    def test_homepage_selection_precedes_synthesis_failure(self):
+        calls=[]
+        with patch.object(main,'fetch_todays_entries_for_compile',return_value=[{'id':'approved'}]),patch.object(main,'select_todays_intelligence',side_effect=lambda *args: calls.append('selected') or ['approved']),patch.object(main,'fetch_week_entries_for_synthesis',return_value=[]),patch.object(main,'generate_cross_desk_signal',side_effect=lambda *args: calls.append('synthesis') or (_ for _ in ()).throw(RuntimeError('provider failure'))):
+            with self.assertRaises(RuntimeError): main.run_site_only()
+        self.assertEqual(calls,['selected','synthesis'])
