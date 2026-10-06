@@ -36,3 +36,10 @@ class GeminiPolicyTests(unittest.TestCase):
         with patch.object(main,'fit_signal_briefs',side_effect=lambda d:d) as fit,patch.object(main,'gemini_review',return_value='FLAGS: 0'):
             main.verify_with_gemini_loop(self.draft())
         self.assertNotIn('_no_paid_rewrite',fit.call_args.args[0])
+
+    def test_verbose_evidence_compacted_without_losing_citations(self):
+        d=self.draft(True)
+        d['notion_entries'][0]['sources_text']='https://example.com/one '+('Evidence description. '*110)+' https://example.com/two'
+        r,g,c,q=self.run_review(['FLAGS: 1\n- Detail','FLAGS: 0'],d)
+        self.assertEqual(r['notion_entries'][0]['sources_text'],'https://example.com/one\nhttps://example.com/two')
+        q.assert_not_called()

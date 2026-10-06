@@ -322,7 +322,7 @@ def fetch_week_entries_for_synthesis():
 WEEKLY_BRIEFING_SYSTEM_PROMPT = """You write NavvyaSignal's weekly Briefing — a synthesis of \
 the past week's already-published entries. You do NOT do new research. The editorial question \
 is "what did the week's individual signals collectively reveal" — not another news article \
-restating the week's events one by one.
+restating the week's events one by one. Distinguish documented connections from simultaneous events. Do not assert causal links, motives or forecasts without direct source support. Include dates and uncertainty.
 
 Look for genuine patterns: separate signals that, together, show a trend a reader wouldn't see \
 from any single entry alone (e.g. three separate signals showing escalating pressure, gradually \
@@ -417,6 +417,9 @@ def run_weekly_synthesis():
         log(f"Found today's existing Briefing ({existing_briefing_id}) — will update instead of creating a duplicate.")
 
     briefing_data = generate_weekly_briefing(week_entries)
+    end_day = datetime.date.fromisoformat(os.environ.get("V2_EDITION_DATE") or dubai_today())
+    start_day = end_day - datetime.timedelta(days=6)
+    briefing_data["title"] = f"Weekly Briefing — {start_day.isoformat()} to {end_day.isoformat()}"
     page_id = write_verified_special_entry(
         title=briefing_data["title"],
         body=briefing_data["body"],
@@ -1095,6 +1098,13 @@ def _verify_single_signal(briefing_data, max_rounds=2):
             return None
         if decision["unverified_claims"] and "couldn't be verified from source" not in entry.get("body_markdown", "").lower():
             return None
+        if len(entry.get("sources_text", "")) > 1900:
+            # Keep every direct citation, moving verbose evidence descriptions to the audit note.
+            citations = list(dict.fromkeys(re.findall(r"https://[^\s<>]+", entry["sources_text"])))
+            compact = "\n".join(citations)
+            if citations and len(compact) <= 1900:
+                entry["notes"] = (entry.get("notes", "") + "\nSource descriptions: " + entry["sources_text"]).strip()
+                entry["sources_text"] = compact
         if entry.get("desk_ambiguous") is not False or not has_direct_source_url(entry):
             return None
         repaired = fit_signal_briefs(repaired)
@@ -1568,7 +1578,7 @@ Select today's Today's Intelligence entries per your instructions."""
 
 CROSS_DESK_SYSTEM_PROMPT = f"""You look for a genuine multi-domain connection among recent approved \
 NavvyaSignal entries and, if one exists, write it up as a single Cross-Desk Signal. You do \
-NOT do new research — synthesize only from the entries provided.
+NOT do new research — synthesize only from the entries provided. Distinguish documented connections from simultaneous events. Do not assert causal links, motives or forecasts without direct source support. State uncertainty explicitly.
 
 A Cross-Desk Signal is a deliberately synthesized piece connecting 2+ domains — e.g. "Why a \
 Hormuz disruption would hit India's energy bill before it hits global oil supply." It is NOT \
