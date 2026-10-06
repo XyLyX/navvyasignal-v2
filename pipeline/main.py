@@ -310,52 +310,12 @@ WEEKLY_SYNTHESIS_WINDOW_HOURS = 24 * 7
 
 
 def fetch_week_entries_for_synthesis():
-    """7-day window, existing material only — no new research. Filters out prior Briefing
-    entries (once Content Type exists) so weekly synthesis doesn't re-summarize itself."""
-    url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    payload = {
-        "page_size": 100,
-        "sorts": [{"timestamp": "last_edited_time", "direction": "descending"}],
-    }
-    resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
-    if resp.status_code != 200:
-        fail_hard(f"Notion query failed: {resp.status_code} {resp.text}")
-    results = resp.json().get("results", [])
-
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=WEEKLY_SYNTHESIS_WINDOW_HOURS)
+    """Paginate approved Signals from seven Dubai calendar days; edits do not reset age."""
+    end_day = datetime.date.fromisoformat(os.environ.get("V2_EDITION_DATE") or dubai_today())
+    start_day = end_day - datetime.timedelta(days=6)
     entries = []
-    for page in results:
-        edited_time_str = page.get("last_edited_time", "")
-        try:
-            edited_dt = datetime.datetime.strptime(edited_time_str[:19], "%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            edited_dt = None
-        if edited_dt and edited_dt < cutoff:
-            continue
-
-        props = page.get("properties", {})
-        # Once Content Type exists (Stage 1C), skip prior Briefing entries so the weekly
-        # synthesis doesn't summarize its own past output. Harmless no-op until then, since the
-        # property won't be present on any page and this check simply won't match.
-        content_type = ""
-        if "Content Type" in props and props["Content Type"].get("select"):
-            content_type = props["Content Type"]["select"].get("name", "")
-        if content_type == "Briefing":
-            continue
-
-        title = ""
-        if "Name" in props and props["Name"].get("title"):
-            title = "".join([t.get("plain_text", "") for t in props["Name"]["title"]])
-        if _is_test_record(title):
-            continue
-        desk = ""
-        if "Category" in props and props["Category"].get("select"):
-            desk = props["Category"]["select"].get("name", "")
-        body = ""
-        if "Signal Brief" in props and props["Signal Brief"].get("rich_text"):
-            body = "".join([t.get("plain_text", "") for t in props["Signal Brief"]["rich_text"]])
-
-        entries.append({"id": page["id"], "title": title, "desk": desk, "body": body})
+    for offset in range(7):
+        entries.extend(fetch_todays_entries_for_compile((start_day + datetime.timedelta(days=offset)).isoformat()))
     return entries
 
 
@@ -372,17 +332,17 @@ with no real pattern, say so honestly rather than manufacturing a narrative thre
 Output ONLY valid JSON, no preamble, no code fences:
 {
   "title": "string, e.g. 'Gulf Briefing — Week 37'",
-  "body": "string, flowing prose, plain text no markdown — the pattern(s) of the week and what they mean",
-  "sources_text": "string, referencing which entries this draws from"
+  "body": "string, at most 1800 characters, 2–3 plain-prose paragraphs — the pattern(s) of the week and what they mean",
+  "sources_text": "string, direct HTTPS source article URLs from the supplied entries; at most 1900 characters"
 }
 """
 
 
 def generate_weekly_briefing(week_entries):
     user_prompt = f"""This week's entries (desk | title | body):
-{json.dumps([{"desk": e["desk"], "title": e["title"], "body": e["body"]} for e in week_entries], indent=2)}
+{json.dumps(week_entries, indent=2)}
 
-Write this week's Briefing per your instructions."""
+Edition ends on {os.environ.get("V2_EDITION_DATE") or dubai_today()}. Use the correct ISO week number. Write this week's Briefing per your instructions."""
 
     with client.messages.stream(
         model="claude-sonnet-4-5",
@@ -457,7 +417,7 @@ def run_weekly_synthesis():
         log(f"Found today's existing Briefing ({existing_briefing_id}) — will update instead of creating a duplicate.")
 
     briefing_data = generate_weekly_briefing(week_entries)
-    page_id = write_special_entry(
+    page_id = write_verified_special_entry(
         title=briefing_data["title"],
         body=briefing_data["body"],
         sources_text=briefing_data.get("sources_text", ""),
@@ -465,6 +425,8 @@ def run_weekly_synthesis():
         existing_id=existing_briefing_id,
     )
 
+    if not page_id and not DRY_RUN:
+        fail_hard("Weekly Briefing withheld; inspect private Unverified Signals queue")
     log("Weekly synthesis complete.")
     return {
         "edition_label": briefing_data["title"],
@@ -1391,6 +1353,27 @@ def push_to_notion(entries, valid_existing_ids):
     return summary
 
 
+def write_verified_special_entry(title, body, sources_text, content_type, primary_desk=None,
+                                 related_desks=None, existing_id=None):
+    """Use the same Claude/Gemini policy and private hold queue as ordinary Signals."""
+    desk = primary_desk if primary_desk in DESKS else DESKS[0]
+    entry = {"title": title, "body_markdown": body, "sources_text": sources_text,
+             "desk": desk, "desk_ambiguous": False, "action": "update" if existing_id else "create",
+             "existing_id": existing_id, "coverage_theme": [],
+             "related_desks": [d for d in (related_desks or []) if d in DESKS and d != desk],
+             "watchlist": False, "watch_trigger": "", "next_review": "",
+             "notes": "Content Type: " + content_type}
+    reviewed = verify_with_gemini_loop({"notion_entries": [entry]})
+    if not reviewed["notion_entries"]:
+        log(f"{content_type} withheld for manual review")
+        return None
+    approved = reviewed["notion_entries"][0]
+    return write_special_entry(approved["title"], approved["body_markdown"],
+                               approved["sources_text"], content_type,
+                               primary_desk=primary_desk, related_desks=related_desks,
+                               existing_id=existing_id)
+
+
 def write_special_entry(title, body, sources_text, content_type, primary_desk=None,
                          related_desks=None, existing_id=None):
     """Write a Cross-Desk or Briefing entry. Unlike push_to_notion, this does NOT require a
@@ -1408,8 +1391,8 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
 
     properties = {
         "Name": {"title": [{"text": {"content": title}}]},
-        "Signal Brief": {"rich_text": [{"text": {"content": body[:2000]}}]},
-        "Text 1": {"rich_text": [{"text": {"content": sources_text[:2000]}}]},
+        "Signal Brief": {"rich_text": _rich_text_chunks(body)},
+        "Text 1": {"rich_text": _rich_text_chunks(sources_text)},
         "Long Read": {"checkbox": False},
         "Ready to Post": {"checkbox": True},
         "Content Type": {"select": {"name": content_type}},
@@ -1583,7 +1566,7 @@ Select today's Today's Intelligence entries per your instructions."""
     return selected_ids
 
 
-CROSS_DESK_SYSTEM_PROMPT = f"""You look for a genuine multi-domain connection among today's \
+CROSS_DESK_SYSTEM_PROMPT = f"""You look for a genuine multi-domain connection among recent approved \
 NavvyaSignal entries and, if one exists, write it up as a single Cross-Desk Signal. You do \
 NOT do new research — synthesize only from the entries provided.
 
@@ -1614,7 +1597,7 @@ If one exists, output:
   "existing_id": "the exact id of the existing Cross-Desk piece if action=update, else null",
   "title": "string",
   "body": "string, max 1800 chars, flowing prose synthesizing the connection — plain text, no markdown",
-  "sources_text": "string, referencing the underlying entries this draws from",
+  "sources_text": "string, direct HTTPS source article URLs from the supplied entries, max 1900 characters",
   "primary_desk": "the single most central desk, using the exact desk name from the list above",
   "related_desks": ["array of exact desk names from the list above genuinely involved, including primary_desk"]
 }}
@@ -1638,7 +1621,7 @@ def fetch_todays_cross_desk_entries():
     if resp.status_code != 200:
         log(f"WARNING: fetch_todays_cross_desk_entries failed: {resp.status_code} {resp.text[:500]}")
         return []
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=COMPILE_WINDOW_HOURS)
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=7)
     items = []
     for page in resp.json().get("results", []):
         edited_time_str = page.get("last_edited_time", "")
@@ -1664,13 +1647,13 @@ def generate_cross_desk_signal(todays_entries):
     if not NEW_METADATA_STAGE_LIVE:
         log("generate_cross_desk_signal: new metadata stage not live yet — skipping.")
         return None
-    if len(todays_entries) < 2:
+    if len({e.get("desk") for e in todays_entries if e.get("desk") in DESKS}) < 2:
         return None
 
     existing_cross_desk = fetch_todays_cross_desk_entries()
 
-    user_prompt = f"""Today's entries (desk | title | body):
-{json.dumps([{"desk": e["desk"], "title": e["title"], "body": e["body"]} for e in todays_entries], indent=2)}
+    user_prompt = f"""Recent approved entries (dates and source links must be respected):
+{json.dumps(todays_entries, indent=2)}
 
 Cross-Desk pieces already published today (id | title | body) — check these BEFORE deciding to \
 create a new piece:
@@ -1704,6 +1687,9 @@ Look for a genuine cross-desk connection per your instructions."""
     # Guard against the model slightly mis-copying an id (same known LLM failure mode handled
     # for regular Signals in push_to_notion) — if action=update but the claimed id doesn't
     # match anything we actually fetched, fall back to create rather than a failed/wrong PATCH.
+    related = data.get("related_desks", [])
+    if len({d for d in related if d in DESKS}) < 2 or data.get("primary_desk") not in DESKS:
+        fail_hard("Cross-Desk draft lacks two confirmed desks")
     existing_id = data.get("existing_id")
     valid_existing_ids = {e["id"] for e in existing_cross_desk}
     if data.get("action") == "update" and existing_id not in valid_existing_ids:
@@ -1711,7 +1697,7 @@ Look for a genuine cross-desk connection per your instructions."""
             f"treating as create instead of update.")
         existing_id = None
 
-    page_id = write_special_entry(
+    page_id = write_verified_special_entry(
         title=data["title"],
         body=data["body"],
         sources_text=data.get("sources_text", ""),
@@ -1999,6 +1985,11 @@ def main():
         return run_site_only()
     elif RUN_TYPE == "compile_send":
         return run_compile_send()
+    elif RUN_TYPE == "cross_desk":
+        entries = fetch_week_entries_for_synthesis()
+        page_id = generate_cross_desk_signal(entries)
+        return {"edition_label": "cross_desk", "entry_count": int(bool(page_id)),
+                "notion_summary": [page_id] if page_id else [], "sent_output": False}
     elif RUN_TYPE == "weekly_synthesis":
         return run_weekly_synthesis()
     else:
@@ -2101,6 +2092,9 @@ def run_site_only():
     edition_date = homepage_edition_date()
     log(f"Selecting homepage edition: {edition_date}")
     todays_entries = fetch_todays_entries_for_compile(edition_date)
+    # Synthesis is independent of homepage selection and requires approved input.
+    recent_entries = fetch_week_entries_for_synthesis()
+    generate_cross_desk_signal(recent_entries)
     if not todays_entries:
         fail_hard(f"No approved Signals for homepage edition {edition_date}; prior edition preserved")
     selected_ids = select_todays_intelligence(todays_entries, edition_date)

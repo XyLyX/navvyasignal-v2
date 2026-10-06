@@ -19,7 +19,7 @@ on:
         description: Desk group, site_only or weekly_synthesis
         required: true
         type: choice
-        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, site_only, weekly_synthesis]
+        options: [west_asia, maritime_energy, technology_ai, uae, india, global_politics, markets_capital, site_only, cross_desk, weekly_synthesis]
       edition_date:
         description: Scheduled Dubai edition date (YYYY-MM-DD)
         type: string
