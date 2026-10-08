@@ -958,7 +958,7 @@ in the public brief and explain which detail. If the central claim cannot be ver
 set ready_to_post=false. Never treat that label as permission to report speculation as fact.
 Add top-level editorial_decision with ready_to_post (boolean), rationale (nonempty string),
 evidence (nonempty list of source URLs and what each establishes), and
-unverified_claims (list of nonempty strings; empty if none). Set ready_to_post=false if
+unverified_claims (list of nonempty strings; empty if none), and disposition ("publish",\n"hold", or "discard"). Use "discard" with ready_to_post=false when your final recommendation\nis unpublishable, do not publish, reject the article, or equivalent. Use "hold" only\nfor incomplete verification or a technical problem awaiting review, not a final editorial rejection.\nSet ready_to_post=false if
 any material concern makes publication unsafe. Keep this decision private.
 
 Gemini raised the following concerns about your draft briefing:
@@ -1086,6 +1086,7 @@ def _verify_single_signal(briefing_data, max_rounds=2):
         entry = repaired["notion_entries"][0]
         if any(entry.get(k) != original.get(k) for k in ("desk", "action", "existing_id")):
             raise ValueError("Source cross-check changed story identity; manual review required")
+        reject_if_final(repaired, original)
         decision = repaired.get("editorial_decision", {})
         briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
         briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
@@ -1175,6 +1176,72 @@ def save_unverified_signal(entry, findings):
     return response.json()["id"]
 
 
+class FinalEditorialRejection(Exception):
+    def __init__(self, entry, rationale):
+        super().__init__(rationale)
+        self.entry = entry
+
+
+def reject_if_final(repaired, original):
+    """Destructive disposition must be explicit, evidenced, and for this draft."""
+    decision = repaired.get("editorial_decision", {})
+    if not isinstance(decision, dict) or decision.get("disposition") != "discard":
+        return
+    entries = repaired.get("notion_entries", [])
+    if (decision.get("ready_to_post") is not False
+            or not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip()
+            or not isinstance(decision.get("evidence"), list) or not decision["evidence"]
+            or not all(isinstance(e, str) and "https://" in e for e in decision["evidence"])
+            or not isinstance(entries, list) or len(entries) != 1 or not isinstance(entries[0], dict)
+            or any(entries[0].get(k) != original.get(k) for k in ("desk", "action", "existing_id"))):
+        raise ValueError("Discard verdict malformed or changed story identity; manual review required")
+    raise FinalEditorialRejection(entries[0], decision["rationale"])
+
+
+def discard_rejected_draft(original, rejected):
+    """Trash matching private drafts only; never delete a published update target."""
+    if DRY_RUN:
+        log("DRY RUN: would discard editorially rejected draft")
+        return
+    for entry in (original, rejected):
+        fingerprint = hashlib.sha256(json.dumps(
+            [entry.get("title"), entry.get("desk"), entry.get("body_markdown")],
+            ensure_ascii=False).encode()).hexdigest()
+        marker = "V2_UNVERIFIED_SIGNAL:" + fingerprint
+        cursor = None
+        while True:
+            query = {"page_size": 100, "filter": {"and": [
+                {"property": "Internal Note", "rich_text": {"contains": marker}},
+                {"property": "Ready to Post", "checkbox": {"equals": False}}]}}
+            if cursor:
+                query["start_cursor"] = cursor
+            response = requests.post(
+                f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query",
+                headers=NOTION_HEADERS, json=query, timeout=30)
+            if response.status_code != 200:
+                raise RuntimeError("Rejected draft lookup failed: HTTP " + str(response.status_code))
+            data = response.json()
+            for page in data.get("results", []):
+                props = page.get("properties", {})
+                note = "".join(part.get("plain_text", part.get("text", {}).get("content", ""))
+                               for part in props.get("Internal Note", {}).get("rich_text", []))
+                if (note.split("\n", 1)[0] != marker
+                        or props.get("Ready to Post", {}).get("checkbox") is not False
+                        or page["id"] == original.get("existing_id")):
+                    continue
+                deleted = requests.patch(
+                    "https://api.notion.com/v1/pages/" + page["id"],
+                    headers=NOTION_HEADERS, json={"archived": True}, timeout=30)
+                if deleted.status_code != 200:
+                    raise RuntimeError("Rejected draft deletion failed: HTTP " + str(deleted.status_code))
+            if not data.get("has_more"):
+                break
+            cursor = data.get("next_cursor")
+            if not cursor:
+                raise RuntimeError("Rejected draft lookup missing pagination cursor")
+    log("DISCARDED: final Claude editorial rejection")
+
+
 def _claude_final_recovery(briefing_data, original, reason):
     """One fresh source-backed adjudication; no Gemini veto or unbounded retry."""
     recovered_input = json.loads(json.dumps(briefing_data))
@@ -1196,6 +1263,7 @@ def _claude_final_recovery(briefing_data, original, reason):
     if not isinstance(entry, dict):
         raise ValueError("Recovery Claude entry malformed")
     briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
+    reject_if_final(repaired, original)
     decision = repaired.get("editorial_decision", {})
     briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
     if not isinstance(decision, dict):
@@ -1246,6 +1314,9 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
             else:
                 approved.extend(result["notion_entries"])
                 continue
+        except FinalEditorialRejection as rejection:
+            discard_rejected_draft(entry, rejection.entry)
+            continue
         except (Exception, SystemExit) as error:
             # Never silently approve on provider/format errors; preserve the draft.
             reason = "Verification incomplete (" + type(error).__name__ + ")."
@@ -1268,6 +1339,9 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
         try:
             recovered = _claude_final_recovery(isolated, entry, reason)
             approved.extend(recovered["notion_entries"])
+            continue
+        except FinalEditorialRejection as rejection:
+            discard_rejected_draft(entry, rejection.entry)
             continue
         except (Exception, SystemExit) as recovery_error:
             if isinstance(recovery_error, ValueError):
