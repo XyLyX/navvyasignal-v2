@@ -1,0 +1,49 @@
+name: Requested homepage reselection
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/requested-homepage-refresh.yml]
+permissions:
+  contents: read
+concurrency:
+  group: v2-site-edition
+  cancel-in-progress: false
+jobs:
+  edition:
+    if: contains(github.event.head_commit.message, '[homepage-refresh-once]') && vars.V2_SITE_ONLY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r pipeline/requirements.txt
+      - name: Reselect latest completed day from current approved signals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          DRY_RUN: 'false'
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, 'pipeline')
+          import main
+          date = '2026-10-08'
+          entries = main.fetch_todays_entries_for_compile(date)
+          if not entries:
+              raise RuntimeError('No approved signals available; existing homepage preserved')
+          ids = main.select_todays_intelligence(entries, date)
+          print('HOMEPAGE SELECTION:', len(ids), 'of', len(entries))
+          print('SELECTED IDS:', ids)
+          PY
+      - name: Publish and verify live content
+        if: always()
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          DRY_RUN: 'false'
+        run: python pipeline/refresh_publication.py
