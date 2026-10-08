@@ -1,6 +1,6 @@
 # Homepage and Daily Brief
 
-The homepage lists up to seven newest approved Signals created less than 24 hours ago. Approval is required; the nightly Today's Intelligence checkbox and Homepage Date are not homepage gates. Creation time is conservative: editing an old record does not reset freshness. Timestamps are visible in Dubai time. Empty results are not filled with an old edition. Browser timers and visibility changes remove expired cards. Freshness applies to the homepage Watchlist and editorial panels too; historical content remains on its dedicated pages.
+The homepage lists up to seven newest approved Signals created less than 24 hours ago. Approval is required; the nightly Today's Intelligence checkbox and Homepage Date are not homepage gates. Creation time is conservative: editing an old record does not reset freshness. Timestamps are visible in Dubai time. Empty results are not filled with an old edition. Browser timers and visibility changes remove expired cards. The 24-hour cap applies only to daily Signals. Cross-Desk, Weekly Briefing and Long Read panels show the latest approved report of each type with its real date, independent of that cap. Active Watchlist cases follow their review dates; they are ongoing monitoring, not fresh daily reporting. Historical content remains on its dedicated pages.
 
 Public content refresh runs after approved writes/manual approvals, with the existing half-hour reconciliation as recovery. Static builds read the latest approved Notion content.
 
