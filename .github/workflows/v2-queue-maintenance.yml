@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[queue-activation]') || contains(github.event.head_commit.message, '[queue-verification]'))
+    if: github.repository == 'XyLyX/navvyasignal-v2' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[queue-activation]') || contains(github.event.head_commit.message, '[queue-verification]') || contains(github.event.head_commit.message, '[queue-alert-check]'))
     runs-on: ubuntu-latest
     environment: v2-preview
     timeout-minutes: 40
@@ -46,8 +46,8 @@ jobs:
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           SEND_TEST_ALERT: ${{ (github.event_name == 'push' && contains(github.event.head_commit.message, '[queue-activation]')) || (inputs.test_alert && !inputs.dry_run) }}
-          VERIFY_LIVE_PAGE: ${{ github.event_name == 'push' }}
-          CHECK_TEST_ALERT: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[queue-verification]') }}
+          VERIFY_LIVE_PAGE: ${{ github.event_name == 'push' && (contains(github.event.head_commit.message, '[queue-activation]') || contains(github.event.head_commit.message, '[queue-verification]')) }}
+          CHECK_TEST_ALERT: ${{ github.event_name == 'push' && (contains(github.event.head_commit.message, '[queue-alert-check]') || contains(github.event.head_commit.message, '[queue-verification]')) }}
         run: |
           args=()
           if [ "$SEND_TEST_ALERT" = true ]; then args+=(--test-alert); fi

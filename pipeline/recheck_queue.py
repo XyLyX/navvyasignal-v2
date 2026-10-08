@@ -105,7 +105,7 @@ def list_queue():
 
 def run(limit=3):
     now = dt.datetime.now(UTC)
-    totals = {'queued': 0, 'reviewed': 0, 'approved': 0, 'discarded': 0, 'held': 0, 'errors': 0}
+    totals = {'queued': 0, 'reviewed': 0, 'approved': 0, 'discarded': 0, 'held': 0, 'errors': 0, 'alert_errors': 0}
     pages = list_queue(); totals['queued'] = len(pages)
     for page in pages:
         if not private(page): continue
@@ -114,8 +114,12 @@ def run(limit=3):
             continue
         try:
             try:
-                notify_private_draft(page['id'], entry, text(page, 'Internal Note'), editor.NOTION_HEADERS)
+                created = dt.datetime.fromisoformat(page['created_time'].replace('Z', '+00:00'))
+                # Let the creator's immediate alert finish before a periodic worker can claim it.
+                if now - created >= dt.timedelta(minutes=5):
+                    notify_private_draft(page['id'], entry, text(page, 'Internal Note'), editor.NOTION_HEADERS)
             except Exception as notification_error:
+                totals['alert_errors'] += 1
                 print('Queue alert unavailable: ' + type(notification_error).__name__)
             page = notion('/pages/' + page['id'])
             if not private(page): continue
@@ -156,7 +160,8 @@ def run(limit=3):
             totals['errors'] += 1
             print('Queue operation failed: ' + type(error).__name__ + ': ' + str(error)[:150])
     print('QUEUE RESULT: ' + json.dumps(totals, sort_keys=True))
-    if totals['errors']: raise RuntimeError('One or more queue operations failed; inspect log')
+    if totals['errors'] or totals['alert_errors']:
+        raise RuntimeError('One or more queue operations or alerts failed; inspect log')
     return totals
 
 
@@ -177,12 +182,17 @@ if __name__ == '__main__':
         if not re.fullmatch(r'[A-Za-z0-9_-]{10,100}', args.check_message):
             raise SystemExit('Invalid alert message ID')
         _, headers = connected_account()
+        health = requests.get('https://gate.whapi.cloud/health', headers=headers,
+                              params={'wakeup': 'false'}, timeout=25)
+        if health.status_code == 200:
+            print('WHAPI CONNECTION STATE: ' + str(health.json().get('status', {}).get('text', 'not exposed')))
         response = requests.get('https://gate.whapi.cloud/messages/' + args.check_message,
                                 headers=headers, timeout=25)
         if response.status_code != 200:
             raise SystemExit('Alert status check failed: HTTP ' + str(response.status_code))
         message = response.json()
         print('WHAPI ALERT STATUS: ' + str(message.get('status', 'not exposed')))
+        print('WHAPI ALERT EXISTS: ' + str(message.get('id') == args.check_message))
     if args.verify_page and not editor.DRY_RUN:
         if not re.fullmatch(r'[a-f0-9-]{32,36}', args.verify_page):
             raise SystemExit('Invalid verification page ID')

@@ -13,7 +13,11 @@ def connected_account():
                             headers=headers, params={'wakeup': 'false'}, timeout=25)
     if response.status_code != 200:
         raise RuntimeError('Whapi account lookup failed: HTTP ' + str(response.status_code))
-    user = response.json().get('user', {})
+    health = response.json()
+    connection = health.get('status', {}).get('text', '')
+    if connection in ('ERROR', 'SYNC_ERROR', 'QR', 'NOT_INIT', 'INIT', 'LAUNCH'):
+        raise RuntimeError('Whapi connection is not ready: ' + connection)
+    user = health.get('user', {})
     number = str(user.get('phone') or user.get('id') or '').split('@')[0]
     number = number.removeprefix('+')
     if not re.fullmatch(r'[0-9]{7,15}', number):
