@@ -164,3 +164,12 @@ test('pages use publication for desks/signals/routes and the rolling edition onl
   assert.match(detail, /const visible = v2ArticleRoutes\(stories\)/);
   assert.match(detail, /dynamicParams = false/);
 });
+
+ test('all three extended formats are independent of the daily freshness cap', () => {
+  const page = read('src/app/page.tsx');
+  for (const type of ['Cross-Desk', 'Briefing', 'Long Read']) {
+    assert.ok(page.includes("latestOfType(published, '" + type + "')"));
+    assert.ok(!page.includes("latestOfType(fresh, '" + type + "')"));
+  }
+  assert.ok(!page.includes('<FreshHomepageItem'));
+});
