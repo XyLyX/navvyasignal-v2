@@ -1646,7 +1646,7 @@ def assemble_daily_send(entries, edition_date=None):
 
 
 TODAYS_INTELLIGENCE_SYSTEM_PROMPT = """You select which of today's already-published NavvyaSignal \
-entries deserve featured placement as "Today's Intelligence" on the homepage. You do NOT research \
+entries deserve inclusion in the curated Daily Brief for email subscribers and the WhatsApp channel. You do NOT research \
 or alter any facts — you are choosing from what's already written, based on genuine real-world \
 significance only.
 
@@ -1676,7 +1676,7 @@ def select_todays_intelligence(todays_entries, edition_date=None):
     user_prompt = f"""Today's entries (id | desk | title | body):
 {json.dumps([{"id": e["id"], "desk": e["desk"], "title": e["title"], "body": e["body"][:500]} for e in todays_entries], indent=2)}
 
-Select today's Today's Intelligence entries per your instructions."""
+Select the Daily Brief entries per your instructions."""
 
     with client.messages.stream(
         model="claude-sonnet-4-5",
@@ -2255,12 +2255,12 @@ def homepage_edition_date(now=None):
 
 
 def run_site_only():
-    """Select an edition from approved Notion entries; no email or WhatsApp."""
+    """Select the nightly Daily Brief; delivery follows in the isolated sender."""
     edition_date = homepage_edition_date()
-    log(f"Selecting homepage edition: {edition_date}")
+    log(f"Selecting curated Daily Brief: {edition_date}")
     todays_entries = fetch_todays_entries_for_compile(edition_date)
     if not todays_entries:
-        fail_hard(f"No approved Signals for homepage edition {edition_date}; prior edition preserved")
+        fail_hard(f"No approved Signals for Daily Brief {edition_date}; prior edition preserved")
     selected_ids = select_todays_intelligence(todays_entries, edition_date)
     if selected_ids and not DRY_RUN and os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
@@ -2278,6 +2278,13 @@ def run_site_only():
             "sent_output": False}
 
 
+def daily_brief_entries(entries):
+    """Both delivery surfaces receive the same nightly selection, never the whole feed."""
+    return sorted((e for e in entries if isinstance(e.get('homepage_priority'), (int, float))
+                   and 0 < e['homepage_priority'] < float('inf')),
+                  key=lambda e: (e['homepage_priority'], e['id']))[:7]
+
+
 def run_compile_send():
     """Compile approved Signals and send one edition; site selection is independent."""
     edition_date = daily_send_edition_date()
@@ -2290,6 +2297,10 @@ def run_compile_send():
     log(f"Fetched {len(todays_entries)} approved Signals for Dubai edition {edition_date}.")
     if not todays_entries:
         fail_hard(f"No approved Signals for Dubai edition {edition_date}; daily send withheld")
+    selected_entries = daily_brief_entries(todays_entries)
+    if not selected_entries:
+        fail_hard(f"No curated Daily Brief selection for {edition_date}; send withheld")
+    todays_entries = selected_entries
     briefing = assemble_daily_send(todays_entries, edition_date)
     log(f"Assembled {len(todays_entries)} email stories and "
         f"{min(len([e for e in todays_entries if e.get('homepage_priority', 0) > 0]) or len(todays_entries), 7)} "
@@ -2346,3 +2357,4 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
+

@@ -153,10 +153,10 @@ test('Cross-Desk, Briefing and Long Read panels use the latest approved item of 
 test('pages use publication for desks/signals/routes and the rolling edition only for the homepage', () => {
   for (const f of ['src/app/page.tsx', 'src/app/desks/[slug]/page.tsx', 'src/app/signals/page.tsx', 'src/app/signals/[id]/page.tsx', 'src/lib/v2Editorial.ts'])
     assert.doesNotMatch(read(f), /approvedV2Ids|currentV2Stories|V2_RELEASE_STORY_IDS/, `${f} no longer depends on the allowlist`);
-  assert.match(read('src/app/page.tsx'), /selectHomepageEdition\(published, publicationDate, 7\)/);
+  assert.match(read('src/app/page.tsx'), /<FreshIntelligence stories=\{fresh\}/);
   assert.doesNotMatch(read('src/app/page.tsx'), /selectHomepageStories\(.*8\)/);
-  assert.match(read('src/app/page.tsx'), /latestOfType\(published, 'Cross-Desk'\)/);
-  assert.match(read('src/app/page.tsx'), /homepage\.isCurrent \? 'Today’s edition' : 'Latest edition'/);
+  assert.match(read('src/app/page.tsx'), /latestOfType\(fresh, 'Cross-Desk'\)/);
+  assert.doesNotMatch(read('src/app/page.tsx'), /Latest edition|homepage\.isCurrent/);
   assert.match(read('src/app/desks/[slug]/page.tsx'), /publishedStories\(await getStories\(\)\)/);
   assert.match(read('src/app/signals/page.tsx'), /publishedStories\(await getStories\(\)\)/);
   const detail = read('src/app/signals/[id]/page.tsx');

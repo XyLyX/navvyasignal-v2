@@ -70,8 +70,8 @@ test('cards: excerpts only, links only to the existing /signals/<id> page, never
 });
 
 test('both pages use the shared card; selection criteria and status handling are unchanged', () => {
-  assert.match(home, /const watch = stories\.filter\(s => s\.watchlist && s\.watchStatus === 'Active'\)\.slice\(0, 4\);/);
-  assert.match(home, /<WatchCard key=\{s\.id\} story=\{s\} variant="aside" \/>/);
+  assert.match(home, /const watch = stories\.filter\(s => isHomepageFresh\(s, initialNow\) && s\.watchlist && s\.watchStatus === 'Active'\)\.slice\(0, 4\);/);
+  assert.match(home, /<WatchCard story=\{s\} variant="aside" \/>/);
   assert.match(home, /No approved active Watchlist entries are available\./);
   assert.match(home, /<Link className="watch-all" href="\/watchlist">View Watchlist/);
   assert.match(listing, /<WatchTabs tabs=/);
