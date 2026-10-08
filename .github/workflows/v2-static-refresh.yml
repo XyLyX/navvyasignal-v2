@@ -17,7 +17,7 @@ jobs:
   refresh:
     if: github.repository == 'XyLyX/navvyasignal-v2'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     environment: v2-preview
     steps:
       - uses: actions/checkout@v4
@@ -31,8 +31,22 @@ jobs:
         if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
         with:
           python-version: '3.11'
-      - name: Refresh only changed approved public content
+      - name: Install queue review dependencies
         if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
+        run: pip install -r pipeline/requirements.txt
+      - name: Recheck eligible private drafts and send queue alerts
+        id: queue
+        if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
+        timeout-minutes: 20
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python pipeline/recheck_queue.py
+      - name: Refresh only changed approved public content
+        if: always() && (github.event_name != 'schedule' || steps.timer.outputs.external == 'false')
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}

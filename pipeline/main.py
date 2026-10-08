@@ -1172,8 +1172,18 @@ def save_unverified_signal(entry, findings):
               "properties": properties, "children": children}, timeout=30)
     if response.status_code not in (200, 201):
         raise RuntimeError("Private queue write failed: HTTP " + str(response.status_code))
+    page_id = response.json()["id"]
     log("QUEUED UNVERIFIED: " + entry.get("title", "Untitled")[:120])
-    return response.json()["id"]
+    try:
+        try:
+            from pipeline.queue_notifications import notify_private_draft
+        except ImportError:
+            from queue_notifications import notify_private_draft
+        notify_private_draft(page_id, entry, notes, NOTION_HEADERS, dry_run=DRY_RUN)
+    except Exception as alert_error:
+        # The draft is safe in Notion; periodic queue checks can retry unclaimed alerts.
+        log("WARNING: Private queue alert unavailable (" + type(alert_error).__name__ + ")")
+    return page_id
 
 
 class FinalEditorialRejection(Exception):
@@ -2333,7 +2343,3 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
-
-
-
-
