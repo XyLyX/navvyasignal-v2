@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[queue-activation]'))
+    if: github.repository == 'XyLyX/navvyasignal-v2' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[queue-activation]') || contains(github.event.head_commit.message, '[queue-verification]'))
     runs-on: ubuntu-latest
     environment: v2-preview
     timeout-minutes: 40
@@ -45,12 +45,14 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-          SEND_TEST_ALERT: ${{ github.event_name == 'push' || (inputs.test_alert && !inputs.dry_run) }}
+          SEND_TEST_ALERT: ${{ (github.event_name == 'push' && contains(github.event.head_commit.message, '[queue-activation]')) || (inputs.test_alert && !inputs.dry_run) }}
           VERIFY_LIVE_PAGE: ${{ github.event_name == 'push' }}
+          CHECK_TEST_ALERT: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[queue-verification]') }}
         run: |
           args=()
           if [ "$SEND_TEST_ALERT" = true ]; then args+=(--test-alert); fi
           if [ "$VERIFY_LIVE_PAGE" = true ]; then args+=(--verify-page 3f311486-b145-8125-a5eb-cfc00074d2f5); fi
+          if [ "$CHECK_TEST_ALERT" = true ]; then args+=(--check-message PsongF5sRFOAeM0-wIHiNhFRyw); fi
           python pipeline/recheck_queue.py "${args[@]}"
       - name: Verify approved public content against production
         if: always()

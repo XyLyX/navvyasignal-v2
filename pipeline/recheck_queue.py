@@ -164,6 +164,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--test-alert', action='store_true')
     parser.add_argument('--verify-page', default='')
+    parser.add_argument('--check-message', default='')
     args = parser.parse_args()
     if not editor.NOTION_API_KEY or not editor.NOTION_DATABASE_ID:
         raise SystemExit('Notion queue credentials missing')
@@ -172,6 +173,16 @@ if __name__ == '__main__':
         print('Whapi connected account verified; recipient is its own number')
         message_id = send_self_alert('NavvyaSignal private queue alerts are connected. New unverified signals will include the headline, reason and private review link.', account)
         print('Test alert accepted; message ID: ' + message_id)
+    if args.check_message:
+        if not re.fullmatch(r'[A-Za-z0-9_-]{10,100}', args.check_message):
+            raise SystemExit('Invalid alert message ID')
+        _, headers = connected_account()
+        response = requests.get('https://gate.whapi.cloud/messages/' + args.check_message,
+                                headers=headers, timeout=25)
+        if response.status_code != 200:
+            raise SystemExit('Alert status check failed: HTTP ' + str(response.status_code))
+        message = response.json()
+        print('WHAPI ALERT STATUS: ' + str(message.get('status', 'not exposed')))
     if args.verify_page and not editor.DRY_RUN:
         if not re.fullmatch(r'[a-f0-9-]{32,36}', args.verify_page):
             raise SystemExit('Invalid verification page ID')

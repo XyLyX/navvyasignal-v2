@@ -53,8 +53,9 @@ class GeminiPolicyTests(unittest.TestCase):
     def test_recovery_cannot_change_update_target(self):
         d=self.draft(True);d['notion_entries'][0]['existing_id']='other-page'
         r,g,c,q=self.run_review([None],d)
-        self.assertEqual(r['notion_entries'],[]);q.assert_called_once()
-        self.assertIn('Recovery changed story identity',q.call_args.args[1])
+        self.assertEqual(len(r['notion_entries']),1);q.assert_not_called()
+        self.assertIsNone(r['notion_entries'][0]['existing_id'])
+        self.assertEqual(r['notion_entries'][0]['action'],'create')
 
     def test_recovery_rejects_oversized_brief_without_unreviewed_rewrite(self):
         d=self.draft(True);d['notion_entries'][0]['body_markdown']='x'*1801+'\n\nConsequences.'
@@ -77,7 +78,6 @@ class GeminiPolicyTests(unittest.TestCase):
         self.assertEqual(result['unverified_count'],1)
         self.assertIn('TimeoutError',queue.call_args.args[1])
         self.assertNotIn('secret must not appear',queue.call_args.args[1])
-
     def test_recovery_requires_evidence(self):
         d=self.draft(True);d['editorial_decision']['evidence']=[]
         r,g,c,q=self.run_review([None],d)

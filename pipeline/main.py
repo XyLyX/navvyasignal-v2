@@ -1272,6 +1272,11 @@ def _claude_final_recovery(briefing_data, original, reason):
     entry = repaired["notion_entries"][0]
     if not isinstance(entry, dict):
         raise ValueError("Recovery Claude entry malformed")
+    if entry.get("desk") != original.get("desk"):
+        raise ValueError("Recovery changed story identity: desk")
+    # The verdict concerns this draft; a model cannot select a publication/deletion target.
+    entry["action"] = original.get("action")
+    entry["existing_id"] = original.get("existing_id")
     briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
     reject_if_final(repaired, original)
     decision = repaired.get("editorial_decision", {})
@@ -1286,8 +1291,6 @@ def _claude_final_recovery(briefing_data, original, reason):
             or not isinstance(decision.get("unverified_claims"), list)
             or not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
         raise ValueError("Recovery Claude approval lacks required evidence or decision fields")
-    if any(entry.get(k) != original.get(k) for k in ("desk", "action", "existing_id")):
-        raise ValueError("Recovery changed story identity")
     if entry.get("desk_ambiguous") is not False or entry.get("desk") not in DESKS:
         raise ValueError("Recovery desk classification unresolved")
     if not has_direct_source_url(entry):
