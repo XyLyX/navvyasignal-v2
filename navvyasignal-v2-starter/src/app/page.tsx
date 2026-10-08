@@ -19,8 +19,8 @@ export default async function Home() {
   const fresh = published.filter(s => isHomepageFresh(s, initialNow));
   const reportDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dubai' }).format(new Date(iso));
   const latestCrossDesk = latestOfType(published, 'Cross-Desk');
-  const latestBriefing = latestOfType(fresh, 'Briefing');
-  const latestLongRead = latestOfType(fresh, 'Long Read');
+  const latestBriefing = latestOfType(published, 'Briefing');
+  const latestLongRead = latestOfType(published, 'Long Read');
   const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
   return <main>
     <GlobalPulse />
