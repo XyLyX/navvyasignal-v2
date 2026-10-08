@@ -1,0 +1,42 @@
+name: Whapi requested delivery test
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/whapi-requested-test.yml]
+permissions:
+  contents: read
+jobs:
+  test:
+    if: contains(github.event.head_commit.message, '[whapi-test-once]')
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Send requested self-account test and check receipt
+        env:
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+        run: |
+          python - <<'PY'
+          import sys, time, requests
+          sys.path.insert(0, 'pipeline')
+          from queue_notifications import connected_account, send_self_alert
+          account = connected_account()
+          receipt = send_self_alert('NavvyaSignal WhatsApp test — requested by you. Automatic unverified-signal alerts use this connected account.', account)
+          print('TEST RECEIPT:', receipt, flush=True)
+          for attempt in range(7):
+              response = requests.get('https://gate.whapi.cloud/messages/' + receipt, headers=account[1], timeout=30)
+              response.raise_for_status()
+              data = response.json()
+              message = data.get('message', data)
+              status = message.get('status', 'unknown')
+              print('DELIVERY STATUS:', status, flush=True)
+              if status in ('sent', 'delivered', 'read', 'failed', 'error'):
+                  break
+              if attempt < 6:
+                  time.sleep(10)
+          PY
