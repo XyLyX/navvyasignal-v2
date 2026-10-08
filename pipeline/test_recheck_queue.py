@@ -97,3 +97,15 @@ class QueueAlertTests(unittest.TestCase):
         with patch.object(alerts,'connected_account') as account:
             alerts.notify_private_draft('id',{},'notes',{},dry_run=True)
         account.assert_not_called()
+
+    def test_accepted_notification_retains_receipt(self):
+        def response(note):
+            r=Mock(status_code=200)
+            r.json.return_value={'properties':{'Ready to Post':{'checkbox':False},'Internal Note':{'rich_text':[{'plain_text':note}]}}}
+            return r
+        note='V2_UNVERIFIED_SIGNAL:abc\nReason'
+        with patch.object(alerts,'connected_account',return_value=('971500000000@s.whatsapp.net',{})),patch.object(alerts.requests,'get',side_effect=[response(note),response(note+'\nV2_QUEUE_ALERT:pending')]),patch.object(alerts.requests,'patch',return_value=Mock(status_code=200)) as save,patch.object(alerts,'send_self_alert',return_value='receipt-id') as send:
+            self.assertTrue(alerts.notify_private_draft('id',{'title':'Draft','desk':'UAE'},note,{}))
+        send.assert_called_once()
+        chunks=save.call_args.kwargs['json']['properties']['Internal Note']['rich_text']
+        self.assertIn('V2_QUEUE_ALERT:accepted:receipt-id',''.join(x['text']['content'] for x in chunks))

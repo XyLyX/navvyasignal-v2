@@ -1,11 +1,5 @@
-name: V2 queue maintenance activation
+name: V2 queue maintenance
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'pipeline/recheck_queue.py'
-      - 'pipeline/queue_notifications.py'
-      - '.github/workflows/v2-queue-maintenance.yml'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -16,6 +10,14 @@ on:
         description: Send one alert to the Whapi-connected account itself
         type: boolean
         default: false
+      verify_page:
+        description: Optional Signal Feed page ID for a read-only live Claude check
+        type: string
+        required: false
+      message_id:
+        description: Optional existing Whapi receipt to inspect without resending
+        type: string
+        required: false
 permissions:
   contents: read
 concurrency:
@@ -23,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[queue-activation]') || contains(github.event.head_commit.message, '[queue-verification]') || contains(github.event.head_commit.message, '[queue-alert-check]'))
+    if: github.repository == 'XyLyX/navvyasignal-v2'
     runs-on: ubuntu-latest
     environment: v2-preview
     timeout-minutes: 40
@@ -38,21 +40,21 @@ jobs:
           ANTHROPIC_API_KEY: test-only
           WHAPI_TOKEN: ''
         run: python -m unittest pipeline.test_gemini_policy pipeline.test_unverified_queue pipeline.test_final_discard pipeline.test_recheck_queue
-      - name: Verify connected account and process eligible private queue
+      - name: Process eligible private queue and explicitly requested checks
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-          SEND_TEST_ALERT: ${{ (github.event_name == 'push' && contains(github.event.head_commit.message, '[queue-activation]')) || (inputs.test_alert && !inputs.dry_run) }}
-          VERIFY_LIVE_PAGE: ${{ github.event_name == 'push' && (contains(github.event.head_commit.message, '[queue-activation]') || contains(github.event.head_commit.message, '[queue-verification]')) }}
-          CHECK_TEST_ALERT: ${{ github.event_name == 'push' && (contains(github.event.head_commit.message, '[queue-alert-check]') || contains(github.event.head_commit.message, '[queue-verification]')) }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SEND_TEST_ALERT: ${{ inputs.test_alert && !inputs.dry_run }}
+          VERIFY_PAGE_ID: ${{ !inputs.dry_run && inputs.verify_page || '' }}
+          CHECK_MESSAGE_ID: ${{ inputs.message_id }}
         run: |
           args=()
           if [ "$SEND_TEST_ALERT" = true ]; then args+=(--test-alert); fi
-          if [ "$VERIFY_LIVE_PAGE" = true ]; then args+=(--verify-page 3f311486-b145-8125-a5eb-cfc00074d2f5); fi
-          if [ "$CHECK_TEST_ALERT" = true ]; then args+=(--check-message PsongF5sRFOAeM0-wIHiNhFRyw); fi
+          if [ -n "$VERIFY_PAGE_ID" ]; then args+=(--verify-page "$VERIFY_PAGE_ID"); fi
+          if [ -n "$CHECK_MESSAGE_ID" ]; then args+=(--check-message "$CHECK_MESSAGE_ID"); fi
           python pipeline/recheck_queue.py "${args[@]}"
       - name: Verify approved public content against production
         if: always()
@@ -60,5 +62,5 @@ jobs:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
           V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: python pipeline/refresh_publication.py

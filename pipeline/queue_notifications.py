@@ -73,6 +73,6 @@ def notify_private_draft(page_id, entry, notes, headers, dry_run=False):
         latest_note = ''.join(x.get('plain_text', x.get('text', {}).get('content', ''))
             for x in latest.json().get('properties', {}).get('Internal Note', {}).get('rich_text', []))
         if '\nV2_QUEUE_ALERT:pending' in latest_note:
-            save(latest_note.replace('\nV2_QUEUE_ALERT:pending', '\nV2_QUEUE_ALERT:accepted'))
+            save(latest_note.replace('\nV2_QUEUE_ALERT:pending', '\nV2_QUEUE_ALERT:accepted:' + message_id))
     print('Private queue alert accepted by Whapi' + ('; message ID recorded' if message_id else ''))
     return True

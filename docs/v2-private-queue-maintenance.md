@@ -12,6 +12,6 @@ Production Actions run from main; Netlify site code runs from release/v2-english
 - Alert sends are claimed in the private note before transmission. A pending claim after a network ambiguity is not automatically resent. Inspect Whapi history before clearing it. Periodic workers wait five minutes before claiming an unsent alert, allowing the creator's immediate alert to finish.
 - Retry state and alert status stay in Internal Note. Ready to Post removes the item from the private queue even when the original queue marker remains in the note.
 
-The manually dispatched V2 queue maintenance workflow defaults to dry run. Dry run queries the queue but does not call Claude, write Notion, request builds or send messages. Production activation verified the connected Whapi account and sent one test alert; a separate read-only review exercised Claude against an existing published signal.
+The manually dispatched V2 queue maintenance workflow defaults to dry run. Dry run queries the queue but does not call Claude, write Notion, request builds or send messages. Production activation verified the connected Whapi account and submitted one test alert (Whapi accepted it; delivery remained pending at verification); a separate read-only review exercised Claude against an existing published signal.
 
 Do not include old legacy held records in this queue merely because Ready to Post is false. Automatic maintenance requires the V2_UNVERIFIED_SIGNAL marker. Historical corpus cleanup is separate work.
