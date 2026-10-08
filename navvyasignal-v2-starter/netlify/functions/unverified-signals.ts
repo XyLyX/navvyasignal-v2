@@ -63,7 +63,23 @@ export default async (req:Request, context?:Pick<Context,'site'>) => {
         }
         const saved=await notion('/pages/'+id,token,'PATCH',payload);
         if(!saved.ok)throw Error('Save failed');
-        return new Response(null,{status:303,headers:{Location:'/unverified-signals?notice='+action,'Cache-Control':'no-store'}});
+        // Approval is already saved. A refresh failure must never report a failed save.
+        let notice=action;
+        if(action==='publish'){
+          notice='publish_waiting';
+          const dispatchToken=Netlify.env.get('V2_GITHUB_ACTIONS_TOKEN')?.trim();
+          if(dispatchToken){
+            try{
+              const refresh=await fetch('https://api.github.com/repos/XyLyX/navvyasignal-v2/actions/workflows/v2-static-refresh.yml/dispatches',{
+                method:'POST',headers:{Authorization:'Bearer '+dispatchToken,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},
+                body:JSON.stringify({ref:'main',inputs:{dry_run:false}}),signal:AbortSignal.timeout(5000)
+              });
+              if(refresh.status===204)notice='publish_requested';
+              else console.warn('Approval refresh request failed: HTTP '+refresh.status);
+            }catch{console.warn('Approval saved; immediate refresh request unavailable. Scheduled refresh remains active.');}
+          }
+        }
+        return new Response(null,{status:303,headers:{Location:'/unverified-signals?notice='+notice,'Cache-Control':'no-store'}});
       } catch {return response('<a class="home-button" href="/">← Home</a><p>Could not save this draft. Reopen the queue and check its saved state before trying again.</p>',502);}
     }
     if(!passwordMatches(form.get('password')||'',password))return login('Incorrect password.');
@@ -81,7 +97,7 @@ export default async (req:Request, context?:Pick<Context,'site'>) => {
     const data=await res.json() as {results:QueuePage[];has_more:boolean;next_cursor:string|null};
     const stories=sortedQueue(data.results);
     const notice=new URL(req.url).searchParams.get('notice');
-    const message=notice==='publish'?'Approved for publication. The normal content checker will request a site refresh.':notice==='draft'?'Draft saved privately.':notice==='delete'?'Draft moved to Notion trash.':'';
+    const message=notice==='publish_requested'?'Approval saved. Site refresh requested; publication will follow when the build completes.':notice==='publish_waiting'?'Approval saved. Immediate refresh was unavailable; the half-hour content checker will retry automatically.':notice==='publish'?'Approval saved. The content checker will request a site refresh.':notice==='draft'?'Draft saved privately.':notice==='delete'?'Draft moved to Notion trash.':'';
     const items=stories.map(page=>`<article><p class="meta">${e(page.properties.Category?.select?.name||'Desk requires confirmation')} · ${e(new Date(page.created_time).toLocaleString('en-GB',{timeZone:'Asia/Dubai'}))} GST</p><h2><a href="/unverified-signals?id=${encodeURIComponent(page.id)}">${e(queueText(page,'Name'))}</a></h2></article>`).join('');
     return response(`<header><a class="home-button" href="/">← Home</a><form method="post" action="/unverified-signals"><input type="hidden" name="action" value="logout"><button>Lock page</button></form></header><h1>Unverified Signals</h1>${message?`<p role="status">${e(message)}</p>`:''}<strong class="warning">Private drafts — not verified or approved for publication.</strong><p>Newest first. Open a headline to review, edit, approve or delete the draft. Approved drafts publish through the normal site refresh; they are not labelled AI-cleared.</p>${items||'<p>No unverified drafts awaiting review.</p>'}${data.has_more&&data.next_cursor?`<p><a href="/unverified-signals?cursor=${encodeURIComponent(data.next_cursor)}">Older unverified signals →</a></p>`:''}`);
   }catch{return response('<h1>Unverified Signals</h1><p>The private queue could not be loaded. Please try again. No drafts have been changed.</p>',502);}
