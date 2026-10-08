@@ -3,7 +3,7 @@ import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
 import { publishedStories, latestOfType } from '@/lib/v2Editorial';
 import { isHomepageFresh } from '@/lib/homepageFreshness';
-import FreshIntelligence, { FreshHomepageItem } from '@/components/FreshIntelligence';
+import FreshIntelligence from '@/components/FreshIntelligence';
 import GlobalPulse from '@/components/GlobalPulse';
 import WatchCard from '@/components/WatchCard';
 import { getFeedSections } from '@/lib/feeds';
@@ -17,10 +17,11 @@ export default async function Home() {
   const channelUrl = whatsappChannel && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(whatsappChannel) ? whatsappChannel : null;
   const published = publishedStories(stories);
   const fresh = published.filter(s => isHomepageFresh(s, initialNow));
-  const latestCrossDesk = latestOfType(fresh, 'Cross-Desk');
+  const reportDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dubai' }).format(new Date(iso));
+  const latestCrossDesk = latestOfType(published, 'Cross-Desk');
   const latestBriefing = latestOfType(fresh, 'Briefing');
   const latestLongRead = latestOfType(fresh, 'Long Read');
-  const watch = stories.filter(s => isHomepageFresh(s, initialNow) && s.watchlist && s.watchStatus === 'Active').slice(0, 4);
+  const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
   return <main>
     <GlobalPulse />
     <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE</p>
@@ -31,8 +32,8 @@ export default async function Home() {
     <div className="container content"><section>
       <div className="section-title"><h2>Today’s Intelligence</h2><Link href="/signals">All signals →</Link></div>
       <FreshIntelligence stories={fresh} initialNow={initialNow} />
-    </section><aside><h2>Watchlist</h2><p className="aside-intro">Fresh developments under observation. Ongoing older cases remain in the full Watchlist.</p>
-      {watch.length ? <div className="watch-list">{watch.map(s => <FreshHomepageItem key={s.id} story={s} initialNow={initialNow}><WatchCard story={s} variant="aside" /></FreshHomepageItem>)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
+    </section><aside><h2>Watchlist</h2><p className="aside-intro">Ongoing developments under observation; review dates are shown for each case.</p>
+      {watch.length ? <div className="watch-list">{watch.map(s => <WatchCard key={s.id} story={s} variant="aside" />)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
       <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
     </aside></div>
     <section className="container subscribe-brief" aria-label="Daily Brief subscription"><div><h2>Subscribe to the Daily Brief</h2><p>Get in touch to request the daily intelligence briefing. We’ll confirm subscription availability by email.</p></div><a href="mailto:hello@navvyasignal.com?subject=Daily%20Brief%20subscription%20request">Request subscription →</a></section>
@@ -44,13 +45,13 @@ export default async function Home() {
     <section className="container editorial-bottom" aria-label="Editorial formats">
       <div className="editorial-grid">
         <section className="editorial-panel"><span className="kicker">CROSS-DESK INTELLIGENCE</span>
-          <h2>Where the signals connect</h2>{latestCrossDesk ? <FreshHomepageItem story={latestCrossDesk} initialNow={initialNow}><ExpandableEditorial story={latestCrossDesk} /></FreshHomepageItem> : <span className="editorial-pending">Awaiting an approved cross-desk report</span>}
+          <h2>Where the signals connect</h2>{latestCrossDesk ? <><p className="edition-line">Published <time dateTime={latestCrossDesk.createdAt}>{reportDate(latestCrossDesk.createdAt)}</time></p><ExpandableEditorial story={latestCrossDesk} /></> : <span className="editorial-pending">Awaiting an approved cross-desk report</span>}
         </section>
         <section className="editorial-panel"><span className="kicker">WEEKLY BRIEFING</span>
-          <h2>The week in context</h2>{latestBriefing ? <FreshHomepageItem story={latestBriefing} initialNow={initialNow}><ExpandableEditorial story={{...latestBriefing, brief: latestBriefing.brief || latestBriefing.body.slice(0,1200)}} /></FreshHomepageItem> : <span className="editorial-pending">Awaiting first approved edition</span>}
+          <h2>The week in context</h2>{latestBriefing ? <><p className="edition-line">Published <time dateTime={latestBriefing.createdAt}>{reportDate(latestBriefing.createdAt)}</time></p><ExpandableEditorial story={{...latestBriefing, brief: latestBriefing.brief || latestBriefing.body.slice(0,1200)}} /></> : <span className="editorial-pending">No approved weekly briefing available</span>}
         </section>
         <section className="editorial-panel"><span className="kicker">LONG READS</span>
-          <h2>Beyond the daily signal</h2>{latestLongRead ? <FreshHomepageItem story={latestLongRead} initialNow={initialNow}><ExpandableEditorial story={latestLongRead} /></FreshHomepageItem> : <span className="editorial-pending">Awaiting an approved long read</span>}
+          <h2>Beyond the daily signal</h2>{latestLongRead ? <><p className="edition-line">Published <time dateTime={latestLongRead.createdAt}>{reportDate(latestLongRead.createdAt)}</time></p><ExpandableEditorial story={latestLongRead} /></> : <span className="editorial-pending">Awaiting an approved long read</span>}
         </section>
       </div>
       <LiveFeedSections initial={feeds} includeNavyaa heading="From the Navvya Network" />

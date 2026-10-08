@@ -155,7 +155,7 @@ test('pages use publication for desks/signals/routes and the rolling edition onl
     assert.doesNotMatch(read(f), /approvedV2Ids|currentV2Stories|V2_RELEASE_STORY_IDS/, `${f} no longer depends on the allowlist`);
   assert.match(read('src/app/page.tsx'), /<FreshIntelligence stories=\{fresh\}/);
   assert.doesNotMatch(read('src/app/page.tsx'), /selectHomepageStories\(.*8\)/);
-  assert.match(read('src/app/page.tsx'), /latestOfType\(fresh, 'Cross-Desk'\)/);
+  assert.match(read('src/app/page.tsx'), /latestOfType\(published, 'Cross-Desk'\)/);
   assert.doesNotMatch(read('src/app/page.tsx'), /Latest edition|homepage\.isCurrent/);
   assert.match(read('src/app/desks/[slug]/page.tsx'), /publishedStories\(await getStories\(\)\)/);
   assert.match(read('src/app/signals/page.tsx'), /publishedStories\(await getStories\(\)\)/);
