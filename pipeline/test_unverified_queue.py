@@ -9,6 +9,12 @@ class Response:
     def json(self): return self.data
 
 class QueueTests(unittest.TestCase):
+    def setUp(self):
+        # Failed recovery is mocked: these tests exercise private queue storage.
+        recovery = patch.object(main, 'claude_respond_to_flags', return_value=None)
+        self.recovery = recovery.start()
+        self.addCleanup(recovery.stop)
+
     def draft(self, title='Draft'):
         return {'title':title,'desk':'West Asia Desk','desk_ambiguous':False,'body_markdown':'Facts.\n\nConsequences.', 'sources_text':'https://example.com/report'}
 
@@ -29,7 +35,7 @@ class QueueTests(unittest.TestCase):
             result=main.verify_with_gemini_loop({'notion_entries':[self.draft(),self.draft('Approved')]})
         self.assertEqual(len(result['notion_entries']),1);queue.assert_called_once()
 
-    def test_missing_source_is_queued_without_model_call(self):
+    def test_missing_source_recovery_failure_stays_queued(self):
         draft=self.draft();draft['sources_text']='No direct link'
         with patch.object(main,'_verify_single_signal') as review, patch.object(main,'save_unverified_signal') as queue:
             result=main.verify_with_gemini_loop({'notion_entries':[draft]})

@@ -21,7 +21,7 @@ class GeminiPolicyTests(unittest.TestCase):
     def test_not_ready_held(self):
         r,g,c,q=self.run_review(['FLAGS: 1\n- Claim'],self.draft(False));self.assertEqual(r['notion_entries'],[]);q.assert_called_once()
     def test_provider_failure_held(self):
-        r,g,c,q=self.run_review([None]);self.assertEqual(r['notion_entries'],[]);c.assert_not_called();q.assert_called_once()
+        r,g,c,q=self.run_review([None]);self.assertEqual(r['notion_entries'],[]);c.assert_called_once();q.assert_called_once()
     def test_malformed_review_held(self):
         r,g,c,q=self.run_review(['FLAGS: 0\n- Concern']);self.assertEqual(r['notion_entries'],[])
     def test_repeated_objection_final_source_adjudication(self):
@@ -43,3 +43,54 @@ class GeminiPolicyTests(unittest.TestCase):
         r,g,c,q=self.run_review(['FLAGS: 1\n- Detail','FLAGS: 0'],d)
         self.assertEqual(r['notion_entries'][0]['sources_text'],'https://example.com/one\nhttps://example.com/two')
         q.assert_not_called()
+
+    def test_gemini_outage_recovers_with_claude_final_verdict(self):
+        r,g,c,q=self.run_review([None],self.draft(True))
+        self.assertEqual(len(r['notion_entries']),1)
+        self.assertEqual(r['unverified_count'],0)
+        c.assert_called_once();q.assert_not_called()
+
+    def test_recovery_cannot_change_update_target(self):
+        d=self.draft(True);d['notion_entries'][0]['existing_id']='other-page'
+        r,g,c,q=self.run_review([None],d)
+        self.assertEqual(r['notion_entries'],[]);q.assert_called_once()
+        self.assertIn('Recovery changed story identity',q.call_args.args[1])
+
+    def test_recovery_rejects_oversized_brief_without_unreviewed_rewrite(self):
+        d=self.draft(True);d['notion_entries'][0]['body_markdown']='x'*1801+'\n\nConsequences.'
+        r,g,c,q=self.run_review([None],d)
+        self.assertEqual(r['notion_entries'],[]);q.assert_called_once()
+
+    def test_recovery_uses_latest_draft_and_retains_original_failure(self):
+        repaired=self.draft(False)
+        repaired['notion_entries'][0]['title']='Corrected headline'
+        with patch.object(main,'gemini_review',return_value='FLAGS: 1\n- Concern'),patch.object(main,'claude_respond_to_flags',return_value=repaired) as claude,patch.object(main,'save_unverified_signal') as queue:
+            main.verify_with_gemini_loop(self.draft())
+        self.assertEqual(claude.call_count,2)
+        self.assertEqual(claude.call_args.args[0]['notion_entries'][0]['title'],'Corrected headline')
+        self.assertIn('Initial hold:',queue.call_args.args[1])
+        self.assertIn('Recovery Claude withheld publication',queue.call_args.args[1])
+
+    def test_recovery_provider_error_stays_private(self):
+        with patch.object(main,'gemini_review',return_value=None),patch.object(main,'claude_respond_to_flags',side_effect=TimeoutError('secret must not appear')),patch.object(main,'save_unverified_signal') as queue:
+            result=main.verify_with_gemini_loop(self.draft())
+        self.assertEqual(result['unverified_count'],1)
+        self.assertIn('TimeoutError',queue.call_args.args[1])
+        self.assertNotIn('secret must not appear',queue.call_args.args[1])
+
+    def test_recovery_requires_evidence(self):
+        d=self.draft(True);d['editorial_decision']['evidence']=[]
+        r,g,c,q=self.run_review([None],d)
+        self.assertEqual(r['notion_entries'],[]);q.assert_called_once()
+
+    def test_recovery_requires_confirmed_desk(self):
+        d=self.draft(True);d['notion_entries'][0]['desk_ambiguous']=True
+        r,g,c,q=self.run_review([None],d)
+        self.assertEqual(r['notion_entries'],[]);q.assert_called_once()
+
+    def test_recovery_can_supply_missing_sources(self):
+        d=self.draft();d['notion_entries'][0]['sources_text']='No direct URL'
+        with patch.object(main,'gemini_review') as gem,patch.object(main,'claude_respond_to_flags',return_value=self.draft(True)) as claude,patch.object(main,'save_unverified_signal') as queue:
+            result=main.verify_with_gemini_loop(d)
+        gem.assert_not_called();claude.assert_called_once();queue.assert_not_called()
+        self.assertEqual(len(result['notion_entries']),1)

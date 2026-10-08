@@ -1175,6 +1175,57 @@ def save_unverified_signal(entry, findings):
     return response.json()["id"]
 
 
+def _claude_final_recovery(briefing_data, original, reason):
+    """One fresh source-backed adjudication; no Gemini veto or unbounded retry."""
+    recovered_input = json.loads(json.dumps(briefing_data))
+    versions = briefing_data.get("_reviewed_versions", [])
+    recovered_input["notion_entries"] = [dict(versions[-1] if versions else original)]
+    findings = "\n\n".join(briefing_data.get("_verification_findings", []))
+    instruction = (
+        "Automatic recovery after an incomplete or rejected review. Recheck the CURRENT "
+        "draft from live sources, including every material claim, not just prior flags. "
+        "Prior verdicts are context, not proof. Approve only supported reporting. "
+        "Return a plain-prose brief of 2-3 paragraphs, at most 1800 characters; "
+        "sources_text must contain direct HTTPS article URLs and fit 1900 characters. "
+        "Do not change desk, action or existing_id.\nFailure: " + reason +
+        "\nPrior findings:\n" + findings)
+    repaired = claude_respond_to_flags(recovered_input, instruction, is_repeat_concern=True)
+    if not isinstance(repaired, dict) or not isinstance(repaired.get("notion_entries"), list) or len(repaired["notion_entries"]) != 1:
+        raise ValueError("Recovery Claude response missing one valid entry")
+    entry = repaired["notion_entries"][0]
+    if not isinstance(entry, dict):
+        raise ValueError("Recovery Claude entry malformed")
+    briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
+    decision = repaired.get("editorial_decision", {})
+    briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
+    if not isinstance(decision, dict):
+        raise ValueError("Recovery Claude verdict malformed")
+    if decision.get("ready_to_post") is not True:
+        raise ValueError("Recovery Claude withheld publication: " + str(decision.get("rationale", "No explicit approval"))[:1000])
+    if (not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip()
+            or not isinstance(decision.get("evidence"), list) or not decision["evidence"]
+            or not all(isinstance(e, str) and "https://" in e for e in decision["evidence"])
+            or not isinstance(decision.get("unverified_claims"), list)
+            or not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
+        raise ValueError("Recovery Claude approval lacks required evidence or decision fields")
+    if any(entry.get(k) != original.get(k) for k in ("desk", "action", "existing_id")):
+        raise ValueError("Recovery changed story identity")
+    if entry.get("desk_ambiguous") is not False or entry.get("desk") not in DESKS:
+        raise ValueError("Recovery desk classification unresolved")
+    if not has_direct_source_url(entry):
+        raise ValueError("Recovery missing valid direct article sources")
+    body = entry.get("body_markdown", "")
+    if (not isinstance(body, str) or not 0 < len(body.strip()) <= 1800
+            or not 2 <= len([p for p in body.strip().split("\n\n") if p.strip()]) <= 3
+            or any(label in body.lower() for label in ("why it matters:", "what happened:", "##", "**"))):
+        raise ValueError("Recovery brief does not meet publication format")
+    if decision["unverified_claims"] and "couldn't be verified from source" not in body.lower():
+        raise ValueError("Recovery missing public uncertainty label")
+    entry["notes"] = (entry.get("notes", "") + "\nAutomatic Claude recovery: " + json.dumps(decision)).strip()
+    log("Claude automatic recovery approved source-backed reporting")
+    return repaired
+
+
 def verify_with_gemini_loop(briefing_data, max_rounds=1):
     """Retain rejected drafts privately; independent approved stories continue."""
     approved, withheld = [], []
@@ -1208,7 +1259,23 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
                     "Fact-review provider unavailable", "Fact-review response malformed",
                     "Fact-review response missing valid FLAGS count", "Fact-review count and concern lines disagree"):
                 reason = str(error)
+            if isinstance(error, ValueError):
+                reason = str(error)[:1000]
             log("REVIEW ERROR: " + reason)
+        # Every held draft gets exactly one fresh Claude adjudication in this cycle.
+        # Preserve the first failure, even if the recovery fails technically.
+        isolated.setdefault("_verification_findings", []).append("Initial hold: " + reason)
+        try:
+            recovered = _claude_final_recovery(isolated, entry, reason)
+            approved.extend(recovered["notion_entries"])
+            continue
+        except (Exception, SystemExit) as recovery_error:
+            if isinstance(recovery_error, ValueError):
+                reason = str(recovery_error)
+            else:
+                reason = "Automatic Claude recovery incomplete (" + type(recovery_error).__name__ + "); draft remains private."
+            isolated["_verification_findings"].append("Final hold: " + reason)
+            log("RECOVERY HOLD: " + reason)
         findings = "\n\n".join(isolated.get("_verification_findings", []))
         versions = isolated.get("_reviewed_versions", [])
         queued_entry = dict(versions[-1] if versions else entry)
