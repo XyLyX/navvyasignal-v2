@@ -20,36 +20,19 @@ jobs:
     timeout-minutes: 15
     environment: v2-preview
     steps:
+      - uses: actions/checkout@v4
       - name: Check external scheduler ownership
         id: timer
         if: github.event_name == 'schedule'
         env:
           SCHEDULER_STATUS_URL: https://navvyasignal.com/api/scheduler-status
-        run: |
-          python - <<'PY'
-          import json, os, urllib.request, urllib.error
-          try:
-              with urllib.request.urlopen(os.environ['SCHEDULER_STATUS_URL'], timeout=15) as response:
-                  status = json.load(response)
-              if status.get('version') != 1 or not isinstance(status.get('active'), bool):
-                  raise RuntimeError('Invalid scheduler ownership response')
-              owned = status['active']
-          except urllib.error.HTTPError as error:
-              if error.code != 404:
-                  raise
-              owned = False
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('external=' + str(owned).lower() + '\n')
-          print('Netlify owns scheduling: ' + str(owned))
-          PY
-      - uses: actions/checkout@v4
-        if: steps.timer.outputs.external != 'true'
+        run: python pipeline/scheduler_ownership.py
       - uses: actions/setup-python@v5
-        if: steps.timer.outputs.external != 'true'
+        if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
         with:
           python-version: '3.11'
       - name: Refresh only changed approved public content
-        if: steps.timer.outputs.external != 'true'
+        if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
