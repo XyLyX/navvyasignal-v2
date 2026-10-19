@@ -40,7 +40,7 @@ jobs:
           ANTHROPIC_API_KEY: test-only
           WHAPI_TOKEN: ''
         run: python -m unittest pipeline.test_gemini_policy pipeline.test_unverified_queue pipeline.test_final_discard pipeline.test_recheck_queue
-      - name: Process eligible private queue and explicitly requested checks
+      - name: Notify private queue and explicitly requested checks
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
@@ -56,11 +56,3 @@ jobs:
           if [ -n "$VERIFY_PAGE_ID" ]; then args+=(--verify-page "$VERIFY_PAGE_ID"); fi
           if [ -n "$CHECK_MESSAGE_ID" ]; then args+=(--check-message "$CHECK_MESSAGE_ID"); fi
           python pipeline/recheck_queue.py "${args[@]}"
-      - name: Verify approved public content against production
-        if: always()
-        env:
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
-          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: python pipeline/refresh_publication.py

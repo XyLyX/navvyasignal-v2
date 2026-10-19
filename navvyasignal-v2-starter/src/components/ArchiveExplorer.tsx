@@ -1,18 +1,11 @@
 'use client';
 import Link from 'next/link';
+import {desks} from '@/lib/desks';
 import { useMemo, useState } from 'react';
 
 type ArchiveItem = { id: string; title: string; brief: string; category: string; createdAt: string };
 const PAGE_SIZE = 20;
-const DESKS = [
-  { label: 'West Asia', categories: ['West Asia Desk'] },
-  { label: 'India', categories: ['India Desk'] },
-  { label: 'UAE', categories: ['UAE Desk'] },
-  { label: 'Global Politics', categories: ['Global Politics Desk'] },
-  { label: 'Markets & Capital', categories: ['Markets & Capital Desk'] },
-  { label: 'Technology & AI', categories: ['Technology & AI Desk'] },
-  { label: 'Maritime, Energy & Supply Chains', categories: ['Maritime & Energy Desk', 'Maritime Energy & Supply Chains Desk'] },
-];
+const DESKS = desks.map(d=>({label:d.name,categories:[d.notion,...(d.slug==='uae-middle-east'?['UAE Desk','West Asia Desk']:d.slug==='india-subcontinent'?['India Desk']:[])]}));
 export default function ArchiveExplorer({ stories }: { stories: ArchiveItem[] }) {
   const [query, setQuery] = useState('');
   const [desk, setDesk] = useState('');

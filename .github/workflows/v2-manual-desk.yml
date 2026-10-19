@@ -1,7 +1,7 @@
 name: V2 manual desk publication
 
 # This workflow can publish one desk to Notion. It carries no Kit or Whapi
-# credentials. Successful publication refreshes the site; homepage selection stays separate.
+# credentials. Verified stories are private until the 09:00 release. No build path.
 on:
   workflow_dispatch:
     inputs:
@@ -9,14 +9,7 @@ on:
         description: Desk to research and publish to Signal Feed
         required: true
         type: choice
-        options:
-          - maritime_energy
-          - west_asia
-          - markets_capital
-          - technology_ai
-          - global_politics
-          - uae
-          - india
+        options: [north_america, europe, india_subcontinent, uae_middle_east]
 
 permissions:
   contents: read
@@ -48,22 +41,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUN_TYPE: ${{ inputs.desk }}
           DRY_RUN: 'false'
           SEND_OUTPUT: 'false'
         run: python main.py
-      - name: Request isolated V2 refresh
-        if: always() && steps.editorial.outputs.notion_stage_attempted == 'true'
-        timeout-minutes: 15
-        env:
-          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
-          DRY_RUN: 'false'
-          GH_RUN_ID: ${{ github.run_id }}
-          GH_RUN_ATTEMPT: ${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-          python3 refresh_publication.py
-

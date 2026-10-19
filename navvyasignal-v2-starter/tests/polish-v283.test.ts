@@ -14,23 +14,11 @@ const css = read('src/app/globals.css');
 const page = read('src/app/page.tsx');
 const panelsSrc = read('src/components/NetworkPanels.tsx');
 
-// ---- 1. seven desks ----
-
-test('seven desks: same seven names, order, links and card content; no eighth desk', () => {
-  assert.deepEqual(desks.map(d => d.name), ['West Asia', 'India', 'UAE', 'Global Politics', 'Markets & Capital', 'Technology & AI', 'Maritime, Energy & Supply Chains']);
-  assert.deepEqual(desks.map(d => d.slug), ['west-asia', 'india', 'uae', 'global-politics', 'markets-capital', 'technology-ai', 'maritime-energy-supply-chains']);
-  assert.ok(page.includes("className={`desk desk--${d.slug}`}"), "seven desk links have image-ready slug classes");
-  assert.match(page, /<span>0\{i \+ 1\}<\/span><h3>\{d\.name\}<\/h3><b>Explore desk ↗<\/b>/);
-  assert.match(page, /Seven intelligence desks/);
-});
-
-test('seven desks: 4 + 3 evenly distributed on desktop, last card spans the row on tablet', () => {
-  assert.match(css, /@media\(min-width:761px\)\{\.desk-grid\{grid-template-columns:repeat\(12,minmax\(0,1fr\)\)\}\.desk\{grid-column:span 3\}\.desk:nth-child\(n\+5\)\{grid-column:span 4\}\}/);
-  assert.match(css, /@media\(min-width:441px\) and \(max-width:760px\)\{\.desk:last-child\{grid-column:1 \/ -1\}\}/);
-  // 4 x span 3 and 3 x span 4 both fill twelve columns exactly
-  assert.equal(4 * 3, 12);
-  assert.equal(3 * 4, 12);
-  assert.equal(desks.length, 4 + 3);
+test('four regional desks with working card routes',()=>{
+ assert.deepEqual(desks.map(d=>d.name),['North America','Europe','India & Subcontinent','UAE & Middle East']);
+ assert.deepEqual(desks.map(d=>d.slug),['north-america','europe','india-subcontinent','uae-middle-east']);
+ assert.match(page,/Four regional intelligence desks/);
+ assert.match(css,/regional desks: four cards/);
 });
 
 // ---- 2. network panels ----
@@ -113,6 +101,6 @@ test('directory keeps Rate Manifest and FilsOnly as venture entries, never as RS
   // placeholders; ventures appear only through the shared NetworkPanels section and on /network.
   assert.doesNotMatch(page, /networkCards\.find\(v => v\.slug === slug\)/, 'no homepage venture-card rows');
   assert.doesNotMatch(page, /Coming Soon|\[1,2\]\.map\(n =>/, 'no homepage Coming Soon placeholders');
-  assert.match(page, /<NetworkPanels data=\{feeds\} heading="From the Navvya Network" \/>/, 'ventures reach the homepage via NetworkPanels');
+  assert.match(page, /<LiveFeedSections initial=\{feeds\} includeNavyaa heading="From the Navvya Network" \/>/, 'ventures reach the homepage via NetworkPanels');
   assert.match(read('src/app/network/page.tsx'), /cards\.map\(v=>/);
 });

@@ -1,63 +1,45 @@
-name: V2 static content refresh
+name: Explicit exceptional publication
 on:
-  schedule:
-    - cron: '17,47 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Compare approved content without triggering a build
         type: boolean
         default: true
+      publish_now:
+        description: Explicitly authorize an exceptional production build
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: v2-static-content-refresh
+  group: regional-publication
   cancel-in-progress: false
 jobs:
-  refresh:
+  release:
     if: github.repository == 'XyLyX/navvyasignal-v2'
     runs-on: ubuntu-latest
-    timeout-minutes: 50
     environment: v2-preview
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check external scheduler ownership
-        id: timer
-        if: github.event_name == 'schedule'
-        env:
-          SCHEDULER_STATUS_URL: https://navvyasignal.com/api/scheduler-status
-        run: python pipeline/scheduler_ownership.py
       - uses: actions/setup-python@v5
-        if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
         with:
           python-version: '3.11'
-      - name: Refresh only changed approved public content
-        if: always() && (github.event_name != 'schedule' || steps.timer.outputs.external == 'false')
+      - run: pip install -r pipeline/requirements.txt
+      - name: Check public snapshot without building
+        if: inputs.dry_run || !inputs.publish_now
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
-          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          DRY_RUN: 'true'
         run: python pipeline/refresh_publication.py
-      - name: Install queue review dependencies
-        if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
-        run: pip install -r pipeline/requirements.txt
-      - name: Recheck eligible private drafts and send queue alerts
-        id: queue
-        if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
-        timeout-minutes: 20
+      - name: Publish explicitly approved Now action
+        if: inputs.publish_now && !inputs.dry_run
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: python pipeline/recheck_queue.py
-      - name: Refresh newly approved queue content
-        if: always() && steps.queue.outputs.notion_stage_attempted == 'true'
-        env:
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
           V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: python pipeline/refresh_publication.py
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: 'false'
+        run: python pipeline/regional_release.py --exceptional

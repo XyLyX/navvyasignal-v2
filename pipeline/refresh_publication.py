@@ -96,14 +96,7 @@ def main():
     if os.environ.get("DRY_RUN", "false").lower() == "true":
         print("Dry run: no build triggered.")
         return
-    hook = os.environ["V2_NETLIFY_BUILD_HOOK"].strip()
-    if not re.fullmatch(r"https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+", hook):
-        raise ValueError("Invalid build hook")
-    req = urllib.request.Request(hook, data=b"", method="POST")
-    with urllib.request.urlopen(req, timeout=30) as response:
-        if response.status not in (200, 201, 202): raise ValueError("Build hook rejected")
-    print("V2 refresh requested; waiting for deployed public content.", flush=True)
-    wait_for_publication(current)
+    raise RuntimeError("Direct refresh builds are retired. Use the daily release or explicit Now workflow")
 
 if __name__ == "__main__":
     try: main()

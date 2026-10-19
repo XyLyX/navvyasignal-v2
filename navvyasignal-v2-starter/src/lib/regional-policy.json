@@ -1,0 +1,50 @@
+{
+  "version": "regional-v1",
+  "timezone": "Asia/Dubai",
+  "desks": [
+    {
+      "key": "north_america",
+      "slug": "north-america",
+      "name": "North America",
+      "notion": "North America Desk",
+      "utcHour": 22,
+      "minute": 30,
+      "focus": "United States first; Canada and Mexico for consequential developments."
+    },
+    {
+      "key": "europe",
+      "slug": "europe",
+      "name": "Europe",
+      "notion": "Europe Desk",
+      "utcHour": 0,
+      "minute": 0,
+      "focus": "United Kingdom and continental Europe."
+    },
+    {
+      "key": "india_subcontinent",
+      "slug": "india-subcontinent",
+      "name": "India & Subcontinent",
+      "notion": "India & Subcontinent Desk",
+      "utcHour": 1,
+      "minute": 30,
+      "focus": "India first across all themes. Selective Pakistan, Bangladesh, Sri Lanka, Nepal, Bhutan and Maldives coverage for major regional developments or implications for India."
+    },
+    {
+      "key": "uae_middle_east",
+      "slug": "uae-middle-east",
+      "name": "UAE & Middle East",
+      "notion": "UAE & Middle East Desk",
+      "utcHour": 3,
+      "minute": 0,
+      "focus": "UAE first, plus GCC and wider Middle East."
+    }
+  ],
+  "release": {
+    "utcHour": 5,
+    "minute": 0
+  },
+  "send": {
+    "utcHour": 6,
+    "minute": 0
+  }
+}

@@ -16,7 +16,7 @@ class QueueTests(unittest.TestCase):
         self.addCleanup(recovery.stop)
 
     def draft(self, title='Draft'):
-        return {'title':title,'desk':'West Asia Desk','desk_ambiguous':False,'body_markdown':'Facts.\n\nConsequences.', 'sources_text':'https://example.com/report'}
+        return {'title':title,'desk':'UAE & Middle East Desk','desk_ambiguous':False,'body_markdown':'Facts.\n\nConsequences.', 'sources_text':'https://example.com/report'}
 
     def test_rejected_story_does_not_block_approved_story(self):
         draft={'notion_entries':[self.draft('Held'),self.draft('Approved')]}
@@ -47,7 +47,7 @@ class QueueTests(unittest.TestCase):
             self.assertEqual(main.save_unverified_signal(draft,'FLAGS: 1\n- Concern'),'new-draft')
         props=post.call_args_list[1].kwargs['json']['properties']
         self.assertFalse(props['Ready to Post']['checkbox']);self.assertFalse(props["Today's Intelligence"]['checkbox'])
-        self.assertEqual(props['Category']['select']['name'],'West Asia Desk')
+        self.assertEqual(props['Category']['select']['name'],'UAE & Middle East Desk')
         self.assertTrue(props['Internal Note']['rich_text'][0]['text']['content'].startswith('V2_UNVERIFIED_SIGNAL:'))
         update.assert_not_called();marker.assert_not_called()
 

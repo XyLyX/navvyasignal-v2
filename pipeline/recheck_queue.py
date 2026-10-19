@@ -104,64 +104,18 @@ def list_queue():
 
 
 def run(limit=3):
-    now = dt.datetime.now(UTC)
-    totals = {'queued': 0, 'reviewed': 0, 'approved': 0, 'discarded': 0, 'held': 0, 'errors': 0, 'alert_errors': 0}
-    pages = list_queue(); totals['queued'] = len(pages)
+    """Notify only. Held stories require the user's manual review through Claude."""
+    totals = {'queued':0,'reviewed':0,'approved':0,'discarded':0,'held':0,'errors':0,'alert_errors':0}
+    pages=list_queue();totals['queued']=len(pages)
     for page in pages:
-        if not private(page): continue
-        entry = draft(page)
-        if editor.DRY_RUN:
-            continue
+        if not private(page) or editor.DRY_RUN: continue
         try:
-            try:
-                created = dt.datetime.fromisoformat(page['created_time'].replace('Z', '+00:00'))
-                # Let the creator's immediate alert finish before a periodic worker can claim it.
-                if now - created >= dt.timedelta(minutes=5):
-                    notify_private_draft(page['id'], entry, text(page, 'Internal Note'), editor.NOTION_HEADERS)
-            except Exception as notification_error:
-                totals['alert_errors'] += 1
-                print('Queue alert unavailable: ' + type(notification_error).__name__)
-            page = notion('/pages/' + page['id'])
-            if not private(page): continue
-            entry = draft(page)
-            saved = state(page, entry)
-            if totals['reviewed'] >= limit or not due(saved, now): continue
-            saved.update(attempts=saved['attempts']+1, last_attempt=now.isoformat(), status='reviewing')
-            claimed = write_note(page, note_with_state(text(page, 'Internal Note'), saved))
-            totals['reviewed'] += 1
-            context = {'notion_entries': [entry], '_verification_findings': [text(page, 'Internal Note')]}
-            try:
-                reviewed = editor._claude_final_recovery(context, entry, 'Delayed recheck of private draft')
-            except editor.FinalEditorialRejection:
-                current = notion('/pages/' + page['id'])
-                if not private(current) or current.get('last_edited_time') != claimed.get('last_edited_time'):
-                    raise RuntimeError('Draft changed during review; deletion cancelled')
-                notion('/pages/' + page['id'], 'PATCH', {'archived': True})
-                totals['discarded'] += 1
-                continue
-            except (Exception, SystemExit) as error:
-                saved['status'] = 'held'
-                reason = str(error)[:1000] if isinstance(error, ValueError) else type(error).__name__
-                note = text(claimed, 'Internal Note') + '\nDelayed review hold: ' + reason
-                write_note(claimed, note_with_state(note, saved))
-                totals['held'] += 1
-                continue
-            approved = reviewed['notion_entries'][0]
-            saved['status'] = 'approved'
-            note = text(claimed, 'Internal Note') + '\nDelayed Claude approval: ' + json.dumps(reviewed['editorial_decision'])
-            props = {'Name': {'title': editor._rich_text_chunks(approved['title'])},
-                'Signal Brief': {'rich_text': editor._rich_text_chunks(approved['body_markdown'])},
-                'Text 1': {'rich_text': editor._rich_text_chunks(approved['sources_text'])},
-                'Ready to Post': {'checkbox': True}}
-            write_note(claimed, note_with_state(note, saved), props)
-            editor.mark_publication_changed()
-            totals['approved'] += 1
+            notify_private_draft(page['id'],draft(page),text(page,'Internal Note'),editor.NOTION_HEADERS)
         except Exception as error:
-            totals['errors'] += 1
-            print('Queue operation failed: ' + type(error).__name__ + ': ' + str(error)[:150])
-    print('QUEUE RESULT: ' + json.dumps(totals, sort_keys=True))
-    if totals['errors'] or totals['alert_errors']:
-        raise RuntimeError('One or more queue operations or alerts failed; inspect log')
+            totals['alert_errors']+=1
+            print('Private alert failed: '+type(error).__name__)
+    print('QUEUE RESULT: '+json.dumps(totals,sort_keys=True))
+    if totals['alert_errors']: raise RuntimeError('Private notification failed; no automatic approval attempted')
     return totals
 
 

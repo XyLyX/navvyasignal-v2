@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { desks } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
 import { publishedStories, latestOfType } from '@/lib/v2Editorial';
-import { isHomepageFresh } from '@/lib/homepageFreshness';
+import {selectHomepageEdition,dubaiPublicationDate} from '@/lib/homepageSelection';
 import FreshIntelligence from '@/components/FreshIntelligence';
 import GlobalPulse from '@/components/GlobalPulse';
 import WatchCard from '@/components/WatchCard';
@@ -16,7 +16,7 @@ export default async function Home() {
   const whatsappChannel = 'https://whatsapp.com/channel/0029VbDPeHH47Xe2oj9oSL3C';
   const channelUrl = whatsappChannel && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(whatsappChannel) ? whatsappChannel : null;
   const published = publishedStories(stories);
-  const fresh = published.filter(s => isHomepageFresh(s, initialNow));
+  const fresh = selectHomepageEdition(published,dubaiPublicationDate()).stories;
   const reportDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dubai' }).format(new Date(iso));
   const latestCrossDesk = latestOfType(published, 'Cross-Desk');
   const latestBriefing = latestOfType(published, 'Briefing');
@@ -27,7 +27,7 @@ export default async function Home() {
     <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE</p>
       <h1>Understand what matters.<br/><em>See what connects.</em></h1>
       <p className="intro">Independent global intelligence, grounded in documented developments and the connections between them.</p>
-      <p className="lead-note">Seven desks · Current reporting · Developing watchlists</p>
+      <p className="lead-note">Four regional desks · Current reporting · Developing watchlists</p>
     </div></section>
     <div className="container content"><section>
       <div className="section-title"><h2>Today’s Intelligence</h2><Link href="/signals">All signals →</Link></div>
@@ -38,7 +38,7 @@ export default async function Home() {
     </aside></div>
     <section className="container subscribe-brief" aria-label="Daily Brief subscription"><div><h2>Subscribe to the Daily Brief</h2><p>Get in touch to request the daily intelligence briefing. We’ll confirm subscription availability by email.</p></div><a href="mailto:hello@navvyasignal.com?subject=Daily%20Brief%20subscription%20request">Request subscription →</a></section>
     {channelUrl && <section className="container whatsapp-channel-invite" aria-label="Join our WhatsApp Channel"><div><span className="kicker">NAVVYASIGNAL ON WHATSAPP</span><h2>Join our WhatsApp Channel</h2><p>Follow NavvyaSignal for intelligence updates and links to the latest reporting. Channel membership is optional and separate from the Daily Brief email subscription.</p></div><a href={channelUrl} target="_blank" rel="noopener noreferrer">Join the WhatsApp Channel ↗</a></section>}
-    <section className="desk-section" id="desks"><div className="container"><div className="section-title"><h2>Seven intelligence desks</h2></div>
+    <section className="desk-section" id="desks"><div className="container"><div className="section-title"><h2>Four regional intelligence desks</h2></div>
       <div className="desk-grid">{desks.map((d, i) => <Link key={d.slug} href={`/desks/${d.slug}`} className={`desk desk--${d.slug}`}>
         <span>0{i + 1}</span><h3>{d.name}</h3><b>Explore desk ↗</b>
       </Link>)}</div></div></section>
