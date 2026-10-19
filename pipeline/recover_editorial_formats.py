@@ -25,7 +25,7 @@ def run(value, run_id):
     if os.environ.get('DRY_RUN','true').lower() == 'true':
         print('DRY RUN: no research, writes, builds or sends')
         return
-    result = formats.run(edition)
+    result = formats.run(edition, retry_technical=value.get('retry_technical') is True)
     # One explicit exceptional build also publishes the code/scheduler/freshness correction.
     release.run(edition, manual_key='editorial-recovery-'+run_id, force_build=True)
     print('EDITORIAL RECOVERY RESULT: '+json.dumps(result), flush=True)
