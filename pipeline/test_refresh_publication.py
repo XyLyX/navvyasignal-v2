@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 import contextlib
 import io
-import refresh_publication as refresh
+from pipeline import refresh_publication as refresh
 
 class RefreshTests(unittest.TestCase):
     def wait(self, responses, ticks, timeout=600):

@@ -6,70 +6,20 @@ from pipeline import queue_notifications as alerts
 
 class QueueRecoveryTests(unittest.TestCase):
     def page(self):
-        return {'id':'draft-id','created_time':'2026-10-01T00:00:00Z','last_edited_time':'v1',
-            'properties':{'Ready to Post':{'checkbox':False},'Category':{'select':{'name':'UAE Desk'}},
-                'Name':{'title':[{'plain_text':'Draft'}]},'Signal Brief':{'rich_text':[{'plain_text':'Facts.\n\nConsequences.'}]},
-                'Text 1':{'rich_text':[{'plain_text':'https://example.com/report'}]},
-                'Internal Note':{'rich_text':[{'plain_text':'V2_UNVERIFIED_SIGNAL:abc\nNeeds review'}]}}}
-
-    def test_interval_and_attempt_cap(self):
-        now=dt.datetime(2026,10,9,tzinfo=queue.UTC)
-        s={'attempts':0,'last_attempt':(now-dt.timedelta(minutes=59)).isoformat()}
-        self.assertFalse(queue.due(s,now))
-        s['last_attempt']=(now-dt.timedelta(hours=1)).isoformat();self.assertTrue(queue.due(s,now))
-        s['attempts']=2;self.assertFalse(queue.due(s,now))
-        s['attempts']='0';self.assertFalse(queue.due(s,now))
-
-    def test_changed_content_gets_new_retry_budget(self):
-        p=self.page();e=queue.draft(p)
-        note=queue.note_with_state(queue.text(p,'Internal Note'),{'fingerprint':queue.fingerprint(e),'attempts':2,'last_attempt':p['created_time']})
-        p['properties']['Internal Note']['rich_text']=[{'plain_text':note}]
-        self.assertEqual(queue.state(p,e)['attempts'],2)
-        e['body_markdown']='New content';self.assertEqual(queue.state(p,e)['attempts'],0)
-
-    def test_manual_approval_cancels_recovery_write(self):
-        p=self.page();current=self.page();current['properties']['Ready to Post']['checkbox']=True
-        with patch.object(queue,'notion',return_value=current) as notion:
-            with self.assertRaisesRegex(RuntimeError,'changed'):queue.write_note(p,'note')
-        notion.assert_called_once()
-
-    def test_manual_edit_cancels_recovery_write(self):
-        p=self.page();current=self.page();current['last_edited_time']='v2'
-        with patch.object(queue,'notion',return_value=current) as notion:
-            with self.assertRaises(RuntimeError):queue.write_note(p,'note')
-        notion.assert_called_once()
-
-    def test_approval_updates_same_queue_page(self):
-        p=self.page();e=queue.draft(p)
-        approved={'notion_entries':[e],'editorial_decision':{'ready_to_post':True}}
-        with patch.object(queue,'list_queue',return_value=[p]),patch.object(queue,'notion',return_value=p),patch.object(queue,'notify_private_draft'),patch.object(queue,'write_note',return_value=p) as save,patch.object(queue.editor,'DRY_RUN',False),patch.object(queue.editor,'_claude_final_recovery',return_value=approved),patch.object(queue.editor,'mark_publication_changed') as changed:
-            totals=queue.run()
-        self.assertEqual(totals['approved'],1);self.assertEqual(save.call_count,2)
-        self.assertTrue(save.call_args.args[2]['Ready to Post']['checkbox']);changed.assert_called_once()
-
-    def test_final_rejection_trashes_only_current_private_page(self):
-        p=self.page()
-        with patch.object(queue,'list_queue',return_value=[p]),patch.object(queue,'notion',return_value=p) as notion,patch.object(queue,'notify_private_draft'),patch.object(queue,'write_note',return_value=p),patch.object(queue.editor,'DRY_RUN',False),patch.object(queue.editor,'_claude_final_recovery',side_effect=queue.editor.FinalEditorialRejection(queue.draft(p),'Reject')):
-            totals=queue.run()
-        self.assertEqual(totals['discarded'],1)
-        self.assertEqual(notion.call_args.args,('/pages/draft-id','PATCH',{'archived':True}))
-
-    def test_provider_failure_persists_attempt_and_remains_private(self):
-        p=self.page()
-        with patch.object(queue,'list_queue',return_value=[p]),patch.object(queue,'notion',return_value=p),patch.object(queue,'notify_private_draft'),patch.object(queue,'write_note',return_value=p) as save,patch.object(queue.editor,'DRY_RUN',False),patch.object(queue.editor,'_claude_final_recovery',side_effect=TimeoutError()):
-            totals=queue.run()
-        self.assertEqual(totals['held'],1)
-        self.assertIn('"attempts":1',save.call_args.args[1]);self.assertNotIn('Ready to Post',save.call_args.kwargs)
-
-    def test_dry_run_makes_no_paid_call_or_write(self):
-        with patch.object(queue,'list_queue',return_value=[self.page()]),patch.object(queue.editor,'DRY_RUN',True),patch.object(queue.editor,'_claude_final_recovery') as review,patch.object(queue,'notify_private_draft') as alert,patch.object(queue,'write_note') as save:
-            queue.run()
-        review.assert_not_called();alert.assert_not_called();save.assert_not_called()
-
-    def test_pagination(self):
-        with patch.object(queue,'notion',side_effect=[{'results':[self.page()],'has_more':True,'next_cursor':'next'},{'results':[],'has_more':False}]) as notion:
-            self.assertEqual(len(queue.list_queue()),1)
-        self.assertEqual(notion.call_args.args[2]['start_cursor'],'next')
+        return {'id':'draft','created_time':'2026-10-01T00:00:00Z','properties':{
+            'Ready to Post':{'checkbox':False},'Internal Note':{'rich_text':[{'plain_text':'V2_UNVERIFIED_SIGNAL:abc\nReview needed'}]}}}
+    def test_notifications_never_review_approve_or_delete(self):
+        with patch.object(queue,'list_queue',return_value=[self.page()]),patch.object(queue,'notify_private_draft') as alert,patch.object(queue.editor,'DRY_RUN',False),patch.object(queue.editor,'_claude_final_recovery') as review,patch.object(queue,'notion') as write:
+            result=queue.run()
+        alert.assert_called_once();review.assert_not_called();write.assert_not_called()
+        self.assertEqual(result['approved'],0);self.assertEqual(result['discarded'],0)
+    def test_dry_run_suppresses_alert(self):
+        with patch.object(queue,'list_queue',return_value=[self.page()]),patch.object(queue,'notify_private_draft') as alert,patch.object(queue.editor,'DRY_RUN',True):queue.run()
+        alert.assert_not_called()
+    def test_alert_failure_is_visible_without_changing_draft(self):
+        with patch.object(queue,'list_queue',return_value=[self.page()]),patch.object(queue,'notify_private_draft',side_effect=RuntimeError),patch.object(queue.editor,'DRY_RUN',False),patch.object(queue,'notion') as write:
+            with self.assertRaises(RuntimeError):queue.run()
+        write.assert_not_called()
 
 class QueueAlertTests(unittest.TestCase):
     def test_recipient_is_verified_connected_account(self):

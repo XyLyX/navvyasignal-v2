@@ -5,7 +5,7 @@ from pipeline import main
 
 class GeminiPolicyTests(unittest.TestCase):
     def draft(self, ready=None, unresolved=False):
-        d={'notion_entries':[{'title':'Draft','desk':'UAE Desk','desk_ambiguous':False,'action':'create','body_markdown':'Facts.\n\nConsequences.','sources_text':'https://example.com/report'}]}
+        d={'notion_entries':[{'title':'Draft','desk':'UAE & Middle East Desk','desk_ambiguous':False,'action':'create','body_markdown':'Facts.\n\nConsequences.','sources_text':'https://example.com/report'}]}
         if ready is not None:
             d['editorial_decision']={'ready_to_post':ready,'rationale':'Supported common ground','evidence':['https://example.com/report supports facts'],'unverified_claims':['minor detail'] if unresolved else []}
         if unresolved:d['notion_entries'][0]['body_markdown']="Facts; a minor detail couldn't be verified from source.\n\nConsequences."

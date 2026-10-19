@@ -18,17 +18,18 @@ class Response:
 def page(identifier, created, kind='Signal', ready=True):
     return {'id': identifier, 'created_time': created, 'properties': {
         'Name': {'title': [{'plain_text': identifier}]},
-        'Category': {'select': {'name': 'West Asia Desk'}},
+        'Category': {'select': {'name': 'UAE & Middle East Desk'}},
         'Content Type': {'select': {'name': kind}},
         'Ready to Post': {'checkbox': ready},
         'Signal Brief': {'rich_text': [{'plain_text': 'brief'}]},
         'Text 1': {'rich_text': [{'plain_text': 'source'}]},
+        'Internal Note': {'rich_text': [{'plain_text': 'V2_RELEASED:'+__import__('json').dumps({'edition':__import__('datetime').datetime.fromisoformat(created.replace('Z','+00:00')).astimezone(__import__('zoneinfo').ZoneInfo('Asia/Dubai')).date().isoformat()})}]},
     }}
 
 
 class PipelineTests(unittest.TestCase):
     def test_repeated_fact_concern_never_reaches_publication(self):
-        entry = {'title': 'Disputed claim', 'desk': 'West Asia Desk',
+        entry = {'title': 'Disputed claim', 'desk': 'UAE & Middle East Desk',
                  'desk_ambiguous': False, 'sources_text': 'https://example.com/report',
                  'body_markdown': 'A factual paragraph.\n\nA consequence.'}
         draft = {'notion_entries': [entry]}
@@ -42,7 +43,7 @@ class PipelineTests(unittest.TestCase):
         queue.assert_called_once()
 
     def test_fact_review_queues_missing_count_and_provider_failure(self):
-        entry = {'title': 'Draft', 'desk': 'West Asia Desk', 'desk_ambiguous': False,
+        entry = {'title': 'Draft', 'desk': 'UAE & Middle East Desk', 'desk_ambiguous': False,
                  'sources_text': 'https://example.com/report',
                  'body_markdown': 'Facts.\n\nConsequences.'}
         for response in ('No concerns', None):
@@ -72,11 +73,11 @@ class PipelineTests(unittest.TestCase):
             entries = main.fetch_todays_entries_for_compile('2026-09-27')
         self.assertEqual({e['id'] for e in entries}, {'one', 'two'})
         self.assertEqual(seen[1]['start_cursor'], 'cursor-2')
-        self.assertEqual(seen[0]['filter']['created_time']['on_or_after'], '2026-09-26T20:00:00Z')
+        self.assertEqual(seen[0]['filter'], {'property':'Ready to Post','checkbox':{'equals':True}})
 
     def test_homepage_writes_date_and_priority_and_checks_failures(self):
         ids = ['a', 'b', 'c']
-        entries = [{'id': i, 'title': i, 'desk': 'West Asia Desk', 'body': 'body'} for i in ids]
+        entries = [{'id': i, 'title': i, 'desk': 'UAE & Middle East Desk', 'body': 'body'} for i in ids]
         calls = []
 
         def write(url, headers, json, timeout):
@@ -103,7 +104,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_editorial_write_filters_unlinked_and_rejects_overlong_briefs(self):
         good = {'action': 'create', 'title': 'Verified development',
-                'desk': 'West Asia Desk', 'desk_ambiguous': False,
+                'desk': 'UAE & Middle East Desk', 'desk_ambiguous': False,
                 'coverage_theme': [], 'related_desks': [], 'watchlist': False,
                 'watch_trigger': '', 'next_review': '',
                 'body_markdown': 'What happened.\n\nWhy it matters.',
@@ -124,7 +125,7 @@ class PipelineTests(unittest.TestCase):
     def test_signal_brief_fits_one_notion_block(self):
         body = 'What happened. ' * 45 + '\n\nWhy it matters. ' * 30
         entry = {'action': 'create', 'title': 'Verified development',
-                 'desk': 'West Asia Desk', 'desk_ambiguous': False,
+                 'desk': 'UAE & Middle East Desk', 'desk_ambiguous': False,
                  'coverage_theme': [], 'related_desks': [], 'watchlist': False,
                  'watch_trigger': '', 'next_review': '', 'body_markdown': body,
                  'sources_text': 'Agency: https://agency.example/story'}
@@ -166,7 +167,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_future_metadata_must_be_complete_before_any_notion_write(self):
         base = {'action': 'create', 'title': 'Verified development',
-                'desk': 'West Asia Desk', 'desk_ambiguous': False,
+                'desk': 'UAE & Middle East Desk', 'desk_ambiguous': False,
                 'coverage_theme': [], 'related_desks': [], 'watchlist': False,
                 'watch_trigger': '', 'next_review': '',
                 'body_markdown': 'What happened.\n\nWhy it matters.',
@@ -176,7 +177,7 @@ class PipelineTests(unittest.TestCase):
             {**base, 'coverage_theme': ['a', 'b', 'c', 'd']},
             {**base, 'watchlist': True, 'watch_trigger': '', 'next_review': '2026-10-01'},
             {**base, 'watchlist': True, 'watch_trigger': 'Pending decision', 'next_review': 'invalid'},
-            {**base, 'related_desks': ['West Asia Desk']},
+            {**base, 'related_desks': ['UAE & Middle East Desk']},
         ]
         with patch.object(main.requests, 'post') as post, \
                 patch.object(main, 'fail_hard', side_effect=ValueError):
@@ -242,10 +243,10 @@ class PipelineTests(unittest.TestCase):
 
     def test_send_digest_uses_approved_text_and_homepage_order(self):
         entries = [
-            {'id': 'a', 'title': 'A & B', 'desk': 'West Asia Desk',
+            {'id': 'a', 'title': 'A & B', 'desk': 'UAE & Middle East Desk',
              'body': 'A source reported the event.\n\nWhy it matters.',
              'sources': 'Reuters https://example.com/a', 'homepage_priority': 2},
-            {'id': 'b', 'title': 'Second report', 'desk': 'India Desk',
+            {'id': 'b', 'title': 'Second report', 'desk': 'India & Subcontinent Desk',
              'body': 'India reported another event.\n\nIts effect.',
              'sources': 'AP https://example.com/b', 'homepage_priority': 1},
         ]
@@ -260,4 +261,3 @@ class PipelineTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

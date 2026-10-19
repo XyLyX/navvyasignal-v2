@@ -4,8 +4,8 @@ NavvyaSignal Daily Briefing Automation
 Runs on a schedule (via GitHub Actions), generates a fact-checked briefing,
 pushes validated entries to Notion, and sends via Kit (email) and Whapi (WhatsApp).
 
-Fully automatic: no human approval step. Notion 'Ready to Post' is set to True
-on every entry. Kit and Whapi sends fire immediately after generation.
+Verified stories are staged privately until the 09:00 Dubai release.
+Unresolved stories require manual review; delivery runs separately at 10:00.
 """
 
 import os
@@ -33,63 +33,18 @@ WHAPI_CHANNEL_ID = os.environ.get("WHAPI_CHANNEL_ID", "")
 OPS_NOTIFY_NUMBER = os.environ.get("OPS_NOTIFY_NUMBER", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# Which run this is: one of the 7 solo desk keys (research + Notion push for that one desk,
-# no send), "compile_send" (compiles today's entries into the daily email + WhatsApp send, plus
-# Today's Intelligence / Cross-Desk / Watchlist resolution), "weekly_synthesis" (Friday Briefing,
-# built from the week's existing material — no new research), or "whapi_test" (manual only).
-RUN_TYPE = os.environ.get("RUN_TYPE", "compile_send")
-# Whether this run should actually send email/WhatsApp. Only ever true for compile_send —
-# desk runs never send regardless of this flag (enforced in main(), not just here).
+# Four regional desks; the shared policy supersedes every earlier desk schedule.
+from pathlib import Path
+POLICY = json.loads((Path(__file__).resolve().parents[1] /
+    'navvyasignal-v2-starter/src/lib/regional-policy.json').read_text())
+RUN_TYPE = os.environ.get("RUN_TYPE", "")
 SEND_OUTPUT = os.environ.get("SEND_OUTPUT", "true").lower() == "true"
-# When true, every Notion write across the whole script (existing Signal writes AND the new
-# Today's Intelligence / Cross-Desk / Watchlist / Briefing writes) is logged instead of actually
-# performed. Use this to test new logic paths without touching live data.
 DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
-
-# V2's seven editorial desks. This copy lives in V2 and has no runtime dependency
-# on the old automation or the Framer synchronization project.
-# 7-desk structure, replacing the old 9-desk one (Sports and Trends & Forecasting removed
-# entirely; Real Estate & Infrastructure becomes a Coverage Theme tag rather than its own desk;
-# Maritime & Energy broadened to include supply chains; Technology & AI is new).
-DESKS = [
-    "West Asia Desk",
-    "India Desk",
-    "UAE Desk",
-    "Global Politics Desk",
-    "Markets & Capital Desk",
-    "Technology & AI Desk",
-    "Maritime Energy & Supply Chains Desk",
-]
-
-# Each desk receives its own roundup and breaking-news research pass. The three
-# heavy desks are staggered so one conflict narrative cannot crowd out another.
-GROUPS = {
-    "west_asia": ["West Asia Desk"],
-    "maritime_energy": ["Maritime Energy & Supply Chains Desk"],
-    "technology_ai": ["Technology & AI Desk"],
-    "uae": ["UAE Desk"],
-    "india": ["India Desk"],
-    "global_politics": ["Global Politics Desk"],
-    "markets_capital": ["Markets & Capital Desk"],
-}
-
-# Single source of truth mapping native GitHub Actions cron expressions to RUN_TYPE values.
-# The workflow YAML passes the raw matched cron string through as CRON_SCHEDULE (only set for
-# schedule-triggered runs) instead of resolving it itself via a bash elif-chain — this keeps
-# exactly one place (here) that knows which cron maps to which run, so future desk/run-type
-# changes only ever need updating in this one file, not silently drifting out of sync with
-# separate logic embedded in the YAML. workflow_dispatch runs set RUN_TYPE directly and never
-# touch this mapping at all.
+DESKS = [desk['notion'] for desk in POLICY['desks']]
+GROUPS = {desk['key']: [desk['notion']] for desk in POLICY['desks']}
 CRON_TO_RUN_TYPE = {
-    "30 0 * * *": "maritime_energy",     # 04:30 Dubai
-    "30 3 * * *": "west_asia",           # 07:30 Dubai
-    "30 13 * * *": "india",              # 17:30 Dubai
-    "30 9 * * *": "uae",                 # 13:30 Dubai
-    "30 23 * * *": "technology_ai",      # 03:30 Dubai (UTC date +1)
-    "30 4 * * *": "global_politics",     # 08:30 Dubai
-    "30 1 * * *": "markets_capital",     # 05:30 Dubai
-    "30 17 * * *": "site_only",          # 21:30 Dubai, choose homepage without sending
-    "15 15 * * 0": "weekly_synthesis",   # 19:15 Dubai, Sundays only
+    f"{desk['minute']} {desk['utcHour']} * * *": desk['key']
+    for desk in POLICY['desks']
 }
 
 CRON_SCHEDULE = os.environ.get("CRON_SCHEDULE", "")
@@ -123,7 +78,7 @@ def dubai_today():
 
 
 def daily_send_edition_date(now=None):
-    """Before the first 03:30 Dubai desk run, send the previous day's edition.
+    """Before the 10:00 Dubai delivery boundary, use the previous edition unless explicitly dated.
 
     Manual recovery can select a dated edition explicitly. Resolve this once
     per run so query, labels and duplicate checks always use the same date.
@@ -139,7 +94,7 @@ def daily_send_edition_date(now=None):
             fail_hard("Send edition date must be YYYY-MM-DD and cannot be in the future")
         return explicit
     edition = local.date()
-    if local.time() < datetime.time(3, 30):
+    if local.time() < datetime.time(10, 0):
         edition -= datetime.timedelta(days=1)
     return edition.isoformat()
 
@@ -173,7 +128,7 @@ def _is_test_record(title):
     and known-bad duplicates can never accidentally reach a real compile, send, Today's
     Intelligence selection, Cross-Desk synthesis, or weekly Briefing."""
     stripped = title.strip()
-    return stripped.startswith("[TEST") or stripped.startswith("[DUPLICATE")
+    return stripped.startswith(("[TEST", "[DUPLICATE", "[SYSTEM]"))
 
 
 def fetch_existing_entries():
@@ -242,7 +197,7 @@ def fetch_todays_entries_for_compile(edition_date=None):
     ).astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     payload = {
         "page_size": 100,
-        "filter": {"timestamp": "created_time", "created_time": {"on_or_after": start}},
+        "filter": {"property": "Ready to Post", "checkbox": {"equals": True}},
         "sorts": [{"timestamp": "created_time", "direction": "descending"}],
     }
     results, cursor, seen = [], None, set()
@@ -264,9 +219,14 @@ def fetch_todays_entries_for_compile(edition_date=None):
 
     entries = []
     for page in results:
-        created = page.get("created_time", "")
-        if not created or datetime.datetime.fromisoformat(created.replace("Z", "+00:00")).astimezone(
-                ZoneInfo("Asia/Dubai")).date().isoformat() != edition_date:
+        note = release_module().text(page, 'Internal Note').split('\n', 1)[0]
+        if not note.startswith('V2_RELEASED:'):
+            continue
+        try:
+            state = json.loads(note[len('V2_RELEASED:'):])
+        except ValueError:
+            fail_hard('Malformed regional release record')
+        if state.get('edition') != edition_date:
             continue
 
         props = page.get("properties", {})
@@ -441,201 +401,43 @@ def run_weekly_synthesis():
 
 # ---------- STEP 2: Generate briefing via Claude ----------
 
-SYSTEM_PROMPT = """You are the editorial engine for NavvyaSignal, a daily intelligence \
-publication covering seven specialist desks: West Asia, India, UAE, Global Politics, Markets \
-& Capital, Technology & AI, and Maritime Energy & Supply Chains.
+SYSTEM_PROMPT = """You are the editorial engine for NavvyaSignal's FOUR regional desks:
+North America Desk; Europe Desk; India & Subcontinent Desk; UAE & Middle East Desk.
+Only research the regional desk explicitly in scope. India is the main focus of India &
+Subcontinent; cover neighbouring countries selectively. UAE is the main focus of UAE &
+Middle East. North America focuses on the US, with Canada and Mexico where material.
+Europe includes the UK and continental Europe.
 
-Rules you must follow strictly:
-- Research current developments using web search. Never fabricate facts, figures, or quotes.
-- Only include information you can verify from search results in this run.
-- NavvyaSignal intelligence standard: identify the exact event date separately from the
-publication date and market trading date. Do not call an arrest a charge, an allegation a
-finding, a draft an adopted rule, or a reported plan a decision. Attribute single-source
-accounts in the title and body. Distinguish verified observation from your inference.
-- Prefer a direct primary document, company disclosure, regulator or police statement; add
-independent reporting for material contested claims. For each entry put direct https URLs
-to the specific pages actually consulted in sources_text, with publisher and date. A list
-of outlet names, homepages, or second-hand claims of verification is insufficient. If a
-crucial claim lacks a retrievable source, omit that claim or omit the entry.
-- The title must state only supported claims. Aim for 8–18 words: identify the actor,
-action and material consequence; put secondary names, figures and chronology in the brief.
-- Every desk uses the same editorial structure. A Signal earns its place through a material
-policy, economic, security, technology or cross-desk consequence. Do not fill a desk quota
-with routine arrests, celebrity appearances or general public-service announcements unless
-you can establish a material consequence supported by the consulted reporting.
-- The final paragraph must explain a concrete consequence: who is affected, how the
-change affects them, and a relevant constraint or uncertainty. Distinguish analytical
-inference from reported fact. Never substitute "transformational", "underscores", "reflects
-commitment", or "significant development" for an explanation. Do not invent implications
-or a prediction merely to satisfy this requirement; omit a weak story instead.
-- The title must state only supported claims. Use one or two paragraphs on what happened
-with attribution and dates, then a separate paragraph on why it matters. Use plain prose,
-without section labels or markdown. Keep body_markdown below 1800 characters and the
-source field below 1900 characters;
-never end with a cut-off sentence. Do not add decorative urgency or unsourced statistics.
-- Search live for every material figure, checking its event date, measurement and unit
-against the cited source. When credible sources give different figures, attribute the
-difference in the brief if material and explain it in editor_note; otherwise omit the
-disputed figure. Never present a model's recollection as figure verification.
-- For each validated development, decide whether it UPDATES an existing Notion entry \
-(provided below, with title, category, creation time, and a content snippet) or is genuinely NEW.
-- CRITICAL: when setting "existing_id" for an update, copy the id string EXACTLY character-for-character \
-from the provided existing entries list below. Do not retype or paraphrase it from memory — a single \
-wrong character will cause the update to fail. If you are not fully certain of the exact id, treat \
-the entry as "create" instead of guessing at an id.
-- CRITICAL DEDUP RULE: if an existing entry was created within the last 48 hours, is in the \
-same desk, and covers the same underlying subject (same commodity, same index, same conflict, \
-same company, same event thread) — you MUST treat it as an UPDATE, even if the specific \
-figures differ (e.g. an oil price from 15 minutes ago vs. now, a slightly different \
-percentage). Do NOT create a new entry just because the exact numbers moved. Fast-moving \
-stories (oil prices, market indices, an unfolding conflict) are expected to have updated \
-figures on every run — that is exactly what should trigger an update, not a duplicate. \
-Only create a new entry when the underlying subject itself is genuinely different from \
-everything in the provided list.
-- DEDUP SCOPE WARNING: the existing-entries list is for matching SPECIFIC subjects to avoid \
-duplicating THEM — it is never a signal that a desk in general is "already covered" or that \
-you can skip searching it. Seeing one existing Markets & Capital entry about, say, a Fed \
-speech does NOT mean Markets & Capital is done for this run — gold, crypto, individual \
-equities, and every other subject in that desk are still fully in scope and still need their \
-own dedicated search. Judge dedup story-by-story, matching on genuine subject overlap, never \
-by "this desk has recent activity so I'll move on." If your search genuinely turns up nothing \
-new for an in-scope desk, that's a legitimate zero — but it must follow a real, thorough \
-search of that desk's beat, not an inference from the presence of unrelated existing entries.
-- Assign each entry to exactly one of these desks: West Asia Desk, India Desk, UAE Desk, \
-Global Politics Desk, Markets & Capital Desk, Technology & AI Desk, Maritime Energy & Supply \
-Chains Desk. If the primary desk is genuinely ambiguous, set desk_ambiguous=true and explain \
-the alternatives in notes. That entry will be held for editorial classification; do not \
-silently pick a desk for publication.
-- COVERAGE THEME RULE: some stories cut across desks without having their own desk (e.g. real \
-estate & infrastructure, defence/security, AI policy). These still get exactly one primary \
-Desk (whichever of the 7 fits best — e.g. a UAE real estate story still goes to UAE Desk), but \
-also get tagged in "coverage_theme" (a short list of 0-3 free-text theme tags, e.g. ["Real \
-Estate & Infrastructure"]) so the theme can be tracked across desks. Leave it as an empty list \
-when no cross-cutting theme genuinely applies — do not force a tag onto every entry.
-- RELATED DESKS RULE: if, while researching your assigned desk, a story's implications clearly \
-and specifically extend into another desk's domain (not just a passing mention), list that \
-other desk in "related_desks" (e.g. a Hormuz shipping story researched under Maritime Energy \
-& Supply Chains that has real West Asia and India dimensions). This is lightweight tagging — \
-it does not mean you write that other desk's angle yourself, and it is NOT the same thing as a \
-genuine Cross-Desk Signal (a separate, deliberately-synthesized piece produced later by a \
-different process). Leave it empty when a story is genuinely self-contained within your desk.
-- WATCHLIST RULE: this is NOT for every story that mentions a future scheduled event — it is \
-specifically for a genuine unresolved intelligence question with a material outcome still in \
-doubt. The test is event vs. unresolved question:
-  * NOT watchlist: "CPI will be released Thursday" — a routine scheduled data release with no \
-specific outcome in question is not watchlist-worthy on its own, no matter how important the \
-event category generally is.
-  * Watchlist-worthy: "Markets are pricing a materially different inflation trajectory than the \
-Fed's own guidance; Thursday's CPI could confirm or challenge that pricing" — there's a specific \
-open question (whose read on inflation is right) that a specific event will resolve one way or \
-another.
-When you do set watchlist=true, "watch_trigger" must name the specific unresolved question or \
-material outcome being monitored, not just restate the calendar event's name and date. If you \
-cannot articulate a specific open question beyond "X happens on date Y," set watchlist=false. \
-Most entries — including most routine scheduled-event mentions — should have watchlist=false.
-- UAE DESK RULE: any story that is specifically about the UAE (Dubai, Abu Dhabi, Sharjah, or \
-UAE federal policy/economy/markets) goes to UAE Desk as its primary desk, even if it would \
-otherwise fit a Coverage Theme like real estate. When a UAE story also has a clear secondary \
-angle in another desk (e.g. a UAE real estate story with national market implications), \
-mention that secondary desk naturally within the body prose (e.g. "This also carries \
-implications for the broader Markets & Capital picture...") rather than using a separate field \
-or splitting it into two entries.
-- SCOPE RULE: this run covers ONLY the specific desk listed under "Desks in scope for this \
-run" in the user message below — exactly one of the 7 desks, since every desk now gets its own \
-solo dispatch. Apply the DAILY ROUNDUP RULE and BREAKING-NEWS RULE (below) IN FULL to that desk \
-— give it the same thorough, real search effort regardless of which desk it is. Do NOT \
-research or return any entry for a desk that is not in scope this run, even if you're aware of \
-breaking news there — a separate dedicated run covers that desk on its own schedule. This \
-scoping exists specifically so each run gives its one desk real, complete attention instead of \
-splitting effort across multiple desks at once.
-- This run does NOT send email or WhatsApp. Leave "email_subject", "email_html", and \
-"whatsapp_text" as empty strings — a separate later run compiles everything into the actual \
-send. Only "edition_label", "editor_note", and "notion_entries" matter for this run.
-- DAILY ROUNDUP RULE: "your usual macro searches" must include at least one genuinely broad, \
-outlet-level roundup search, using the current date — not just topic-specific queries tied to \
-whatever conflict thread or index you already expect to update. A desk-level search for "oil \
-prices" or "Iran Hormuz" will find those threads but will NOT surface unrelated developments \
-like a diplomatic statement, an aid package, an infrastructure announcement, a regulatory change, \
-or a human-interest story that has nothing to do with the thread you were already tracking — those \
-need their own broad sweep. Run at least one query like these, adapted to the desk's beat:
-  * UAE Desk: "UAE news today", "Khaleej Times today", "Gulf News UAE today" — covering diplomacy, \
-government announcements, infrastructure, aid, regulation, real estate, and human-interest \
-stories, not just conflict-adjacent or incident news.
-  * India Desk: "India news today", "Reuters India today", "Indian Express today", "Times of \
-India today" — covering diplomacy, government announcements, infrastructure, economic policy, \
-regulation, and human-interest stories, not just accidents/disasters or the specific threads \
-already tracked. Prioritize Reuters for low-noise business/economy/markets/policy signal, Indian \
-Express for politics/government/courts, The Hindu when depth/context matters more than speed, and \
-Times of India/Hindustan Times for breadth. When multiple India stories compete for space, weight \
-toward what matters to a UAE-based reader with India business, trade, or investment exposure — \
-markets, RBI/policy moves, trade ties, infrastructure, and major national events — over purely \
-domestic political or celebrity/crime stories with no external relevance.
-  * West Asia Desk: "Middle East news today" beyond the primary conflict thread already tracked.
-  * Markets & Capital Desk: broad market roundup beyond the specific indices already tracked — \
-include real estate, infrastructure, and sovereign investment stories here (tagged with the \
-Real Estate & Infrastructure coverage theme), since that's no longer its own desk.
-  * Technology & AI Desk: "AI news today", "semiconductor news today", "defence technology \
-today" — covering AI, semiconductors, defence tech, robotics, space, quantum, autonomous \
-systems, and cybersecurity, always framed as geopolitics + capital + strategic capability, \
-never as consumer/product tech news.
-  * Global Politics Desk: general political roundup beyond elections/coups already tracked. No \
-generic political news — a politician saying something stupid is not automatically a signal; \
-it needs actual strategic consequence.
-  * Maritime Energy & Supply Chains Desk: broad roundup covering oil, LNG, shipping, ports, \
-tankers, freight, maritime security, insurance, chokepoints, pipelines, critical minerals, and \
-supply chains generally — beyond whatever specific conflict thread or price level is already \
-being tracked.
-  A topic-specific search finds what you already expect — a broad roundup search finds what \
-you don't.
-- BREAKING-NEWS RULE: macro/desk-level topic searches (oil prices, market indices, ongoing conflict \
-threads, policy analysis, etc.) will NOT reliably surface acute breaking incidents on their own — \
-those need their own dedicated search pass, in addition to your usual macro searches. Run at \
-least one incident-focused search for the desk in scope, using the current date in the query:
-  * UAE Desk: "Dubai Media Office statement today", "UAE Civil Defence incident today", "Abu Dhabi \
-incident today" — explosions, fires, industrial/transport accidents, structural/building issues, \
-deaths or casualties (falls, drownings, road accidents), severe weather.
-  * India Desk: "India accident today", "India disaster today", "PTI breaking news" — accidents, \
-natural disasters, industrial/transport incidents, deaths or casualties, major political events \
-(resignations, unrest, sudden policy action) inside India.
-  * West Asia Desk: breaking regional incidents (attacks, strikes, political \
-upheaval, protests, sudden military movements) beyond whatever is already tracked in ongoing \
-conflict threads.
-  * Markets & Capital Desk: flash crashes, circuit breakers, emergency central bank \
-action, major unscheduled earnings or guidance shocks, plus sudden real estate/infrastructure \
-developments (building collapses, major project cancellations/approvals, construction accidents).
-  * Technology & AI Desk: major AI/tech incidents — significant breaches, outages, sudden \
-regulatory action, notable capture/compromise of autonomous or defence-linked technology.
-  * Global Politics Desk: breaking political events — resignations, elections, \
-coups, sudden policy reversals — beyond scheduled/expected developments.
-  * Maritime Energy & Supply Chains Desk: tanker/vessel incidents, port or refinery accidents, \
-pipeline disruptions, shipping lane closures, critical-minerals supply disruptions — not just \
-price/index movements.
-An acute incident with real-world impact (injuries, fatalities, market/operational disruption) is \
-newsworthy on its own and belongs on its desk even without further analytical framing.
-- Each Notion entry body must contain substantive reporting and analysis in distinct plain-prose \
-paragraphs; never include "What Happened" or "Why It Matters" labels.
-- Subject lines and headers must use proper case ("Navvya Signal - Daily Briefing"), never \
-all-caps.
-- If nothing meaningful changed since the last run, it is correct to return zero entries \
-for that section rather than padding with a no-op update. This is a per-STORY judgment, not \
-a per-DESK one: a desk having already published an entry earlier today does NOT mean that \
-desk is "done" for the day. Run the full roundup and incident searches for every desk on every \
-run regardless of what that desk already covered — if they surface a genuinely distinct new \
-development (different topic, different specific event), it gets its own entry even if the \
-same desk already has other entries today. Only skip when the search results contain nothing \
-that is both new (within the recency window) and distinct from what's already covered.
-- Never carry forward a stale/outdated figure without flagging or correcting it.
-- RECENCY RULE — applies regardless of how long it has been since the last successful run: \
-only include developments from the last 24-48 hours relative to the "Current UTC time" given \
-below. Do NOT sweep in or summarize older backlog just because it turned up in search or \
-because there was a gap since the last run (e.g. an outage). If the pipeline missed several \
-days, this run covers only the most recent 24-48 hours of developments — it does not attempt \
-to catch subscribers up on everything that happened in between. Discard any search result \
-outside that window rather than including it, even if it seems significant. Use the specific \
-dates in search results to judge this, not vague recency language in the source itself.
-- Background context (older than 48h) may be referenced briefly, in a single clause, ONLY to \
-explain why a fresh-in-window development matters (e.g. "...continuing the six-session Brent \
-retreat that began August 20") — it must never be the subject of its own entry or paragraph.
+Every desk covers ALL relevant themes, not limited to geopolitics, security, policy,
+economy, markets and capital, business, property, technology and AI, science, energy,
+climate, maritime, aviation, supply chains, infrastructure, health, education, society,
+culture and sport. These are themes, NEVER separate desks. Topics and hashtags guide
+broad discovery, never rigid keyword filters. Trending is not proof or a publication rule.
+Perform a broad regional roundup AND specific breaking-event and thematic searches.
+Search local-language reporting where useful. Do not let one conflict or theme crowd out
+other consequential developments. Do not manufacture country or theme quotas.
+
+Use live web search and read identifiable dated sources. Permitted RSS and official feeds
+may supply leads, but never reproduce feed text or treat headlines as verification.
+Times of India/Economic Times feeds must not be commercially ingested without permission.
+Prefer primary documents, company disclosures, regulators and independent corroboration.
+Verify every material date, name, number and quote. Separate documented facts, attributed
+claims and analysis. Never invent events, sources or quotes. Put direct https URLs with
+publisher and date in sources_text; memory, snippets and outlet names alone are insufficient.
+Prioritize the latest 24 hours; allow 24–48 hours only for a still-current material development.
+Do not fill outage backlogs with stale stories. Older context is clearly dated and ancillary.
+Deduplicate against all existing regional entries, including staged stories. Same event:
+update only when material new information exists. One primary geographic desk per story;
+related_desks may contain other regional desks. No duplicate article for each theme.
+
+Signals use a precise 8–18 word headline and plain prose brief up to 1,800 characters:
+one or two paragraphs on what happened, a final paragraph explaining why it matters.
+No visible section labels, Markdown headings, bold or tables. Source attribution belongs
+in sources_text only; private provenance and uncertainties belong in notes.
+coverage_theme is 0–3 relevant topic tags; related_desks is 0–3 other regional desk names.
+watchlist is boolean; if true supply a specific watch_trigger and next_review YYYY-MM-DD;
+otherwise both are empty. desk_ambiguous is false only if classification is established.
+Research and verification do not authorize immediate publication. Publication is staged.
 
 Output ONLY valid JSON matching this schema — no preamble, no narration of your research process, \
 no explanation before or after, and no markdown code fences. Do not use <cite> tags or any citation \
@@ -651,7 +453,7 @@ Schema:
       "action": "update" or "create",
       "existing_id": "notion page id if action=update, else null",
       "title": "string",
-      "desk": "one of the 7 desk names exactly as listed above",
+      "desk": "one of the four regional desk names exactly as listed above",
       "desk_ambiguous": "boolean; true when primary desk needs editorial confirmation",
       "body_markdown": "string, max 1800 chars, flowing prose covering what happened and why it \
 matters — do NOT use markdown syntax like ## headers or ** bold **, since this is stored in a \
@@ -827,9 +629,7 @@ fact in the provided entries must retain its attribution; do not add, remove, or
 factual claim, figure, or attribution — only format and organize.
 
 Rules:
-- Group entries by desk in this order where present: West Asia Desk, India Desk, UAE Desk, \
-Global Politics Desk, Markets & Capital Desk, Technology & AI Desk, Maritime Energy & Supply \
-Chains Desk.
+- Group entries by desk in this order where present: North America Desk, Europe Desk, India & Subcontinent Desk, UAE & Middle East Desk.
 - Subject lines and headers use proper case ("Navvya Signal - Daily Briefing"), never all-caps.
 - email_html: full HTML body, clean sections per desk, using the provided title/body/sources \
 for each entry verbatim (light formatting only — do not rewrite the prose).
@@ -1209,47 +1009,8 @@ def reject_if_final(repaired, original):
 
 
 def discard_rejected_draft(original, rejected):
-    """Trash matching private drafts only; never delete a published update target."""
-    if DRY_RUN:
-        log("DRY RUN: would discard editorially rejected draft")
-        return
-    for entry in (original, rejected):
-        fingerprint = hashlib.sha256(json.dumps(
-            [entry.get("title"), entry.get("desk"), entry.get("body_markdown")],
-            ensure_ascii=False).encode()).hexdigest()
-        marker = "V2_UNVERIFIED_SIGNAL:" + fingerprint
-        cursor = None
-        while True:
-            query = {"page_size": 100, "filter": {"and": [
-                {"property": "Internal Note", "rich_text": {"contains": marker}},
-                {"property": "Ready to Post", "checkbox": {"equals": False}}]}}
-            if cursor:
-                query["start_cursor"] = cursor
-            response = requests.post(
-                f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query",
-                headers=NOTION_HEADERS, json=query, timeout=30)
-            if response.status_code != 200:
-                raise RuntimeError("Rejected draft lookup failed: HTTP " + str(response.status_code))
-            data = response.json()
-            for page in data.get("results", []):
-                props = page.get("properties", {})
-                note = "".join(part.get("plain_text", part.get("text", {}).get("content", ""))
-                               for part in props.get("Internal Note", {}).get("rich_text", []))
-                if (note.split("\n", 1)[0] != marker
-                        or props.get("Ready to Post", {}).get("checkbox") is not False
-                        or page["id"] == original.get("existing_id")):
-                    continue
-                deleted = requests.patch(
-                    "https://api.notion.com/v1/pages/" + page["id"],
-                    headers=NOTION_HEADERS, json={"archived": True}, timeout=30)
-                if deleted.status_code != 200:
-                    raise RuntimeError("Rejected draft deletion failed: HTTP " + str(deleted.status_code))
-            if not data.get("has_more"):
-                break
-            cursor = data.get("next_cursor")
-            if not cursor:
-                raise RuntimeError("Rejected draft lookup missing pagination cursor")
-    log("DISCARDED: final Claude editorial rejection")
+    """Automatic rejection is retained for manual choice; only Delete trashes Notion."""
+    return save_unverified_signal(rejected, 'Claude did not approve; manual review required')
 
 
 def _claude_final_recovery(briefing_data, original, reason):
@@ -1328,7 +1089,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
                 approved.extend(result["notion_entries"])
                 continue
         except FinalEditorialRejection as rejection:
-            discard_rejected_draft(entry, rejection.entry)
+            save_unverified_signal(rejection.entry, str(rejection))
             continue
         except (Exception, SystemExit) as error:
             # Never silently approve on provider/format errors; preserve the draft.
@@ -1354,7 +1115,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
             approved.extend(recovered["notion_entries"])
             continue
         except FinalEditorialRejection as rejection:
-            discard_rejected_draft(entry, rejection.entry)
+            save_unverified_signal(rejection.entry, str(rejection))
             continue
         except (Exception, SystemExit) as recovery_error:
             if isinstance(recovery_error, ValueError):
@@ -1375,6 +1136,14 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
     return briefing_data
 
 
+
+
+def release_module():
+    try:
+        from pipeline import regional_release
+    except ImportError:
+        import regional_release
+    return regional_release
 
 
 def mark_publication_changed():
@@ -1451,10 +1220,13 @@ def push_to_notion(entries, valid_existing_ids):
             "Signal Brief": {"rich_text": [{"text": {"content": signal_brief}}]},
             "Text 1": {"rich_text": [{"text": {"content": sources_text}}]},
             "Long Read": {"checkbox": False},
-            "Ready to Post": {"checkbox": True},  # fully automatic, per instruction
+            "Ready to Post": {"checkbox": False},
         }
-        if entry.get("notes"):
-            properties["Internal Note"] = {"rich_text": [{"text": {"content": entry["notes"][:2000]}}]}
+        from_release = release_module()
+        properties["Internal Note"] = {"rich_text": _rich_text_chunks(
+            from_release.pending_note(entry.get("notes", ""),
+                target=entry.get("existing_id") if entry.get("action") == "update" else None,
+                edition=os.environ.get("V2_EDITION_DATE") or dubai_today()))}
 
         # Log the editorial metadata for traceability alongside the Notion write.
         log(f"DIAGNOSTIC (new fields, not yet written to Notion) for '{entry['title']}': "
@@ -1494,16 +1266,10 @@ def push_to_notion(entries, valid_existing_ids):
             summary.append(f"[DRY RUN] {action_label} — {entry['title']} ({desk})")
             continue
 
-        if is_update:
-            url = f"https://api.notion.com/v1/pages/{entry['existing_id']}"
-            resp = requests.patch(url, headers=NOTION_HEADERS, json={"properties": properties}, timeout=30)
-        else:
-            url = "https://api.notion.com/v1/pages"
-            payload = {
-                "parent": {"database_id": NOTION_DATABASE_ID},
-                "properties": properties,
-            }
-            resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
+        # A staged update never overwrites or unpublishes an already-public page.
+        url = "https://api.notion.com/v1/pages"
+        payload = {"parent": {"database_id": NOTION_DATABASE_ID}, "properties": properties}
+        resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
 
         if resp.status_code not in (200, 201):
             log(f"WARNING: Notion write failed for '{entry['title']}' — skipping this entry, "
@@ -1559,11 +1325,12 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
         "Signal Brief": {"rich_text": _rich_text_chunks(body)},
         "Text 1": {"rich_text": _rich_text_chunks(sources_text)},
         "Long Read": {"checkbox": False},
-        "Ready to Post": {"checkbox": True},
+        "Ready to Post": {"checkbox": False},
         "Content Type": {"select": {"name": content_type}},
     }
-    if notes:
-        properties["Internal Note"] = {"rich_text": _rich_text_chunks(notes)}
+    properties["Internal Note"] = {"rich_text": _rich_text_chunks(
+        release_module().pending_note(notes, target=existing_id,
+            edition=os.environ.get("V2_EDITION_DATE") or dubai_today()))}
     if primary_desk and primary_desk in DESKS:
         properties["Category"] = {"select": {"name": primary_desk}}
     if related_desks:
@@ -1576,19 +1343,15 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
             f"properties: {json.dumps(properties, default=str)[:600]}")
         return None
 
-    if existing_id:
-        url = f"https://api.notion.com/v1/pages/{existing_id}"
-        resp = requests.patch(url, headers=NOTION_HEADERS, json={"properties": properties}, timeout=30)
-    else:
-        url = "https://api.notion.com/v1/pages"
-        payload = {"parent": {"database_id": NOTION_DATABASE_ID}, "properties": properties}
-        resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
+    url = "https://api.notion.com/v1/pages"
+    payload = {"parent": {"database_id": NOTION_DATABASE_ID}, "properties": properties}
+    resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
 
     if resp.status_code not in (200, 201):
         log(f"WARNING: Failed to {action} {content_type} entry '{title}': {resp.status_code} {resp.text[:500]}")
         return None
     mark_publication_changed()
-    page_id = existing_id or resp.json().get("id")
+    page_id = resp.json().get("id")
     log(f"{'Updated' if existing_id else 'Created'} {content_type} entry: '{title}' (id={page_id})")
     return page_id
 
@@ -1654,8 +1417,7 @@ Rules:
 - Choose AT MOST 7 entries. There is NO minimum — if only 2 entries are genuinely important \
 today, select 2. Never pad the selection to reach a target count.
 - Judge only by real-world significance: strategic consequence, scale of impact, how much a \
-reader needs to know this today. Do not favor any particular desk by default — some days West \
-Asia dominates, some days it's Markets, and that's fine.
+reader needs to know this today. Do not favor any particular desk by default — some days North America dominates, other days India or the Middle East, and that's fine.
 - If literally nothing today rises above routine coverage, it is correct to select zero.
 
 Output ONLY valid JSON, no preamble, no code fences:
@@ -2149,7 +1911,7 @@ def main():
     if RUN_TYPE in GROUPS:
         return run_group(RUN_TYPE)
     elif RUN_TYPE == "site_only":
-        return run_site_only()
+        fail_hard("Retired run type: use the 09:00 regional release workflow")
     elif RUN_TYPE == "compile_send":
         return run_compile_send()
     elif RUN_TYPE == "cross_desk":
@@ -2181,6 +1943,8 @@ def run_group(run_type):
     scope_desks = GROUPS[run_type]
     log(f"Desk run scoped to: {', '.join(scope_desks)}")
 
+    if not DRY_RUN:
+        release_module().Notion().ensure_schema()
     existing = fetch_existing_entries()
     log(f"Fetched {len(existing)} existing Notion entries for dedup reference.")
 
@@ -2239,45 +2003,6 @@ def run_whapi_test():
     return {"edition_label": "whapi_test", "entry_count": 1, "notion_summary": [latest["title"]], "sent_output": True}
 
 
-def homepage_edition_date(now=None):
-    """Keep the scheduled 21:30 edition on its intended Dubai day after delays."""
-    explicit = os.environ.get("V2_EDITION_DATE", "").strip()
-    if explicit:
-        parsed = datetime.date.fromisoformat(explicit)
-        if parsed.isoformat() != explicit:
-            raise ValueError("V2_EDITION_DATE must be YYYY-MM-DD")
-        return explicit
-    local = (now or datetime.datetime.now(ZoneInfo("Asia/Dubai"))).astimezone(ZoneInfo("Asia/Dubai"))
-    edition = local.date()
-    if CRON_SCHEDULE == "30 17 * * *" and local.time() < datetime.time(21, 30):
-        edition -= datetime.timedelta(days=1)
-    return edition.isoformat()
-
-
-def run_site_only():
-    """Select the nightly Daily Brief; delivery follows in the isolated sender."""
-    edition_date = homepage_edition_date()
-    log(f"Selecting curated Daily Brief: {edition_date}")
-    todays_entries = fetch_todays_entries_for_compile(edition_date)
-    if not todays_entries:
-        fail_hard(f"No approved Signals for Daily Brief {edition_date}; prior edition preserved")
-    selected_ids = select_todays_intelligence(todays_entries, edition_date)
-    if selected_ids and not DRY_RUN and os.environ.get("GITHUB_OUTPUT"):
-        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-            output.write("notion_stage_attempted=true\n")
-        with open("notion-stage-attempted.json", "w") as marker:
-            json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
-                       "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
-                       "edition_date": edition_date}, marker)
-    # Finish homepage selection and mark refresh before independent synthesis.
-    # A review/provider failure must not prevent an approved edition going live.
-    recent_entries = fetch_week_entries_for_synthesis()
-    generate_cross_desk_signal(recent_entries)
-    return {"edition_label": edition_date, "entry_count": len(todays_entries),
-            "notion_summary": [f"Selected {len(selected_ids)} homepage entries"],
-            "sent_output": False}
-
-
 def daily_brief_entries(entries):
     """Both delivery surfaces receive the same nightly selection, never the whole feed."""
     return sorted((e for e in entries if isinstance(e.get('homepage_priority'), (int, float))
@@ -2293,6 +2018,12 @@ def run_compile_send():
         return {"edition_label": edition_date, "entry_count": 0,
                 "notion_summary": ["Daily edition already sent; duplicate delivery skipped"],
                 "sent_output": False}
+    if not DRY_RUN:
+        try:
+            from pipeline.verify_regional_send import check
+        except ImportError:
+            from verify_regional_send import check
+        check()
     todays_entries = fetch_todays_entries_for_compile(edition_date)
     log(f"Fetched {len(todays_entries)} approved Signals for Dubai edition {edition_date}.")
     if not todays_entries:
@@ -2357,4 +2088,3 @@ if __name__ == "__main__":
     except Exception as e:
         send_ops_notification(f"❌ NavvyaSignal run CRASHED (type={RUN_TYPE})\n{type(e).__name__}: {e}")
         raise
-
