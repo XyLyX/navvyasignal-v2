@@ -167,6 +167,8 @@ def select_homepage(api, edition):
     pages = api.query({'property':'Ready to Post','checkbox':{'equals':True}})
     candidates = []
     for p in pages:
+        if (p['properties'].get('Content Type',{}).get('select') or {}).get('name') in ('Cross-Desk','Briefing','Long Read'):
+            continue
         note = text(p,'Internal Note').split('\n',1)[0]
         if not note.startswith(RELEASED): continue
         try: state = json.loads(note[len(RELEASED):])
@@ -187,7 +189,7 @@ def select_homepage(api, edition):
     return [p['id'] for p in candidates]
 
 
-def publish_once(api, ledger, state):
+def publish_once(api, ledger, state, force_build=False):
     try:
         from pipeline import refresh_publication as refresh
     except ImportError:
@@ -197,7 +199,7 @@ def publish_once(api, ledger, state):
     if live.get('version') != 1 or not isinstance(live.get('entries'),list):
         raise RuntimeError('Invalid production snapshot; no blind build')
     digest = hashlib.sha256(json.dumps(current,sort_keys=True).encode()).hexdigest()
-    if live['entries'] == current:
+    if live['entries'] == current and (not force_build or state.get('phase') == 'verified'):
         state.update(phase='verified',fingerprint=digest)
         api.save_ledger(ledger,state)
         print('Release verified: approved public content matches production.')
@@ -220,13 +222,17 @@ def publish_once(api, ledger, state):
     state['phase']='verified';api.save_ledger(ledger,state)
 
 
-def run(edition=None, now=None, exceptional=False):
+def run(edition=None, now=None, exceptional=False, manual_key=None, force_build=False):
     now = (now or dt.datetime.now(TZ)).astimezone(TZ)
     edition = edition or now.date().isoformat()
     if dt.date.fromisoformat(edition).isoformat()!=edition or edition>now.date().isoformat():
         raise ValueError('Invalid release edition date')
-    if not exceptional and edition==now.date().isoformat() and now.time()<dt.time(9):
+    if manual_key is not None and not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',manual_key):
+        raise ValueError('Invalid explicit manual release key')
+    if not exceptional and not manual_key and edition==now.date().isoformat() and now.time()<dt.time(9):
         raise ValueError('Publication cannot run before 09:00 Dubai')
+    if force_build and not manual_key:
+        raise ValueError('A forced code rollout requires an explicit manual release key')
     api=Notion()
     if os.environ.get('DRY_RUN','true').lower()=='true':
         pages=api.query({'property':'Ready to Post','checkbox':{'equals':False}})
@@ -238,6 +244,7 @@ def run(edition=None, now=None, exceptional=False):
         try: from pipeline import refresh_publication as refresh
         except ImportError: import refresh_publication as refresh
         key=POLICY['version']+'/now/'+hashlib.sha256(json.dumps(refresh.fetch_entries(),sort_keys=True).encode()).hexdigest()
+    elif manual_key: key=POLICY['version']+'/manual/'+manual_key
     else: key=POLICY['version']+'/'+edition
     ledger,state=api.ledger(key)
     if not exceptional and state['phase']=='staging':
@@ -246,7 +253,7 @@ def run(edition=None, now=None, exceptional=False):
             if pending(page,edition): release_page(api,page,edition)
         state['entry_ids']=select_homepage(api,edition)
         state['phase']='released';api.save_ledger(ledger,state)
-    publish_once(api,ledger,state)
+    publish_once(api,ledger,state,force_build=force_build)
 
 
 if __name__=='__main__':

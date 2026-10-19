@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { desks } from '@/lib/desks';
-import { getStories } from '@/lib/notion';
+import { getStories, getEditorialAssessments } from '@/lib/notion';
 import { publishedStories, latestOfType } from '@/lib/v2Editorial';
 import {selectHomepageEdition,dubaiPublicationDate} from '@/lib/homepageSelection';
 import FreshIntelligence from '@/components/FreshIntelligence';
@@ -8,16 +8,15 @@ import GlobalPulse from '@/components/GlobalPulse';
 import WatchCard from '@/components/WatchCard';
 import { getFeedSections } from '@/lib/feeds';
 import LiveFeedSections from '@/components/LiveFeedSections';
-import ExpandableEditorial from '@/components/ExpandableEditorial';
+import EditorialPanel from '@/components/EditorialPanel';
 
 export default async function Home() {
-  const [stories, feeds] = await Promise.all([getStories(), getFeedSections()]);
+  const [stories, feeds, assessments] = await Promise.all([getStories(), getFeedSections(), getEditorialAssessments()]);
   const initialNow = Date.now();
   const whatsappChannel = 'https://whatsapp.com/channel/0029VbDPeHH47Xe2oj9oSL3C';
   const channelUrl = whatsappChannel && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(whatsappChannel) ? whatsappChannel : null;
   const published = publishedStories(stories);
   const fresh = selectHomepageEdition(published,dubaiPublicationDate()).stories;
-  const reportDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dubai' }).format(new Date(iso));
   const latestCrossDesk = latestOfType(published, 'Cross-Desk');
   const latestBriefing = latestOfType(published, 'Briefing');
   const latestLongRead = latestOfType(published, 'Long Read');
@@ -44,15 +43,9 @@ export default async function Home() {
       </Link>)}</div></div></section>
     <section className="container editorial-bottom" aria-label="Editorial formats">
       <div className="editorial-grid">
-        <section className="editorial-panel"><span className="kicker">CROSS-DESK INTELLIGENCE</span>
-          <h2>Where the signals connect</h2>{latestCrossDesk ? <><p className="edition-line">Published <time dateTime={latestCrossDesk.createdAt}>{reportDate(latestCrossDesk.createdAt)}</time></p><ExpandableEditorial story={latestCrossDesk} /></> : <span className="editorial-pending">Awaiting an approved cross-desk report</span>}
-        </section>
-        <section className="editorial-panel"><span className="kicker">WEEKLY BRIEFING</span>
-          <h2>The week in context</h2>{latestBriefing ? <><p className="edition-line">Published <time dateTime={latestBriefing.createdAt}>{reportDate(latestBriefing.createdAt)}</time></p><ExpandableEditorial story={{...latestBriefing, brief: latestBriefing.brief || latestBriefing.body.slice(0,1200)}} /></> : <span className="editorial-pending">No approved weekly briefing available</span>}
-        </section>
-        <section className="editorial-panel"><span className="kicker">LONG READS</span>
-          <h2>Beyond the daily signal</h2>{latestLongRead ? <><p className="edition-line">Published <time dateTime={latestLongRead.createdAt}>{reportDate(latestLongRead.createdAt)}</time></p><ExpandableEditorial story={latestLongRead} /></> : <span className="editorial-pending">Awaiting an approved long read</span>}
-        </section>
+        <EditorialPanel kind="Cross-Desk" heading="Where the signals connect" story={latestCrossDesk} assessments={assessments} initialNow={initialNow} />
+        <EditorialPanel kind="Briefing" heading="The week in context" story={latestBriefing} assessments={assessments} initialNow={initialNow} />
+        <EditorialPanel kind="Long Read" heading="Beyond the daily signal" story={latestLongRead} assessments={assessments} initialNow={initialNow} />
       </div>
       <LiveFeedSections initial={feeds} includeNavyaa heading="From the Navvya Network" />
       <section className="sponsor-reserve" aria-label="Future sponsorship placement">

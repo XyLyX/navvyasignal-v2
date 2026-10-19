@@ -82,7 +82,7 @@ test('both pages use the shared card; selection criteria and status handling are
   assert.match(read('src/components/WatchTabs.tsx'), /No approved \{t\.label\.toLowerCase\(\)\} Watchlist entries\./);
   const notion = read('src/lib/notion.ts');
   assert.doesNotMatch(notion, /method:\s*'(PATCH|PUT|DELETE)'/);
-  assert.equal((notion.match(/method:'POST'/g) ?? []).length, 1, 'still only the read-only query POST');
+  assert.equal((notion.match(/method:'POST'/g) ?? []).length, 2, 'approved stories and public assessment metadata use read-only query POSTs');
 });
 
 test('layout: parent grid, sidebar width, wrapping, breakpoints and no fixed heights that clip', () => {
