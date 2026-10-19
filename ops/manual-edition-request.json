@@ -1,0 +1,7 @@
+{
+  "policy": "regional-v1",
+  "action": "research-and-release-now",
+  "requested_at": "2026-10-19T03:24:24.795920+00:00",
+  "edition_date": "2026-10-19",
+  "reason": "User requested fresh research and one manual site update because existing signals are stale."
+}
