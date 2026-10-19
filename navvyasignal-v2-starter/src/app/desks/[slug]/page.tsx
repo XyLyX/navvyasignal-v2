@@ -4,6 +4,7 @@ import { desks, matchesDeskCategory } from '@/lib/desks';
 import { getStories } from '@/lib/notion';
 import { publishedStories } from '@/lib/v2Editorial';
 import { watchExcerpt } from '@/lib/watchExcerpt';
+import { deskHeroImages } from '@/lib/deskHeroImages';
 
 export async function generateStaticParams() {
   return desks.map(d => ({ slug: d.slug }));
@@ -13,9 +14,11 @@ export default async function Desk({ params }: { params: Promise<{ slug: string 
   const { slug } = await params;
   const desk = desks.find(d => d.slug === slug);
   if (!desk) notFound();
+  const hero = deskHeroImages[slug];
   const stories = publishedStories(await getStories()).filter(s => matchesDeskCategory(slug, s.category));
   return <main className="container inner desk-detail-page">
     <header className={`desk-detail-header desk-detail-hero--${slug}`}>
+      <img className="desk-detail-image" src={hero.src} alt={hero.alt} width={1672} height={941} fetchPriority="high" />
       <p className="eyebrow">CURRENT INTELLIGENCE · V2</p>
       <h1>{desk.name}</h1>
       <p>Approved reports from this desk, newest first.</p>

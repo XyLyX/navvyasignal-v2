@@ -504,3 +504,8 @@ body:has(.arabic-shell) > .footer {display:none}
 .desk-grid .desk--europe,.desk-detail-hero--europe{background-color:#111418;background-image:linear-gradient(180deg,rgba(17,20,24,.1),rgba(17,20,24,.05) 42%,rgba(0,0,0,.6)),url("/images/desks/europe-institutional-lattice.webp");background-position:center}
 .desk-grid .desk--india-subcontinent,.desk-detail-hero--india-subcontinent{background-color:#0d1117;background-image:linear-gradient(180deg,rgba(13,17,23,.1),rgba(13,17,23,.05) 42%,rgba(13,17,23,.6)),url("/images/desks/india-subcontinent-signal-sweeps.webp");background-position:65% center}
 .desk-grid .desk--uae-middle-east,.desk-detail-hero--uae-middle-east{background-color:#0a0806;background-image:linear-gradient(180deg,rgba(10,8,6,.1),rgba(10,8,6,.05) 42%,rgba(10,8,6,.6)),url("/images/desks/uae-middle-east-chokepoint.webp");background-position:center}
+
+/* Desk heroes expose their descriptions; homepage background tiles stay decorative. */
+.desk-detail-header{background-image:none}
+.desk-detail-image{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center;pointer-events:none}
+.desk-detail-hero--india-subcontinent .desk-detail-image{object-position:65% center}
