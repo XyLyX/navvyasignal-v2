@@ -954,8 +954,8 @@ def save_unverified_signal(entry, findings):
         "Text 1": {"rich_text": _rich_text_chunks(entry.get("sources_text", ""))},
         "Internal Note": {"rich_text": _rich_text_chunks(notes)},
         "Ready to Post": {"checkbox": False},
-        "Long Read": {"checkbox": False},
-        "Content Type": {"select": {"name": "Signal"}},
+        "Long Read": {"checkbox": entry.get("content_type") == "Long Read"},
+        "Content Type": {"select": {"name": entry.get("content_type") if entry.get("content_type") in ("Cross-Desk", "Briefing", "Long Read") else "Signal"}},
         "Today's Intelligence": {"checkbox": False},
     }
     if entry.get("desk") in DESKS:
@@ -1300,7 +1300,7 @@ def write_verified_special_entry(title, body, sources_text, content_type, primar
     approved = reviewed["notion_entries"][0]
     return write_special_entry(approved["title"], approved["body_markdown"],
                                approved["sources_text"], content_type,
-                               primary_desk=primary_desk, related_desks=related_desks,
+                               primary_desk=approved.get('desk', desk), related_desks=approved.get('related_desks', related_desks),
                                existing_id=existing_id,
                                notes=approved.get("notes", "") + "\nPassed Claude/Gemini publication policy.")
 
@@ -1331,6 +1331,8 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
     properties["Internal Note"] = {"rich_text": _rich_text_chunks(
         release_module().pending_note(notes, target=existing_id,
             edition=os.environ.get("V2_EDITION_DATE") or dubai_today()))}
+    if primary_desk not in DESKS:
+        raise ValueError("Special editorial entry requires an explicit regional primary desk")
     if primary_desk and primary_desk in DESKS:
         properties["Category"] = {"select": {"name": primary_desk}}
     if related_desks:
@@ -1505,7 +1507,7 @@ just an entry that happens to mention another desk in passing. Most days will ha
 genuine Cross-Desk connections — that is the expected, correct outcome. Only produce one when \
 there's a real, specific, non-obvious connection worth a reader's attention.
 
-The 7 desks are EXACTLY these — use these exact strings, character for character, never an \
+The four regional desks are EXACTLY these — use these exact strings, character for character, never an \
 older or approximated name: {", ".join(DESKS)}.
 
 CRITICAL DEDUP RULE: you will be given any Cross-Desk pieces already published today. If the \

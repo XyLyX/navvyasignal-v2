@@ -147,3 +147,37 @@ export async function getLongReadBlocks(pageId: string, depsIn: NotionDeps = {})
  } while (cursor);
  return blocks;
 }
+
+
+/** Public assessment metadata only; private notes and draft content never leave this adapter. */
+export async function getEditorialAssessments(depsIn: NotionDeps = {}):Promise<import('./editorialFormatStatus').EditorialAssessment[]> {
+ const deps=resolveDeps(depsIn),creds=credentials(deps.env);
+ if(creds==='fixture'||creds==='dev-empty')return [];
+ const output:import('./editorialFormatStatus').EditorialAssessment[]=[];
+ const since=new Date(Date.now()-15*86400000).toISOString();
+ const statuses=['staged','held','no_connection','no_inputs','failed'];
+ let cursor:string|undefined;const seen=new Set<string>();
+ for(let pageNo=0;pageNo<MAX_NOTION_PAGES;pageNo++) {
+  const res=await notionFetch('https://api.notion.com/v1/data_sources/'+creds.source+'/query',{
+   method:'POST',headers:{Authorization:'Bearer '+creds.token,'Notion-Version':'2025-09-03','Content-Type':'application/json'},
+   body:JSON.stringify({page_size:100,filter:{and:[
+    {property:'Internal Note',rich_text:{starts_with:'V2_RELEASE_LEDGER:editorial-formats-v1/'}},
+    {timestamp:'created_time',created_time:{on_or_after:since}}]},
+    ...(cursor?{start_cursor:cursor}:{})}),next:{revalidate:900}},deps);
+  const data=await res.json() as QueryResult;
+  for(const page of data.results) {
+   const note=text(page.properties['Internal Note']);
+   try {
+    const state=JSON.parse(note.slice(note.indexOf('\n')+1));
+    if(!['Cross-Desk','Briefing','Long Read'].includes(state.format)||!statuses.includes(state.status))continue;
+    if(![state.edition,state.period_start,state.period_end].every(v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)))continue;
+    output.push({format:state.format,status:state.status,edition:state.edition,
+     periodStart:state.period_start,periodEnd:state.period_end,completedAt:state.completed_at||''});
+   }catch {throw new Error('Editorial assessment ledger is malformed')}
+  }
+  if(!data.has_more)return output;
+  if(!data.next_cursor||seen.has(data.next_cursor))throw new Error('Invalid editorial assessment pagination');
+  cursor=data.next_cursor;seen.add(cursor);
+ }
+ throw new Error('Editorial assessment pagination exceeded safety ceiling');
+}
