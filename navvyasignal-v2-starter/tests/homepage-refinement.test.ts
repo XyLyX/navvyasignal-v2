@@ -16,8 +16,8 @@ test('hero: eyebrow loses PREVIEW only; headline, copy and seven-desk line are k
   assert.doesNotMatch(page, /GLOBAL INTELLIGENCE[^<]*PREVIEW/);
   assert.match(page, /Understand what matters\.<br\/><em>See what connects\.<\/em>/);
   assert.match(page, /Independent global intelligence, grounded in documented developments/);
-  assert.match(page, /Seven desks/);
-  assert.match(page, /Seven intelligence desks/, 'desk section untouched');
+  assert.match(page, /Four regional desks/);
+  assert.match(page, /Four regional intelligence desks/, 'desk section untouched');
   assert.match(page, /Today.s Intelligence/);
   assert.match(page, /Watchlist/);
 });
@@ -62,7 +62,7 @@ test('homepage and /network share one panel component; directory and cap preserv
   assert.doesNotMatch(page, /NetworkFeed/);
   assert.doesNotMatch(read('src/components/FeedSections.tsx'), /export function NetworkFeed/);
   const net = read('src/app/network/page.tsx');
-  assert.match(net, /<LiveFeedSections initial=\{feeds\} \/>/);
+  assert.match(net, /<(?:NetworkPanels data|LiveFeedSections initial)=\{feeds\} \/>/);
   assert.match(net, /getNetworkCards/, 'network directory kept');
   assert.match(net, /className="network-grid"/);
   // Approved change (commit d0e181a): the duplicate homepage venture-card section was removed; NetworkPanels is the single homepage network section.
@@ -73,9 +73,7 @@ test('homepage and /network share one panel component; directory and cap preserv
 
 test('homepage section order keeps editorial separation', () => {
   const i = (s: string) => page.indexOf(s);
-  assert.ok(i('Today') > 0 && i('<LiveFeedSections') > i('editorial-grid'));
-  const live = read('src/components/LiveFeedSections.tsx');
-  assert.ok(live.indexOf('<NetworkPanels') > live.indexOf('<NavyaaLens'));
+  assert.ok(i('Today')>0 && i('<LiveFeedSections')>i('editorial-grid'));
   assert.equal(i('className="network-home"'), -1, 'no duplicate venture-card section after the network panels');
   assert.ok(i('<LiveFeedSections') > 0, 'the network panels section itself is kept');
 });

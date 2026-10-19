@@ -1,3 +1,5 @@
+import {desks} from '../../src/lib/desks.ts';
+import {approvalNote} from '../../src/lib/regional-review.ts';
 import type {Config,Context} from '@netlify/functions';
 import {passwordMatches,issueSession,sessionValid,escapeHtml as e,queueText,sortedQueue,type QueuePage,validQueueOrigin,isQueued} from '../../src/lib/unverified-access.ts';
 function document(body:string):string {return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow,noarchive"><title>Unverified Signals | NavvyaSignal</title><style>body{margin:0;background:#f5f1ea;color:#0b1b2b;font:17px/1.65 Georgia,serif}main{max-width:900px;margin:40px auto;padding:0 24px}a{color:#0b1b2b}.home-button{display:inline-block;padding:10px 18px;border:1px solid #0b1b2b;border-radius:4px;text-decoration:none;font:16px system-ui}.home-button:hover{background:#0b1b2b;color:white}h1{font-size:36px}article{padding:24px 0;border-top:1px solid #b9b4aa}h2{font-size:25px;line-height:1.35}.copy{white-space:pre-wrap;overflow-wrap:anywhere}.meta{font:14px/1.6 system-ui;color:#535c64}textarea{width:100%;box-sizing:border-box;min-height:180px;font:16px/1.6 system-ui;padding:12px}button,input{font:16px system-ui;padding:12px;border:1px solid #777;border-radius:4px}button{background:#0b1b2b;color:white;cursor:pointer}label{display:block;margin:20px 0 6px}summary{cursor:pointer;font-weight:bold}header{display:flex;justify-content:space-between;gap:20px;align-items:center}strong.warning{display:block;margin:16px 0}input{max-width:100%;box-sizing:border-box}</style></head><body><main>${body}</main></body></html>`;}
@@ -26,7 +28,7 @@ function suggestion(note:string):string {
 }
 function detail(page:Draft):string {
  const note=queueText(page,'Internal Note').replace(/^V2_UNVERIFIED_SIGNAL:[^\n]*(?:\n|$)/,'');
- return `<header><a class="home-button" href="/">← Home</a><a href="/unverified-signals">← Queue</a></header><h1>${e(queueText(page,'Name'))}</h1><p>${e(page.properties.Category?.select?.name||'Desk requires confirmation')}</p><h2>Reason for review</h2><div class="copy">${e(note)}</div><p><a href="https://www.notion.so/${page.id.replace(/-/g,'')}" target="_blank" rel="noopener noreferrer">Open full draft and retained original in Notion ↗</a></p><form method="post" action="/unverified-signals"><input type="hidden" name="id" value="${e(page.id)}"><input type="hidden" name="version" value="${e(page.last_edited_time)}"><input type="hidden" name="title" value="${e(queueText(page,'Name'))}"><input type="hidden" name="brief" value="${e(queueText(page,'Signal Brief'))}"><input type="hidden" name="sources" value="${e(queueText(page,'Text 1'))}"><input type="hidden" name="resolution" value="Manual review completed in Notion."><label><input type="checkbox" name="reviewed" value="yes"> I have checked the sources and resolved the concerns. I approve publication.</label><button name="action" value="draft">Save as draft</button> <button name="action" value="publish">Ready to Post — done</button></form><form method="post" action="/unverified-signals"><input type="hidden" name="id" value="${e(page.id)}"><input type="hidden" name="version" value="${e(page.last_edited_time)}"><label><input type="checkbox" name="confirm_delete" value="yes" required> Move this draft to Notion trash</label><button name="action" value="delete">Delete draft</button></form>`;
+ return `<header><a class="home-button" href="/">← Home</a><a href="/unverified-signals">← Queue</a></header><h1>${e(queueText(page,'Name'))}</h1><p>${e(page.properties.Category?.select?.name||'Desk requires confirmation')}</p><h2>Reason for review</h2><div class="copy">${e(note)}</div><h2>Suggested action</h2><p>${e(suggestion(note))}</p><p><a href="https://www.notion.so/${page.id.replace(/-/g,'')}" target="_blank" rel="noopener noreferrer">Open full draft and retained original in Notion ↗</a></p><form method="post" action="/unverified-signals"><input type="hidden" name="id" value="${e(page.id)}"><input type="hidden" name="version" value="${e(page.last_edited_time)}"><label>Regional desk<select name="desk" required>${desks.some(d=>d.notion===page.properties.Category?.select?.name)?'':'<option value="" selected disabled>Choose regional desk</option>'}${desks.map(d=>`<option value="${e(d.notion)}"${d.notion===page.properties.Category?.select?.name?' selected':''}>${e(d.name)}</option>`).join('')}</select></label><label>Headline<input name="title" value="${e(queueText(page,'Name'))}" maxlength="300" required></label><label>Signal Brief<textarea name="brief" maxlength="1800" required>${e(queueText(page,'Signal Brief'))}</textarea></label><label>Public sources<textarea name="sources" maxlength="6000">${e(queueText(page,'Text 1'))}</textarea></label><label>Resolution / review note<textarea name="resolution" maxlength="1500"></textarea></label><label><input type="checkbox" name="reviewed" value="yes"> I have checked the sources and resolved the concerns. I approve publication.</label><button name="action" value="draft">Save as draft</button> <button name="action" value="now">Ready to post now</button> <button name="action" value="scheduled">Ready to post scheduled — next 09:00 Dubai</button></form><form method="post" action="/unverified-signals"><input type="hidden" name="id" value="${e(page.id)}"><input type="hidden" name="version" value="${e(page.last_edited_time)}"><label><input type="checkbox" name="confirm_delete" value="yes" required> Move this draft to Notion trash</label><button name="action" value="delete">Delete draft</button></form>`;
 }
 export default async (req:Request, context?:Pick<Context,'site'>) => {
   const password=Netlify.env.get('V2_UNVERIFIED_PASSWORD')||'';
@@ -44,7 +46,7 @@ export default async (req:Request, context?:Pick<Context,'site'>) => {
     const form=new URLSearchParams(body);
     if(form.get('action')==='logout')return new Response(null,{status:303,headers:{Location:'/unverified-signals','Cache-Control':'no-store','Set-Cookie':'ns_unverified=; Path=/unverified-signals; HttpOnly; Secure; SameSite=Strict; Max-Age=0'}});
     const action=form.get('action');
-    if(action && ['draft','publish','delete'].includes(action)) {
+    if(action && ['draft','now','scheduled','delete'].includes(action)) {
       if(!authorized)return response('<p>Session expired. Sign in again.</p>',401);
       try {
         const id=form.get('id')||'';
@@ -56,36 +58,34 @@ export default async (req:Request, context?:Pick<Context,'site'>) => {
           payload={in_trash:true};
         } else {
           const title=(form.get('title')||'').trim(), brief=(form.get('brief')||'').trim(), sources=(form.get('sources')||'').trim();
+          if(!desks.some(d=>d.notion===form.get('desk')))return response('<p>Select a regional desk.</p>',400);
           if(!title||title.length>300||!brief||brief.length>1800||sources.length>6000)return response('<p>Title is required (maximum 300 characters), brief is required (maximum 1,800 characters), sources maximum 6,000 characters.</p>',400);
-          if(action==='publish' && (form.get('reviewed')!=='yes'||!(form.get('resolution')||'').trim()||!sources.match(/https:\/\/[^\s]+/)||!page.properties.Category?.select?.name||title.startsWith('Unparsed draft')))return response('<p>Publication requires a resolved review note, your confirmation, a confirmed desk, a proper headline and direct source URLs.</p>',400);
-          const existing=queueText(page,'Internal Note');
-          const marker=existing.match(/^V2_UNVERIFIED_SIGNAL:[^\n]*(?:\n|$)/)?.[0]||'';
-          const edited=form.has('internal_note')?(form.get('internal_note')||'').trim():existing.replace(/^V2_UNVERIFIED_SIGNAL:[^\n]*(?:\n|$)/,'');
-          if(edited.length>12000)return response('<p>Private notes maximum 12,000 characters.</p>',400);
-          const note=(action==='draft'?marker:'')+edited+'\n\nManual review '+new Date().toISOString()+': '+(action==='publish'?'APPROVED — ':'DRAFT — ')+(form.get('resolution')||'Draft edited; verification pending.');
-          payload={properties:{Name:{title:rich(title)},'Signal Brief':{rich_text:rich(brief)},'Text 1':{rich_text:rich(sources)},'Internal Note':{rich_text:rich(note)},'Ready to Post':{checkbox:action==='publish'}}};
+          if(['now','scheduled'].includes(action) && (form.get('reviewed')!=='yes'||!(form.get('resolution')||'').trim()||!sources.match(/https:\/\/[^\s]+/)||!desks.some(d=>d.notion===form.get('desk'))||title.startsWith('Unparsed draft')))return response('<p>Publication requires a resolved review note, your confirmation, a confirmed desk, a proper headline and direct source URLs.</p>',400);
+          const note=action==='draft'?queueText(page,'Internal Note')+'\nDraft edited: '+(form.get('resolution')||'Verification pending.'):approvalNote(queueText(page,'Internal Note'),form.get('resolution')||'',action as 'now'|'scheduled');
+          payload={properties:{Name:{title:rich(title)},'Signal Brief':{rich_text:rich(brief)},'Text 1':{rich_text:rich(sources)},'Internal Note':{rich_text:rich(note)},Category:{select:{name:form.get('desk')}},'Ready to Post':{checkbox:action==='now'}}};
         }
         const saved=await notion('/pages/'+id,token,'PATCH',payload);
         if(!saved.ok)throw Error('Save failed');
         // Approval is already saved. A refresh failure must never report a failed save.
         let notice=action;
-        if(action==='publish'){
+        if(action==='now'){
           notice='publish_waiting';
           const dispatchToken=Netlify.env.get('V2_GITHUB_ACTIONS_TOKEN')?.trim();
           if(dispatchToken){
             try{
               const refresh=await fetch('https://api.github.com/repos/XyLyX/navvyasignal-v2/actions/workflows/v2-static-refresh.yml/dispatches',{
                 method:'POST',headers:{Authorization:'Bearer '+dispatchToken,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},
-                body:JSON.stringify({ref:'main',inputs:{dry_run:false}}),signal:AbortSignal.timeout(5000)
+                body:JSON.stringify({ref:'main',inputs:{dry_run:false,publish_now:true}}),signal:AbortSignal.timeout(5000)
               });
               if(refresh.status===204)notice='publish_requested';
               else console.warn('Approval refresh request failed: HTTP '+refresh.status);
-            }catch{console.warn('Approval saved; immediate refresh request unavailable. Scheduled refresh remains active.');}
+            }catch{console.warn('Approval saved; immediate refresh request unavailable. Use the explicit Now workflow to reconcile; automatic extra builds are disabled.');}
           }
         }
         return new Response(null,{status:303,headers:{Location:'/unverified-signals?notice='+notice,'Cache-Control':'no-store'}});
       } catch {return response('<a class="home-button" href="/">← Home</a><p>Could not save this draft. Reopen the queue and check its saved state before trying again.</p>',502);}
     }
+    if(action)return response('<p>Unknown editorial action.</p>',400);
     if(!passwordMatches(form.get('password')||'',password))return login('Incorrect password.');
     return new Response(null,{status:303,headers:{Location:'/unverified-signals','Cache-Control':'no-store','Set-Cookie':`ns_unverified=${issueSession(secret)}; Path=/unverified-signals; HttpOnly; Secure; SameSite=Strict; Max-Age=14400`}});
   }
@@ -101,9 +101,9 @@ export default async (req:Request, context?:Pick<Context,'site'>) => {
     const data=await res.json() as {results:QueuePage[];has_more:boolean;next_cursor:string|null};
     const stories=sortedQueue(data.results);
     const notice=new URL(req.url).searchParams.get('notice');
-    const message=notice==='publish_requested'?'Approval saved. Site refresh requested; publication will follow when the build completes.':notice==='publish_waiting'?'Approval saved. Immediate refresh was unavailable; the half-hour content checker will retry automatically.':notice==='publish'?'Approval saved. The content checker will request a site refresh.':notice==='draft'?'Draft saved privately.':notice==='delete'?'Draft moved to Notion trash.':'';
-    const items=stories.map(page=>`<article><p class="meta">${e(page.properties.Category?.select?.name||'Desk requires confirmation')} · ${e(new Date(page.created_time).toLocaleString('en-GB',{timeZone:'Asia/Dubai'}))} GST</p><h2><a href="/unverified-signals?id=${encodeURIComponent(page.id)}">${e(queueText(page,'Name'))}</a></h2><p class="copy">${e(queueText(page,'Internal Note').replace(/^V2_UNVERIFIED_SIGNAL:[^\n]*(?:\n|$)/,'').split('\n\nManual review')[0])}</p><a href="https://www.notion.so/${page.id.replace(/-/g,'')}" target="_blank" rel="noopener noreferrer">Open in Notion ↗</a><p class="meta">Draft · pending review</p></article>`).join('');
-    return response(`<header><a class="home-button" href="/">← Home</a><form method="post" action="/unverified-signals"><input type="hidden" name="action" value="logout"><button>Lock page</button></form></header><h1>Unverified Signals</h1>${message?`<p role="status">${e(message)}</p>`:''}<strong class="warning">Private drafts — pending manual review.</strong><p>Only pending drafts appear here. Ready to Post or deleted in Notion also removes a signal from this queue. Internal notes do not need to be deleted. <a href="/unverified-signals">Refresh queue</a></p><p>Newest first. Open a headline to review, edit, approve or delete the draft. Approved drafts publish through the normal site refresh; they are not labelled AI-cleared.</p>${items||'<p>No unverified drafts awaiting review.</p>'}${data.has_more&&data.next_cursor?`<p><a href="/unverified-signals?cursor=${encodeURIComponent(data.next_cursor)}">Older unverified signals →</a></p>`:''}`);
+    const message=notice==='publish_requested'?'Approval saved. Site refresh requested; publication will follow when the build completes.':notice==='publish_waiting'?'Approval saved, but immediate publication request failed. It is not verified live. Use the explicit Now workflow to reconcile.':notice==='publish'?'Approval saved. The content checker will request a site refresh.':notice==='scheduled'?'Approved and scheduled for the next 09:00 Dubai release. No build requested.':notice==='draft'?'Draft saved privately.':notice==='delete'?'Draft moved to Notion trash.':'';
+    const items=stories.map(page=>`<article><p class="meta">${e(page.properties.Category?.select?.name||'Desk requires confirmation')} · ${e(new Date(page.created_time).toLocaleString('en-GB',{timeZone:'Asia/Dubai'}))} GST</p><h2><a href="/unverified-signals?id=${encodeURIComponent(page.id)}">${e(queueText(page,'Name'))}</a></h2></article>`).join('');
+    return response(`<header><a class="home-button" href="/">← Home</a><form method="post" action="/unverified-signals"><input type="hidden" name="action" value="logout"><button>Lock page</button></form></header><h1>Unverified Signals</h1>${message?`<p role="status">${e(message)}</p>`:''}<strong class="warning">Private drafts — not verified or approved for publication.</strong><p>Newest first. Open a headline to review, edit, approve or delete the draft. Choose immediate publication, the next 09:00 Dubai release, or deletion from Notion. No automatic approval.</p>${items||'<p>No unverified drafts awaiting review.</p>'}${data.has_more&&data.next_cursor?`<p><a href="/unverified-signals?cursor=${encodeURIComponent(data.next_cursor)}">Older unverified signals →</a></p>`:''}`);
   }catch{return response('<h1>Unverified Signals</h1><p>The private queue could not be loaded. Please try again. No drafts have been changed.</p>',502);}
 };
 export const config:Config={path:['/unverified-signals','/unverified-signals/']};

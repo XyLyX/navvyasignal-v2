@@ -1,0 +1,51 @@
+name: Manual Unverified Signal action
+on:
+  workflow_dispatch:
+    inputs:
+      page_id:
+        type: string
+        required: true
+      action:
+        type: choice
+        required: true
+        options: [now, scheduled, delete]
+      resolution:
+        type: string
+        description: Required review resolution for either approval option
+      desk:
+        type: choice
+        required: true
+        options: [North America Desk, Europe Desk, India & Subcontinent Desk, UAE & Middle East Desk]
+permissions:
+  contents: read
+concurrency:
+  group: regional-publication
+  cancel-in-progress: false
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r pipeline/requirements.txt
+      - name: Apply explicitly requested manual choice
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          REVIEW_PAGE_ID: ${{ inputs.page_id }}
+          REVIEW_ACTION: ${{ inputs.action }}
+          REVIEW_RESOLUTION: ${{ inputs.resolution }}
+          REVIEW_DESK: ${{ inputs.desk }}
+        run: python pipeline/manual_editorial_action.py
+      - name: Verify exceptional Now publication
+        if: inputs.action == 'now'
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          DRY_RUN: 'false'
+        run: python pipeline/regional_release.py --exceptional

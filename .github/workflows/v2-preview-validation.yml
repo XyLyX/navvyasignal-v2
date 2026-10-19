@@ -1,7 +1,7 @@
 name: V2 preview validation
 on:
   push:
-    branches: [notion-readonly, release/v2-english, feature/v2-unified-pipeline]
+    branches: [main, release/v2-english, fix/regional-daily-release]
   workflow_dispatch:
 
 permissions:
@@ -37,6 +37,6 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r pipeline/requirements.txt
-      - run: python -m unittest pipeline.test_pipeline -v
+      - run: python -m pipeline.run_offline_tests
         env:
           ANTHROPIC_API_KEY: test-only

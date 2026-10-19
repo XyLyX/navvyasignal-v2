@@ -22,19 +22,19 @@ export function FreshHomepageItem({ story, initialNow, children }: { story: Stor
 }
 
 export default function FreshIntelligence({ stories, initialNow }: { stories: Story[]; initialNow: number }) {
-  const selected = selectFreshIntelligence(stories, useClock(initialNow));
+  const selected = stories.filter(s=>s.ready).slice(0,7);
   const timestamp = (iso: string) => new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Dubai', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(new Date(iso));
   return <>
-    <p className="section-deck">The newest approved signals from the past 24 hours. Up to seven reports, newest first; older reporting remains in Signals.</p>
+    <p className="section-deck">The daily regional edition, released at 09:00 Dubai. Up to seven selected reports; the edition remains available until the next release.</p>
     {selected.length ? selected.map((story, i) => <article className="story" key={story.id}>
       <span className="num">{String(i + 1).padStart(2, '0')}</span><div>
         <p className="edition-line"><time dateTime={story.createdAt}>{timestamp(story.createdAt)} Dubai</time></p>
         <ExpandableEditorial story={story} label={story.category} />
       </div>
     </article>) : <div className="editorial-empty"><span className="kicker">NO FRESH APPROVED SIGNALS</span>
-      <h3>Awaiting fresh intelligence.</h3><p>No approved signals from the past 24 hours are available. Older reports are available in Signals.</p>
+      <h3>Awaiting fresh intelligence.</h3><p>No selected daily edition is available. Older reports are available in Signals.</p>
       <Link href="/signals">Browse Signals →</Link></div>}
   </>;
 }
