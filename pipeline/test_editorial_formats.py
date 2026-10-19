@@ -110,3 +110,24 @@ class EditorialFormatsTests(unittest.TestCase):
         self.assertEqual(recovery.request(value,now),'2026-10-19')
         for update in ({'action':'research-all-desks'},{'requested_at':'2026-10-17T09:00:00Z'},{'edition_date':'2026-10-20'}):
             with self.assertRaises(ValueError):recovery.request(dict(value,**update),now)
+
+
+class EditorialDraftValidationTests(unittest.TestCase):
+    def test_paragraph_character_target_is_not_a_factual_approval_gate(self):
+        editor=Mock(DESKS=['North America Desk','Europe Desk'])
+        rows=[{'id':'source','sources':'https://example.com/source'}]
+        data={'has_report':True,'title':'A supported connection','primary_desk':'Europe Desk',
+              'related_desks':['North America Desk'],'paragraphs':['A'*850,'B'*800],'source_ids':['source']}
+        entry=f.draft(data,rows,'Cross-Desk',dt.date(2026,10,19),dt.date(2026,10,19),editor)
+        self.assertEqual(len(entry['body_markdown']),1652)
+        data['source_ids']=['invented']
+        with self.assertRaisesRegex(ValueError,'supplied source records'):
+            f.draft(data,rows,'Cross-Desk',dt.date(2026,10,19),dt.date(2026,10,19),editor)
+
+    def test_weekly_title_is_the_completed_period_not_generated_date_claim(self):
+        editor=Mock(DESKS=['Europe Desk'])
+        rows=[{'id':'source','sources':'https://example.com/source'}]
+        data={'has_report':True,'title':'Generated title','primary_desk':'Europe Desk','related_desks':[],
+              'paragraphs':['A paragraph.']*4,'source_ids':['source']}
+        entry=f.draft(data,rows,'Briefing',dt.date(2026,10,12),dt.date(2026,10,18),editor)
+        self.assertEqual(entry['title'],'Weekly Briefing — 2026-10-12 to 2026-10-18')
