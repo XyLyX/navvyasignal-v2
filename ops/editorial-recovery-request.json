@@ -2,6 +2,7 @@
   "policy": "regional-v1",
   "action": "recover-editorial-formats",
   "edition_date": "2026-10-19",
-  "requested_at": "2026-10-19T10:34:51.554Z",
-  "reason": "User requested restoration and recovery of stale Cross-Desk, Weekly Briefing and Long Read sections; do not rerun regional desks or send public messages."
+  "requested_at": "2026-10-19T10:40:54.672Z",
+  "retry_technical": true,
+  "reason": "Recover only technical pre-review failures after the validated formatting correction; never retry or publish editorially held stories automatically."
 }
