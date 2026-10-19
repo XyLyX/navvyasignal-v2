@@ -1,0 +1,72 @@
+name: Verify published editorial recovery — read only
+on:
+  push:
+    branches: [main]
+    paths: ['ops/editorial-site-check.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check public homepage, articles, scheduler and publication snapshot
+        run: |
+          python - <<'PY'
+          import concurrent.futures
+          import json
+          import re
+          import urllib.request
+          from pathlib import Path
+          from html.parser import HTMLParser
+
+          request=json.loads(Path('ops/editorial-site-check.json').read_text())
+          ids=request['article_ids']
+          if len(ids)!=3 or any(not re.fullmatch(r'[a-f0-9-]{36}',v) for v in ids):
+              raise ValueError('Expected exactly three publication record IDs')
+          base='https://navvyasignal.com'
+          paths=['/','/api/scheduler-status','/publication-state']+['/signals/'+id for id in ids]
+          def read(path):
+              req=urllib.request.Request(base+path,headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req,timeout=25) as response:
+                  if response.status!=200:raise RuntimeError('Public page unavailable')
+                  return path,response.read().decode()
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+              pages=dict(pool.map(read,paths))
+          class Visible(HTMLParser):
+              def __init__(self):super().__init__();self.skip=0;self.words=[];self.links=[]
+              def handle_starttag(self,tag,attrs):
+                  data=dict(attrs)
+                  if tag in ('script','style'):self.skip+=1
+                  if tag=='a':self.links.append(data.get('href',''))
+              def handle_endtag(self,tag):
+                  if tag in ('script','style'):self.skip=max(0,self.skip-1)
+              def handle_data(self,value):
+                  if not self.skip:self.words.append(value)
+          home=Visible();home.feed(pages['/'])
+          text=' '.join(' '.join(home.words).split())
+          if text.count('Current edition')<3:
+              raise RuntimeError('Homepage does not identify three current editorial reports')
+          if request['weekly_title'] not in text:
+              raise RuntimeError('Completed-week briefing title is missing from homepage')
+          for id in ids:
+              if '/signals/'+id not in home.links:
+                  raise RuntimeError('New editorial report is not linked from homepage')
+          live={entry['id'] for entry in json.loads(pages['/publication-state'])['entries']}
+          if not set(ids)<=live:
+              raise RuntimeError('A current editorial record is absent from the public snapshot')
+          slots={slot['runType']:slot['dubaiTime'] for slot in json.loads(pages['/api/scheduler-status'])['slots']}
+          if (slots.get('editorial_formats'),slots.get('daily_release'),slots.get('compile_send'))!=('08:00','09:00','10:00'):
+              raise RuntimeError('Live editorial/release/send schedule differs from policy')
+          for id in ids:
+              article=Visible();article.feed(pages['/signals/'+id])
+              if 'Record added' not in ' '.join(article.words):
+                  raise RuntimeError('Current editorial article failed public rendering check')
+          print(json.dumps({'homepage_current_reports':3,'article_ids':ids,'weekly_title':request['weekly_title'],
+                            'verified_public_pages':len(paths),'schedule':slots},sort_keys=True))
+          PY
