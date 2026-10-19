@@ -120,7 +120,7 @@ def draft(data, rows, kind, start, end, editor):
     paragraphs = data.get('paragraphs')
     count = {'Cross-Desk': 2, 'Briefing': 4, 'Long Read': 8}[kind]
     if (not isinstance(paragraphs, list) or len(paragraphs) != count
-            or any(not isinstance(p, str) or not p.strip() or len(p) > 750 for p in paragraphs)
+            or any(not isinstance(p, str) or not p.strip() or len(p) > 4000 for p in paragraphs)
             or any(label in p.lower() for p in paragraphs for label in ('##','**','what happened:','why it matters:'))):
         raise ValueError('Editorial paragraphs do not meet the requested format')
     title = data.get('title')
@@ -191,7 +191,7 @@ def stage(api, entry, key, edition, start, end, total, supplied):
                                    'properties':properties})['id']
 
 
-def run(edition, api=None, editor=None):
+def run(edition, api=None, editor=None, retry_technical=False):
     day = dt.date.fromisoformat(edition)
     if day.isoformat() != edition or day > dt.datetime.now(TZ).date():
         raise ValueError('Invalid editorial edition')
@@ -208,12 +208,24 @@ def run(edition, api=None, editor=None):
     for kind, (start, end) in periods(edition).items():
         key = f'editorial-formats-v1/{kind}/{start}/{end}'
         ledger, state = api.ledger(key)
+        if (retry_technical and state.get('status') == 'held' and state.get('error_type') == 'ValueError'
+                and not state.get('completed_at') and not state.get('page_id')):
+            # The first rollout classified pre-review generation failures as holds.
+            # Reconcile only its exact technical placeholder, never an editorially rejected draft.
+            placeholders = api.query({'and':[
+                {'property':'Name','title':{'equals':kind+' generation unavailable — '+edition}},
+                {'property':'Ready to Post','checkbox':{'equals':False}}]})
+            if any(release.text(p,'Signal Brief') == 'No report was approved. Editorial generation requires manual attention.'
+                   and release.text(p,'Internal Note').startswith('V2_UNVERIFIED_SIGNAL:') for p in placeholders):
+                state.update(status='failed',legacy_technical_recovery=True)
         if state.get('status') in TERMINAL:
             results[kind] = state['status']
             print('EDITORIAL EXISTING: '+json.dumps({'format':kind,'status':state['status']}), flush=True)
             continue
         state.update(format=kind, edition=edition, period_start=str(start), period_end=str(end))
         entry = None
+        raw = None
+        phase = 'input'
         try:
             # Reconcile an interrupted write before spending on another model call.
             matches = api.query({'and':[
@@ -232,27 +244,41 @@ def run(edition, api=None, editor=None):
                 elif kind == 'Cross-Desk' and len({r['desk'] for r in chosen if r['desk'] in editor.DESKS}) < 2:
                     state['status'] = 'no_connection'
                 else:
-                    entry = draft(generate(editor, kind, chosen, start, end, len(rows)),
-                                  chosen, kind, start, end, editor)
+                    phase = 'generation'
+                    raw = generate(editor, kind, chosen, start, end, len(rows))
+                    if not isinstance(raw,dict):
+                        raise ValueError('Editorial response must be a JSON object')
+                    state['draft_shape'] = {
+                        'keys':sorted(raw) if isinstance(raw,dict) else [],
+                        'paragraph_count':len(raw.get('paragraphs',[])) if isinstance(raw.get('paragraphs'),list) else None,
+                        'max_paragraph_length':max((len(p) for p in (raw.get('paragraphs') or []) if isinstance(p,str)),default=0),
+                        'source_id_count':len(raw.get('source_ids',[])) if isinstance(raw.get('source_ids'),list) else None}
+                    phase = 'validation'
+                    entry = draft(raw, chosen, kind, start, end, editor)
                     if entry is None:
                         state['status'] = 'no_connection'
                     else:
+                        phase = 'review'
                         checked = review(editor, entry)
                         if checked is None:
                             state['status'] = 'held'
                         else:
+                            phase = 'write'
                             state.update(status='staged',page_id=stage(api,checked,key,edition,start,end,len(rows),len(chosen)))
             state['completed_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
         except (Exception, SystemExit) as error:
             # Report safe error classes, retain any complete draft privately, and continue other formats.
-            state.update(status='failed',error_type=type(error).__name__)
+            state.update(status='failed',error_type=type(error).__name__,error_phase=phase,
+                         error_reason=str(error)[:300] if isinstance(error,ValueError) else type(error).__name__)
             if entry is None:
                 entry = {'title':kind+' generation unavailable — '+edition, 'body_markdown':'No report was approved. Editorial generation requires manual attention.',
-                         'sources_text':'', 'content_type':kind}
+                         'sources_text':'', 'content_type':kind, 'original_draft':raw}
             if entry is not None:
-                editor.save_unverified_signal(entry,'Editorial format incomplete ('+type(error).__name__+'); full draft retained for manual review.')
-                state['status'] = 'held'
-            print('EDITORIAL ERROR: '+kind+' ('+type(error).__name__+')', flush=True)
+                editor.save_unverified_signal(entry,'Editorial format incomplete at '+phase+': '+state['error_reason']+'; available draft output retained privately.')
+                if phase == 'review':
+                    state['status'] = 'held'
+            state['completed_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
+            print('EDITORIAL ERROR: '+json.dumps({'format':kind,'phase':phase,'reason':state['error_reason'],'shape':state.get('draft_shape')}), flush=True)
         api.save_ledger(ledger,state)
         results[kind] = state['status']
         print('EDITORIAL FORMAT RESULT: '+json.dumps(state), flush=True)
