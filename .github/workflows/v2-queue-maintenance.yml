@@ -1,0 +1,58 @@
+name: V2 queue maintenance
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Read queue without paid review, writes or messages
+        type: boolean
+        default: true
+      test_alert:
+        description: Send one alert to the Whapi-connected account itself
+        type: boolean
+        default: false
+      verify_page:
+        description: Optional Signal Feed page ID for a read-only live Claude check
+        type: string
+        required: false
+      message_id:
+        description: Optional existing Whapi receipt to inspect without resending
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: v2-static-content-refresh
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'XyLyX/navvyasignal-v2'
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r pipeline/requirements.txt
+      - name: Validate recovery and deletion guards without live calls
+        env:
+          ANTHROPIC_API_KEY: test-only
+          WHAPI_TOKEN: ''
+        run: python -m unittest pipeline.test_gemini_policy pipeline.test_unverified_queue pipeline.test_final_discard pipeline.test_recheck_queue
+      - name: Notify private queue and explicitly requested checks
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SEND_TEST_ALERT: ${{ inputs.test_alert && !inputs.dry_run }}
+          VERIFY_PAGE_ID: ${{ !inputs.dry_run && inputs.verify_page || '' }}
+          CHECK_MESSAGE_ID: ${{ inputs.message_id }}
+        run: |
+          args=()
+          if [ "$SEND_TEST_ALERT" = true ]; then args+=(--test-alert); fi
+          if [ -n "$VERIFY_PAGE_ID" ]; then args+=(--verify-page "$VERIFY_PAGE_ID"); fi
+          if [ -n "$CHECK_MESSAGE_ID" ]; then args+=(--check-message "$CHECK_MESSAGE_ID"); fi
+          python pipeline/recheck_queue.py "${args[@]}"

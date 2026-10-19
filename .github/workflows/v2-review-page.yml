@@ -1,0 +1,47 @@
+name: V2 manual draft review (Gemini, read-only)
+
+# Reviews ONE Notion Signal Feed entry with the existing V2 Gemini fact-check.
+# Read-only: it only reads Notion (GET) and calls Gemini. It carries no Kit, Whapi or
+# Netlify credentials, writes nothing to Notion, regenerates nothing, publishes nothing,
+# changes no homepage fields and has no schedule.
+on:
+  workflow_dispatch:
+    inputs:
+      page_id:
+        description: Notion page ID of the Signal Feed entry to review
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-review-page-${{ inputs.page_id }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: github.repository == 'XyLyX/navvyasignal-v2'
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt
+      - name: Validate the review script
+        env:
+          ANTHROPIC_API_KEY: test-only
+        run: python -m unittest pipeline.test_review_page -v
+      - name: Review the entry with Gemini
+        working-directory: pipeline
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PAGE_ID: ${{ inputs.page_id }}
+        run: python review_page.py

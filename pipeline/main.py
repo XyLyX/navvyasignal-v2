@@ -4,8 +4,8 @@ NavvyaSignal Daily Briefing Automation
 Runs on a schedule (via GitHub Actions), generates a fact-checked briefing,
 pushes validated entries to Notion, and sends via Kit (email) and Whapi (WhatsApp).
 
-Fully automatic: no human approval step. Notion 'Ready to Post' is set to True
-on every entry. Kit and Whapi sends fire immediately after generation.
+Verified stories are staged privately until the 09:00 Dubai release.
+Unresolved stories require manual review; delivery runs separately at 10:00.
 """
 
 import os
@@ -13,8 +13,12 @@ import sys
 import json
 import time
 import datetime
+import html
+import re
+from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo
 import requests
+import hashlib
 import anthropic
 
 # ---------- CONFIG ----------
@@ -29,63 +33,18 @@ WHAPI_CHANNEL_ID = os.environ.get("WHAPI_CHANNEL_ID", "")
 OPS_NOTIFY_NUMBER = os.environ.get("OPS_NOTIFY_NUMBER", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# Which run this is: one of the 7 solo desk keys (research + Notion push for that one desk,
-# no send), "compile_send" (compiles today's entries into the daily email + WhatsApp send, plus
-# Today's Intelligence / Cross-Desk / Watchlist resolution), "weekly_synthesis" (Friday Briefing,
-# built from the week's existing material — no new research), or "whapi_test" (manual only).
-RUN_TYPE = os.environ.get("RUN_TYPE", "compile_send")
-# Whether this run should actually send email/WhatsApp. Only ever true for compile_send —
-# desk runs never send regardless of this flag (enforced in main(), not just here).
+# Four regional desks; the shared policy supersedes every earlier desk schedule.
+from pathlib import Path
+POLICY = json.loads((Path(__file__).resolve().parents[1] /
+    'navvyasignal-v2-starter/src/lib/regional-policy.json').read_text())
+RUN_TYPE = os.environ.get("RUN_TYPE", "")
 SEND_OUTPUT = os.environ.get("SEND_OUTPUT", "true").lower() == "true"
-# When true, every Notion write across the whole script (existing Signal writes AND the new
-# Today's Intelligence / Cross-Desk / Watchlist / Briefing writes) is logged instead of actually
-# performed. Use this to test new logic paths without touching live data.
 DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
-
-# V2's seven editorial desks. This copy lives in V2 and has no runtime dependency
-# on the old automation or the Framer synchronization project.
-# 7-desk structure, replacing the old 9-desk one (Sports and Trends & Forecasting removed
-# entirely; Real Estate & Infrastructure becomes a Coverage Theme tag rather than its own desk;
-# Maritime & Energy broadened to include supply chains; Technology & AI is new).
-DESKS = [
-    "West Asia Desk",
-    "India Desk",
-    "UAE Desk",
-    "Global Politics Desk",
-    "Markets & Capital Desk",
-    "Technology & AI Desk",
-    "Maritime Energy & Supply Chains Desk",
-]
-
-# Each desk receives its own roundup and breaking-news research pass. The three
-# heavy desks are staggered so one conflict narrative cannot crowd out another.
-GROUPS = {
-    "west_asia": ["West Asia Desk"],
-    "maritime_energy": ["Maritime Energy & Supply Chains Desk"],
-    "technology_ai": ["Technology & AI Desk"],
-    "uae": ["UAE Desk"],
-    "india": ["India Desk"],
-    "global_politics": ["Global Politics Desk"],
-    "markets_capital": ["Markets & Capital Desk"],
-}
-
-# Single source of truth mapping native GitHub Actions cron expressions to RUN_TYPE values.
-# The workflow YAML passes the raw matched cron string through as CRON_SCHEDULE (only set for
-# schedule-triggered runs) instead of resolving it itself via a bash elif-chain — this keeps
-# exactly one place (here) that knows which cron maps to which run, so future desk/run-type
-# changes only ever need updating in this one file, not silently drifting out of sync with
-# separate logic embedded in the YAML. workflow_dispatch runs set RUN_TYPE directly and never
-# touch this mapping at all.
+DESKS = [desk['notion'] for desk in POLICY['desks']]
+GROUPS = {desk['key']: [desk['notion']] for desk in POLICY['desks']}
 CRON_TO_RUN_TYPE = {
-    "30 0 * * *": "maritime_energy",     # 04:30 Dubai
-    "30 3 * * *": "west_asia",           # 07:30 Dubai
-    "30 13 * * *": "india",              # 17:30 Dubai
-    "30 9 * * *": "uae",                 # 13:30 Dubai
-    "30 23 * * *": "technology_ai",      # 03:30 Dubai (UTC date +1)
-    "30 4 * * *": "global_politics",     # 08:30 Dubai
-    "30 1 * * *": "markets_capital",     # 05:30 Dubai
-    "30 17 * * *": "site_only",          # 21:30 Dubai, choose homepage without sending
-    "15 15 * * 0": "weekly_synthesis",   # 19:15 Dubai, Sundays only
+    f"{desk['minute']} {desk['utcHour']} * * *": desk['key']
+    for desk in POLICY['desks']
 }
 
 CRON_SCHEDULE = os.environ.get("CRON_SCHEDULE", "")
@@ -117,6 +76,28 @@ COMPILE_WINDOW_HOURS = 24
 def dubai_today():
     return datetime.datetime.now(ZoneInfo("Asia/Dubai")).date().isoformat()
 
+
+def daily_send_edition_date(now=None):
+    """Before the 10:00 Dubai delivery boundary, use the previous edition unless explicitly dated.
+
+    Manual recovery can select a dated edition explicitly. Resolve this once
+    per run so query, labels and duplicate checks always use the same date.
+    """
+    local = (now or datetime.datetime.now(ZoneInfo("Asia/Dubai"))).astimezone(ZoneInfo("Asia/Dubai"))
+    explicit = os.environ.get("V2_SEND_EDITION_DATE", "").strip()
+    if explicit:
+        try:
+            selected = datetime.date.fromisoformat(explicit)
+            if selected.isoformat() != explicit or selected > local.date():
+                raise ValueError("invalid or future edition")
+        except ValueError:
+            fail_hard("Send edition date must be YYYY-MM-DD and cannot be in the future")
+        return explicit
+    edition = local.date()
+    if local.time() < datetime.time(10, 0):
+        edition -= datetime.timedelta(days=1)
+    return edition.isoformat()
+
 NOTION_VERSION = "2022-06-28"
 NOTION_HEADERS = {
     "Authorization": f"Bearer {NOTION_API_KEY}",
@@ -147,7 +128,7 @@ def _is_test_record(title):
     and known-bad duplicates can never accidentally reach a real compile, send, Today's
     Intelligence selection, Cross-Desk synthesis, or weekly Briefing."""
     stripped = title.strip()
-    return stripped.startswith("[TEST") or stripped.startswith("[DUPLICATE")
+    return stripped.startswith(("[TEST", "[DUPLICATE", "[SYSTEM]"))
 
 
 def fetch_existing_entries():
@@ -202,21 +183,21 @@ def fetch_existing_entries():
     return entries
 
 
-def fetch_todays_entries_for_compile():
+def fetch_todays_entries_for_compile(edition_date=None):
     """Read every approved Signal created on the current Dubai calendar day.
 
     The old 15-hour, one-page, last-edited query lost early desk work when GitHub
     delayed the compilation and could include yesterday's edited records.
     """
     url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    edition_date = dubai_today()
+    edition_date = edition_date or dubai_today()
     start = datetime.datetime.combine(
         datetime.date.fromisoformat(edition_date), datetime.time.min,
         tzinfo=ZoneInfo("Asia/Dubai"),
     ).astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     payload = {
         "page_size": 100,
-        "filter": {"timestamp": "created_time", "created_time": {"on_or_after": start}},
+        "filter": {"property": "Ready to Post", "checkbox": {"equals": True}},
         "sorts": [{"timestamp": "created_time", "direction": "descending"}],
     }
     results, cursor, seen = [], None, set()
@@ -238,9 +219,14 @@ def fetch_todays_entries_for_compile():
 
     entries = []
     for page in results:
-        created = page.get("created_time", "")
-        if not created or datetime.datetime.fromisoformat(created.replace("Z", "+00:00")).astimezone(
-                ZoneInfo("Asia/Dubai")).date().isoformat() != edition_date:
+        note = release_module().text(page, 'Internal Note').split('\n', 1)[0]
+        if not note.startswith('V2_RELEASED:'):
+            continue
+        try:
+            state = json.loads(note[len('V2_RELEASED:'):])
+        except ValueError:
+            fail_hard('Malformed regional release record')
+        if state.get('edition') != edition_date:
             continue
 
         props = page.get("properties", {})
@@ -272,6 +258,10 @@ def fetch_todays_entries_for_compile():
             "desk": desk,
             "body": body,
             "sources": sources,
+            "homepage_priority": ((props.get("Homepage Priority", {}).get("number") or 0)
+                                  if props.get("Today's Intelligence", {}).get("checkbox") and
+                                  (props.get("Homepage Date", {}).get("date") or {}).get("start") == edition_date
+                                  else 0),
         })
     return sorted(entries, key=lambda e: (DESKS.index(e["desk"]), e["title"], e["id"]))
 
@@ -280,59 +270,19 @@ WEEKLY_SYNTHESIS_WINDOW_HOURS = 24 * 7
 
 
 def fetch_week_entries_for_synthesis():
-    """7-day window, existing material only — no new research. Filters out prior Briefing
-    entries (once Content Type exists) so weekly synthesis doesn't re-summarize itself."""
-    url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
-    payload = {
-        "page_size": 100,
-        "sorts": [{"timestamp": "last_edited_time", "direction": "descending"}],
-    }
-    resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
-    if resp.status_code != 200:
-        fail_hard(f"Notion query failed: {resp.status_code} {resp.text}")
-    results = resp.json().get("results", [])
-
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=WEEKLY_SYNTHESIS_WINDOW_HOURS)
+    """Paginate approved Signals from seven Dubai calendar days; edits do not reset age."""
+    end_day = datetime.date.fromisoformat(os.environ.get("V2_EDITION_DATE") or dubai_today())
+    start_day = end_day - datetime.timedelta(days=6)
     entries = []
-    for page in results:
-        edited_time_str = page.get("last_edited_time", "")
-        try:
-            edited_dt = datetime.datetime.strptime(edited_time_str[:19], "%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            edited_dt = None
-        if edited_dt and edited_dt < cutoff:
-            continue
-
-        props = page.get("properties", {})
-        # Once Content Type exists (Stage 1C), skip prior Briefing entries so the weekly
-        # synthesis doesn't summarize its own past output. Harmless no-op until then, since the
-        # property won't be present on any page and this check simply won't match.
-        content_type = ""
-        if "Content Type" in props and props["Content Type"].get("select"):
-            content_type = props["Content Type"]["select"].get("name", "")
-        if content_type == "Briefing":
-            continue
-
-        title = ""
-        if "Name" in props and props["Name"].get("title"):
-            title = "".join([t.get("plain_text", "") for t in props["Name"]["title"]])
-        if _is_test_record(title):
-            continue
-        desk = ""
-        if "Category" in props and props["Category"].get("select"):
-            desk = props["Category"]["select"].get("name", "")
-        body = ""
-        if "Signal Brief" in props and props["Signal Brief"].get("rich_text"):
-            body = "".join([t.get("plain_text", "") for t in props["Signal Brief"]["rich_text"]])
-
-        entries.append({"id": page["id"], "title": title, "desk": desk, "body": body})
+    for offset in range(7):
+        entries.extend(fetch_todays_entries_for_compile((start_day + datetime.timedelta(days=offset)).isoformat()))
     return entries
 
 
 WEEKLY_BRIEFING_SYSTEM_PROMPT = """You write NavvyaSignal's weekly Briefing — a synthesis of \
 the past week's already-published entries. You do NOT do new research. The editorial question \
 is "what did the week's individual signals collectively reveal" — not another news article \
-restating the week's events one by one.
+restating the week's events one by one. Distinguish documented connections from simultaneous events. Do not assert causal links, motives or forecasts without direct source support. Include dates and uncertainty.
 
 Look for genuine patterns: separate signals that, together, show a trend a reader wouldn't see \
 from any single entry alone (e.g. three separate signals showing escalating pressure, gradually \
@@ -342,17 +292,17 @@ with no real pattern, say so honestly rather than manufacturing a narrative thre
 Output ONLY valid JSON, no preamble, no code fences:
 {
   "title": "string, e.g. 'Gulf Briefing — Week 37'",
-  "body": "string, flowing prose, plain text no markdown — the pattern(s) of the week and what they mean",
-  "sources_text": "string, referencing which entries this draws from"
+  "body": "string, at most 1800 characters, 2–3 plain-prose paragraphs — the pattern(s) of the week and what they mean",
+  "sources_text": "string, direct HTTPS source article URLs from the supplied entries; at most 1900 characters"
 }
 """
 
 
 def generate_weekly_briefing(week_entries):
     user_prompt = f"""This week's entries (desk | title | body):
-{json.dumps([{"desk": e["desk"], "title": e["title"], "body": e["body"]} for e in week_entries], indent=2)}
+{json.dumps(week_entries, indent=2)}
 
-Write this week's Briefing per your instructions."""
+Edition ends on {os.environ.get("V2_EDITION_DATE") or dubai_today()}. Use the correct ISO week number. Write this week's Briefing per your instructions."""
 
     with client.messages.stream(
         model="claude-sonnet-4-5",
@@ -427,7 +377,10 @@ def run_weekly_synthesis():
         log(f"Found today's existing Briefing ({existing_briefing_id}) — will update instead of creating a duplicate.")
 
     briefing_data = generate_weekly_briefing(week_entries)
-    page_id = write_special_entry(
+    end_day = datetime.date.fromisoformat(os.environ.get("V2_EDITION_DATE") or dubai_today())
+    start_day = end_day - datetime.timedelta(days=6)
+    briefing_data["title"] = f"Weekly Briefing — {start_day.isoformat()} to {end_day.isoformat()}"
+    page_id = write_verified_special_entry(
         title=briefing_data["title"],
         body=briefing_data["body"],
         sources_text=briefing_data.get("sources_text", ""),
@@ -435,6 +388,8 @@ def run_weekly_synthesis():
         existing_id=existing_briefing_id,
     )
 
+    if not page_id and not DRY_RUN:
+        fail_hard("Weekly Briefing withheld; inspect private Unverified Signals queue")
     log("Weekly synthesis complete.")
     return {
         "edition_label": briefing_data["title"],
@@ -446,184 +401,43 @@ def run_weekly_synthesis():
 
 # ---------- STEP 2: Generate briefing via Claude ----------
 
-SYSTEM_PROMPT = """You are the editorial engine for NavvyaSignal, a daily intelligence \
-publication covering seven specialist desks: West Asia, India, UAE, Global Politics, Markets \
-& Capital, Technology & AI, and Maritime Energy & Supply Chains.
+SYSTEM_PROMPT = """You are the editorial engine for NavvyaSignal's FOUR regional desks:
+North America Desk; Europe Desk; India & Subcontinent Desk; UAE & Middle East Desk.
+Only research the regional desk explicitly in scope. India is the main focus of India &
+Subcontinent; cover neighbouring countries selectively. UAE is the main focus of UAE &
+Middle East. North America focuses on the US, with Canada and Mexico where material.
+Europe includes the UK and continental Europe.
 
-Rules you must follow strictly:
-- Research current developments using web search. Never fabricate facts, figures, or quotes.
-- Only include information you can verify from search results in this run.
-- NavvyaSignal intelligence standard: identify the exact event date separately from the
-publication date and market trading date. Do not call an arrest a charge, an allegation a
-finding, a draft an adopted rule, or a reported plan a decision. Attribute single-source
-accounts in the title and body. Distinguish verified observation from your inference.
-- Prefer a direct primary document, company disclosure, regulator or police statement; add
-independent reporting for material contested claims. For each entry put direct https URLs
-to the specific pages actually consulted in sources_text, with publisher and date. A list
-of outlet names, homepages, or second-hand claims of verification is insufficient. If a
-crucial claim lacks a retrievable source, omit that claim or omit the entry.
-- The title must state only supported claims. Use two complete short paragraphs in
-body_markdown: what happened with attribution and dates, then why it matters as analysis.
-Keep the whole body below 1900 characters and the source field below 1900 characters;
-never end with a cut-off sentence. Do not add decorative urgency or unsourced statistics.
-- For each validated development, decide whether it UPDATES an existing Notion entry \
-(provided below, with title, category, creation time, and a content snippet) or is genuinely NEW.
-- CRITICAL: when setting "existing_id" for an update, copy the id string EXACTLY character-for-character \
-from the provided existing entries list below. Do not retype or paraphrase it from memory — a single \
-wrong character will cause the update to fail. If you are not fully certain of the exact id, treat \
-the entry as "create" instead of guessing at an id.
-- CRITICAL DEDUP RULE: if an existing entry was created within the last 48 hours, is in the \
-same desk, and covers the same underlying subject (same commodity, same index, same conflict, \
-same company, same event thread) — you MUST treat it as an UPDATE, even if the specific \
-figures differ (e.g. an oil price from 15 minutes ago vs. now, a slightly different \
-percentage). Do NOT create a new entry just because the exact numbers moved. Fast-moving \
-stories (oil prices, market indices, an unfolding conflict) are expected to have updated \
-figures on every run — that is exactly what should trigger an update, not a duplicate. \
-Only create a new entry when the underlying subject itself is genuinely different from \
-everything in the provided list.
-- DEDUP SCOPE WARNING: the existing-entries list is for matching SPECIFIC subjects to avoid \
-duplicating THEM — it is never a signal that a desk in general is "already covered" or that \
-you can skip searching it. Seeing one existing Markets & Capital entry about, say, a Fed \
-speech does NOT mean Markets & Capital is done for this run — gold, crypto, individual \
-equities, and every other subject in that desk are still fully in scope and still need their \
-own dedicated search. Judge dedup story-by-story, matching on genuine subject overlap, never \
-by "this desk has recent activity so I'll move on." If your search genuinely turns up nothing \
-new for an in-scope desk, that's a legitimate zero — but it must follow a real, thorough \
-search of that desk's beat, not an inference from the presence of unrelated existing entries.
-- Assign each entry to exactly one of these desks: West Asia Desk, India Desk, UAE Desk, \
-Global Politics Desk, Markets & Capital Desk, Technology & AI Desk, Maritime Energy & Supply \
-Chains Desk. If genuinely ambiguous, pick the closest fit and note the ambiguity in a "notes" \
-field — do not leave it blank.
-- COVERAGE THEME RULE: some stories cut across desks without having their own desk (e.g. real \
-estate & infrastructure, defence/security, AI policy). These still get exactly one primary \
-Desk (whichever of the 7 fits best — e.g. a UAE real estate story still goes to UAE Desk), but \
-also get tagged in "coverage_theme" (a short list of 0-3 free-text theme tags, e.g. ["Real \
-Estate & Infrastructure"]) so the theme can be tracked across desks. Leave it as an empty list \
-when no cross-cutting theme genuinely applies — do not force a tag onto every entry.
-- RELATED DESKS RULE: if, while researching your assigned desk, a story's implications clearly \
-and specifically extend into another desk's domain (not just a passing mention), list that \
-other desk in "related_desks" (e.g. a Hormuz shipping story researched under Maritime Energy \
-& Supply Chains that has real West Asia and India dimensions). This is lightweight tagging — \
-it does not mean you write that other desk's angle yourself, and it is NOT the same thing as a \
-genuine Cross-Desk Signal (a separate, deliberately-synthesized piece produced later by a \
-different process). Leave it empty when a story is genuinely self-contained within your desk.
-- WATCHLIST RULE: this is NOT for every story that mentions a future scheduled event — it is \
-specifically for a genuine unresolved intelligence question with a material outcome still in \
-doubt. The test is event vs. unresolved question:
-  * NOT watchlist: "CPI will be released Thursday" — a routine scheduled data release with no \
-specific outcome in question is not watchlist-worthy on its own, no matter how important the \
-event category generally is.
-  * Watchlist-worthy: "Markets are pricing a materially different inflation trajectory than the \
-Fed's own guidance; Thursday's CPI could confirm or challenge that pricing" — there's a specific \
-open question (whose read on inflation is right) that a specific event will resolve one way or \
-another.
-When you do set watchlist=true, "watch_trigger" must name the specific unresolved question or \
-material outcome being monitored, not just restate the calendar event's name and date. If you \
-cannot articulate a specific open question beyond "X happens on date Y," set watchlist=false. \
-Most entries — including most routine scheduled-event mentions — should have watchlist=false.
-- UAE DESK RULE: any story that is specifically about the UAE (Dubai, Abu Dhabi, Sharjah, or \
-UAE federal policy/economy/markets) goes to UAE Desk as its primary desk, even if it would \
-otherwise fit a Coverage Theme like real estate. When a UAE story also has a clear secondary \
-angle in another desk (e.g. a UAE real estate story with national market implications), \
-mention that secondary desk naturally within the body prose (e.g. "This also carries \
-implications for the broader Markets & Capital picture...") rather than using a separate field \
-or splitting it into two entries.
-- SCOPE RULE: this run covers ONLY the specific desk listed under "Desks in scope for this \
-run" in the user message below — exactly one of the 7 desks, since every desk now gets its own \
-solo dispatch. Apply the DAILY ROUNDUP RULE and BREAKING-NEWS RULE (below) IN FULL to that desk \
-— give it the same thorough, real search effort regardless of which desk it is. Do NOT \
-research or return any entry for a desk that is not in scope this run, even if you're aware of \
-breaking news there — a separate dedicated run covers that desk on its own schedule. This \
-scoping exists specifically so each run gives its one desk real, complete attention instead of \
-splitting effort across multiple desks at once.
-- This run does NOT send email or WhatsApp. Leave "email_subject", "email_html", and \
-"whatsapp_text" as empty strings — a separate later run compiles everything into the actual \
-send. Only "edition_label", "editor_note", and "notion_entries" matter for this run.
-- DAILY ROUNDUP RULE: "your usual macro searches" must include at least one genuinely broad, \
-outlet-level roundup search, using the current date — not just topic-specific queries tied to \
-whatever conflict thread or index you already expect to update. A desk-level search for "oil \
-prices" or "Iran Hormuz" will find those threads but will NOT surface unrelated developments \
-like a diplomatic statement, an aid package, an infrastructure announcement, a regulatory change, \
-or a human-interest story that has nothing to do with the thread you were already tracking — those \
-need their own broad sweep. Run at least one query like these, adapted to the desk's beat:
-  * UAE Desk: "UAE news today", "Khaleej Times today", "Gulf News UAE today" — covering diplomacy, \
-government announcements, infrastructure, aid, regulation, real estate, and human-interest \
-stories, not just conflict-adjacent or incident news.
-  * India Desk: "India news today", "Reuters India today", "Indian Express today", "Times of \
-India today" — covering diplomacy, government announcements, infrastructure, economic policy, \
-regulation, and human-interest stories, not just accidents/disasters or the specific threads \
-already tracked. Prioritize Reuters for low-noise business/economy/markets/policy signal, Indian \
-Express for politics/government/courts, The Hindu when depth/context matters more than speed, and \
-Times of India/Hindustan Times for breadth. When multiple India stories compete for space, weight \
-toward what matters to a UAE-based reader with India business, trade, or investment exposure — \
-markets, RBI/policy moves, trade ties, infrastructure, and major national events — over purely \
-domestic political or celebrity/crime stories with no external relevance.
-  * West Asia Desk: "Middle East news today" beyond the primary conflict thread already tracked.
-  * Markets & Capital Desk: broad market roundup beyond the specific indices already tracked — \
-include real estate, infrastructure, and sovereign investment stories here (tagged with the \
-Real Estate & Infrastructure coverage theme), since that's no longer its own desk.
-  * Technology & AI Desk: "AI news today", "semiconductor news today", "defence technology \
-today" — covering AI, semiconductors, defence tech, robotics, space, quantum, autonomous \
-systems, and cybersecurity, always framed as geopolitics + capital + strategic capability, \
-never as consumer/product tech news.
-  * Global Politics Desk: general political roundup beyond elections/coups already tracked. No \
-generic political news — a politician saying something stupid is not automatically a signal; \
-it needs actual strategic consequence.
-  * Maritime Energy & Supply Chains Desk: broad roundup covering oil, LNG, shipping, ports, \
-tankers, freight, maritime security, insurance, chokepoints, pipelines, critical minerals, and \
-supply chains generally — beyond whatever specific conflict thread or price level is already \
-being tracked.
-  A topic-specific search finds what you already expect — a broad roundup search finds what \
-you don't.
-- BREAKING-NEWS RULE: macro/desk-level topic searches (oil prices, market indices, ongoing conflict \
-threads, policy analysis, etc.) will NOT reliably surface acute breaking incidents on their own — \
-those need their own dedicated search pass, in addition to your usual macro searches. Run at \
-least one incident-focused search for the desk in scope, using the current date in the query:
-  * UAE Desk: "Dubai Media Office statement today", "UAE Civil Defence incident today", "Abu Dhabi \
-incident today" — explosions, fires, industrial/transport accidents, structural/building issues, \
-deaths or casualties (falls, drownings, road accidents), severe weather.
-  * India Desk: "India accident today", "India disaster today", "PTI breaking news" — accidents, \
-natural disasters, industrial/transport incidents, deaths or casualties, major political events \
-(resignations, unrest, sudden policy action) inside India.
-  * West Asia Desk: breaking regional incidents (attacks, strikes, political \
-upheaval, protests, sudden military movements) beyond whatever is already tracked in ongoing \
-conflict threads.
-  * Markets & Capital Desk: flash crashes, circuit breakers, emergency central bank \
-action, major unscheduled earnings or guidance shocks, plus sudden real estate/infrastructure \
-developments (building collapses, major project cancellations/approvals, construction accidents).
-  * Technology & AI Desk: major AI/tech incidents — significant breaches, outages, sudden \
-regulatory action, notable capture/compromise of autonomous or defence-linked technology.
-  * Global Politics Desk: breaking political events — resignations, elections, \
-coups, sudden policy reversals — beyond scheduled/expected developments.
-  * Maritime Energy & Supply Chains Desk: tanker/vessel incidents, port or refinery accidents, \
-pipeline disruptions, shipping lane closures, critical-minerals supply disruptions — not just \
-price/index movements.
-An acute incident with real-world impact (injuries, fatalities, market/operational disruption) is \
-newsworthy on its own and belongs on its desk even without further analytical framing.
-- Each Notion entry body must include full "What Happened" and "Why It Matters" sections \
-with real figures, attributions, and analysis — not a one-line summary.
-- Subject lines and headers must use proper case ("Navvya Signal - Daily Briefing"), never \
-all-caps.
-- If nothing meaningful changed since the last run, it is correct to return zero entries \
-for that section rather than padding with a no-op update. This is a per-STORY judgment, not \
-a per-DESK one: a desk having already published an entry earlier today does NOT mean that \
-desk is "done" for the day. Run the full roundup and incident searches for every desk on every \
-run regardless of what that desk already covered — if they surface a genuinely distinct new \
-development (different topic, different specific event), it gets its own entry even if the \
-same desk already has other entries today. Only skip when the search results contain nothing \
-that is both new (within the recency window) and distinct from what's already covered.
-- Never carry forward a stale/outdated figure without flagging or correcting it.
-- RECENCY RULE — applies regardless of how long it has been since the last successful run: \
-only include developments from the last 24-48 hours relative to the "Current UTC time" given \
-below. Do NOT sweep in or summarize older backlog just because it turned up in search or \
-because there was a gap since the last run (e.g. an outage). If the pipeline missed several \
-days, this run covers only the most recent 24-48 hours of developments — it does not attempt \
-to catch subscribers up on everything that happened in between. Discard any search result \
-outside that window rather than including it, even if it seems significant. Use the specific \
-dates in search results to judge this, not vague recency language in the source itself.
-- Background context (older than 48h) may be referenced briefly, in a single clause, ONLY to \
-explain why a fresh-in-window development matters (e.g. "...continuing the six-session Brent \
-retreat that began August 20") — it must never be the subject of its own entry or paragraph.
+Every desk covers ALL relevant themes, not limited to geopolitics, security, policy,
+economy, markets and capital, business, property, technology and AI, science, energy,
+climate, maritime, aviation, supply chains, infrastructure, health, education, society,
+culture and sport. These are themes, NEVER separate desks. Topics and hashtags guide
+broad discovery, never rigid keyword filters. Trending is not proof or a publication rule.
+Perform a broad regional roundup AND specific breaking-event and thematic searches.
+Search local-language reporting where useful. Do not let one conflict or theme crowd out
+other consequential developments. Do not manufacture country or theme quotas.
+
+Use live web search and read identifiable dated sources. Permitted RSS and official feeds
+may supply leads, but never reproduce feed text or treat headlines as verification.
+Times of India/Economic Times feeds must not be commercially ingested without permission.
+Prefer primary documents, company disclosures, regulators and independent corroboration.
+Verify every material date, name, number and quote. Separate documented facts, attributed
+claims and analysis. Never invent events, sources or quotes. Put direct https URLs with
+publisher and date in sources_text; memory, snippets and outlet names alone are insufficient.
+Prioritize the latest 24 hours; allow 24–48 hours only for a still-current material development.
+Do not fill outage backlogs with stale stories. Older context is clearly dated and ancillary.
+Deduplicate against all existing regional entries, including staged stories. Same event:
+update only when material new information exists. One primary geographic desk per story;
+related_desks may contain other regional desks. No duplicate article for each theme.
+
+Signals use a precise 8–18 word headline and plain prose brief up to 1,800 characters:
+one or two paragraphs on what happened, a final paragraph explaining why it matters.
+No visible section labels, Markdown headings, bold or tables. Source attribution belongs
+in sources_text only; private provenance and uncertainties belong in notes.
+coverage_theme is 0–3 relevant topic tags; related_desks is 0–3 other regional desk names.
+watchlist is boolean; if true supply a specific watch_trigger and next_review YYYY-MM-DD;
+otherwise both are empty. desk_ambiguous is false only if classification is established.
+Research and verification do not authorize immediate publication. Publication is staged.
 
 Output ONLY valid JSON matching this schema — no preamble, no narration of your research process, \
 no explanation before or after, and no markdown code fences. Do not use <cite> tags or any citation \
@@ -639,7 +453,8 @@ Schema:
       "action": "update" or "create",
       "existing_id": "notion page id if action=update, else null",
       "title": "string",
-      "desk": "one of the 7 desk names exactly as listed above",
+      "desk": "one of the four regional desk names exactly as listed above",
+      "desk_ambiguous": "boolean; true when primary desk needs editorial confirmation",
       "body_markdown": "string, max 1800 chars, flowing prose covering what happened and why it \
 matters — do NOT use markdown syntax like ## headers or ** bold **, since this is stored in a \
 Notion rich-text property that displays plain text literally, not rendered markdown. Structure \
@@ -708,7 +523,14 @@ per your instructions."""
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError as e:
-        fail_hard(f"Model output was not valid JSON: {e}\nExtracted text:\n{json_str[:2000]}")
+        save_unverified_signal({
+            "title": "Unparsed draft — " + ", ".join(scope_desks),
+            "desk": scope_desks[0] if len(scope_desks) == 1 else "",
+            "body_markdown": full_text, "sources_text": "",
+        }, "Generated output could not be parsed as JSON: " + str(e))
+        log("Malformed generation saved to private review; no research rerun.")
+        return {"edition_label": dubai_today(), "notion_entries": [],
+                "email_subject": "", "email_html": "", "whatsapp_text": ""}
 
     required_keys = ["edition_label", "notion_entries", "email_subject", "email_html", "whatsapp_text"]
     for k in required_keys:
@@ -719,37 +541,85 @@ per your instructions."""
 
 
 def fit_signal_briefs(briefing_data):
-    """Rewrite a model overrun into the agreed Signal format before fact review.
+    """Fit briefs to the agreed format before Gemini fact review."""
+    forbidden_labels = (
+        "why it matters:",
+        "what happened:",
+        "##",
+        "**",
+    )
 
-    Never cut a sentence or silently publish a long-form article as a Signal.
-    The subsequent Gemini pass reviews the final wording, including any rewrite.
-    """
+    def valid_brief(text):
+        return (
+            isinstance(text, str)
+            and 0 < len(text.strip()) <= 1800
+            and 2 <= len([p for p in text.strip().split("\n\n") if p.strip()]) <= 3
+            and not any(label in text.lower() for label in forbidden_labels)
+        )
+
     for entry in briefing_data["notion_entries"]:
-        body = entry.get("body_markdown", "")
-        if not isinstance(body, str) or not body.strip():
-            fail_hard(f"Desk entry has no brief: {entry.get('title', '')[:90]}")
-        if len(body) <= 1800:
+        original_body = entry.get("body_markdown", "")
+        title = entry.get("title", "")
+
+        if not isinstance(original_body, str) or not original_body.strip():
+            fail_hard(f"Desk entry has no brief: {title[:90]}")
+
+        body = original_body.strip()
+        if valid_brief(body):
+            entry["body_markdown"] = body
             continue
-        for attempt in range(2):
-            prompt = ("Edit this NavvyaSignal Signal Brief to at most 1,700 characters. "
-                      "Use plain prose with one or two paragraphs on what happened, then one "
-                      "paragraph on why it matters. No headings, markdown, new claims, or "
-                      "unsupported inference. Preserve material dates, figures, attribution, "
-                      "uncertainty, and the actual conclusion. Return only the edited prose.\n\n"
-                      f"Title: {entry['title']}\nSources: {entry.get('sources_text', '')}\n"
-                      f"Original brief:\n{body}")
+
+        for attempt, target in enumerate((1500, 1200, 1000)):
+            feedback = ""
+            if attempt:
+                feedback = (
+                    f"The previous draft contained {len(body)} characters "
+                    "and failed the length or plain-prose paragraph check. "
+                    "Rewrite more concisely and follow the format exactly. "
+                )
+
+            prompt = (
+                feedback
+                + f"Edit this NavvyaSignal Signal Brief to at most {target} "
+                "characters INCLUDING spaces and paragraph breaks. "
+                "Use plain prose with one or two paragraphs on what happened, "
+                "then one distinct final paragraph explaining who is affected, the concrete "
+                "consequence and a relevant constraint or uncertainty supported by the sources. "
+                "Avoid promotional adjectives and generic importance statements. "
+                "Separate paragraphs with a blank line. "
+                "No headings, markdown, preamble, new claims, or unsupported "
+                "inference. Preserve material dates, figures, attribution, "
+                "uncertainty, and the actual conclusion. "
+                "Return only the edited prose.\n\n"
+                f"Title: {title}\n"
+                f"Sources: {entry.get('sources_text', '')}\n"
+                f"Original brief:\n{original_body}"
+            )
+
             with client.messages.stream(
-                model="claude-sonnet-4-5", max_tokens=1500,
+                model="claude-sonnet-4-5",
+                max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:
                 response = stream.get_final_message()
-            body = "\n".join(b.text for b in response.content if b.type == "text").strip()
-            if 0 < len(body) <= 1800 and "\n\n" in body and "##" not in body:
+
+            body = "\n".join(
+                block.text
+                for block in response.content
+                if block.type == "text"
+            ).strip()
+
+            if valid_brief(body):
                 entry["body_markdown"] = body
                 break
         else:
-            fail_hard(f"Could not fit Signal Brief within 1,800 characters: {entry['title'][:90]}")
+            fail_hard(
+                f"Signal Brief still fails length or format checks "
+                f"after 3 rewrites ({len(body)} characters): {title[:90]}"
+            )
+
     return briefing_data
+
 
 
 COMPILE_SYSTEM_PROMPT = """You are the compilation editor for NavvyaSignal, a daily intelligence \
@@ -759,9 +629,7 @@ fact in the provided entries must retain its attribution; do not add, remove, or
 factual claim, figure, or attribution — only format and organize.
 
 Rules:
-- Group entries by desk in this order where present: West Asia Desk, India Desk, UAE Desk, \
-Global Politics Desk, Markets & Capital Desk, Technology & AI Desk, Maritime Energy & Supply \
-Chains Desk.
+- Group entries by desk in this order where present: North America Desk, Europe Desk, India & Subcontinent Desk, UAE & Middle East Desk.
 - Subject lines and headers use proper case ("Navvya Signal - Daily Briefing"), never all-caps.
 - email_html: full HTML body, clean sections per desk, using the provided title/body/sources \
 for each entry verbatim (light formatting only — do not rewrite the prose).
@@ -847,7 +715,7 @@ a credibility-focused intelligence publication. Review the JSON draft below.
 
 Flag ONLY genuine concerns: factual claims that seem implausible, internally contradictory, \
 unsupported by the stated sources, or that you have reason to believe are outdated or wrong. \
-Do not flag stylistic choices or things you simply cannot verify either way — only flag \
+Flag a headline that states a disputed outcome as settled when the body documents conflicting source reports. Do not flag stylistic choices or things you simply cannot verify either way — only flag \
 things you have an actual, specific reason to doubt.
 
 Respond in this exact format:
@@ -856,6 +724,11 @@ If FLAGS > 0, list each concern on its own line starting with "- ", specific eno
 
 Draft to review:
 {briefing_json_str}"""
+    prompt += (f"\nCurrent UTC date: {datetime.datetime.utcnow().date().isoformat()}. "
+               "Review only the provided story. Do not treat current events as future "
+               "hypotheticals based on your training cutoff. Do not infer contradictions "
+               "between unrelated diplomatic meetings. Specify the disputed claim and "
+               "its source/date issue; do not flag a calendar combination you find consistent.")
     return call_gemini(prompt)
 
 
@@ -875,7 +748,20 @@ round, you MUST either revise the claim to remove the disputed specific detail e
 drop that sentence/clause — do not restate it with invented-sounding verification language.
 """
 
-    prompt = f"""Gemini raised the following concerns about your draft briefing:
+    prompt = f"""Cross Check from all sources.
+You are the final editorial adjudicator after Gemini raised ambiguity. Search all cited
+sources and additional primary/corroborating sources relevant to EACH disputed claim.
+A middle route means the supported common ground, never averaging conflicting figures
+or inventing a compromise. Attribute genuine disagreements. Remove unsupported claims;
+where a non-central detail remains unresolved, explicitly say "couldn't be verified from source"
+in the public brief and explain which detail. If the central claim cannot be verified,
+set ready_to_post=false. Never treat that label as permission to report speculation as fact.
+Add top-level editorial_decision with ready_to_post (boolean), rationale (nonempty string),
+evidence (nonempty list of source URLs and what each establishes), and
+unverified_claims (list of nonempty strings; empty if none), and disposition ("publish",\n"hold", or "discard"). Use "discard" with ready_to_post=false when your final recommendation\nis unpublishable, do not publish, reject the article, or equivalent. Use "hold" only\nfor incomplete verification or a technical problem awaiting review, not a final editorial rejection.\nSet ready_to_post=false if
+any material concern makes publication unsafe. Keep this decision private.
+
+Gemini raised the following concerns about your draft briefing:
 
 {gemini_flags_text}
 {repeat_warning}
@@ -884,9 +770,12 @@ For each concern, either:
 named source (outlet + article) found in an actual search this round, not a general assertion \
 of confidence, or
 2. Revise the specific claim to be accurate, or
-3. If genuinely uncertain after re-checking, soften the claim with appropriate hedging \
-language (e.g. "single-source, unconfirmed" or "disputed") rather than stating it flatly \
-or dropping it — per NavvyaSignal's credibility protocol of labeled inference over fabrication.
+3. Remove unsupported background details. Do not salvage an unsupported factual claim
+by merely labelling it disputed. Preserve uncertainty only where a real source reports it.
+
+You MUST use live web search this round. Include publisher, publication date and direct
+https article URLs supporting retained disputed claims in sources_text. Keep the same
+single entry and its desk, action and existing_id; do not invent or add replacement stories. Preserve the content type and synthesis purpose. Where sources conflict, narrow both title and body to the supported common ground; never assert a disputed outcome in the headline.
 
 Never fabricate or imply verification you did not actually perform this round. If you did not \
 run a new search for a specific claim, you may not describe it as "confirmed."
@@ -905,6 +794,11 @@ the JSON, no other text."""
         messages=[{"role": "user", "content": prompt}],
     ) as stream:
         response = stream.get_final_message()
+    if not any(getattr(block, "type", "") == "server_tool_use"
+               and getattr(block, "name", "") == "web_search"
+               for block in response.content):
+        log("HOLD: repair did not perform live search")
+        return None
     text_parts = [block.text for block in response.content if block.type == "text"]
     full_text = "\n".join(text_parts).strip()
 
@@ -916,8 +810,8 @@ the JSON, no other text."""
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-        log("WARNING: Claude's revision after Gemini flags was not valid JSON — keeping prior draft.")
-        return briefing_data
+        log("HOLD: repair did not return valid JSON")
+        return None
 
 
 def _flag_lines(review_text):
@@ -941,59 +835,366 @@ def _concern_overlaps(prev_flags, current_flags, threshold=0.5):
     return False
 
 
-def verify_with_gemini_loop(briefing_data, max_rounds=2):
-    """Cross-verification loop: Gemini reviews, Claude responds to flags, Gemini re-reviews.
-    Unresolved concerns block the entire desk batch before any Notion write."""
-    prev_flags = []
-    for round_num in range(1, max_rounds + 1):
-        log(f"Gemini verification round {round_num}...")
-        review = gemini_review(json.dumps(briefing_data))
-        if review is None:
-            fail_hard("Fact-review provider unavailable; desk publication withheld")
+def has_direct_source_url(entry):
+    """Require an actual HTTPS article/document URL, not just outlet names."""
+    sources = entry.get("sources_text", "")
+    if not isinstance(sources, str) or len(sources) > 1900:
+        return False
+    for candidate in re.findall(r"https://[^\s<>]+", sources):
+        try:
+            url = urlsplit(candidate.rstrip(".,;:)]}"))
+            if (url.scheme == "https" and url.hostname and not url.username
+                    and not url.password and (url.path not in ("", "/") or url.query)):
+                return True
+        except ValueError:
+            continue
+    return False
 
-        flags_count = None
-        for line in review.splitlines():
-            if line.strip().upper().startswith("FLAGS:"):
-                try:
-                    flags_count = int(line.split(":", 1)[1].strip())
-                except ValueError:
-                    fail_hard("Fact-review response malformed; desk publication withheld")
-                break
 
-        if flags_count is None or flags_count < 0:
-            fail_hard("Fact-review response missing valid FLAGS count; desk publication withheld")
+def sourced_signals(entries):
+    """Withhold unsupported entries independently; never manufacture citations."""
+    accepted = []
+    for entry in entries:
+        if has_direct_source_url(entry):
+            accepted.append(entry)
+        else:
+            log(f"HOLD: missing or invalid direct source URL: {entry.get('title', '')[:120]}")
+    if entries and not accepted:
+        fail_hard("No Signals have valid direct source URLs; desk publication withheld")
+    return accepted
 
-        if flags_count == 0:
-            log("Gemini review: no concerns raised.")
-            return briefing_data
 
-        log(f"Gemini raised {flags_count} concern(s):\n{review}")
-        current_flags = _flag_lines(review)
-        is_repeat = _concern_overlaps(prev_flags, current_flags)
-        is_final_round = round_num == max_rounds
-        force_hedge = is_repeat or is_final_round
-        if is_repeat:
-            log("WARNING: at least one concern appears to be a repeat from the prior round — "
-                "forcing hedge/strip instead of allowing reconfirmation.")
-        if is_final_round and flags_count > 0:
-            fail_hard("Final verification round has open concerns; desk publication withheld")
-        briefing_data = claude_respond_to_flags(briefing_data, review, is_repeat_concern=force_hedge)
-        prev_flags = current_flags
+def _verify_single_signal(briefing_data, max_rounds=2):
+    """Gemini checks; Claude resolves ambiguity with live source research."""
+    original = dict(briefing_data["notion_entries"][0])
+    current = briefing_data
+    for round_number in range(2):
+        current.setdefault("_reviewed_versions", []).append(dict(current["notion_entries"][0]))
+        log(f"Gemini cross-check round {round_number + 1}")
+        review = gemini_review(json.dumps({"notion_entries": current["notion_entries"]}))
+        if not isinstance(review, str) or not re.match(r"^FLAGS: \d+(?:\n|$)", review):
+            raise ValueError("Gemini review unavailable or malformed; manual review required")
+        count = int(review.splitlines()[0].split(":", 1)[1])
+        if len(_flag_lines(review)) != count:
+            raise ValueError("Gemini review findings inconsistent; manual review required")
+        briefing_data.setdefault("_verification_findings", []).append(review)
+        if count == 0:
+            return current
+        repaired = claude_respond_to_flags(current, review, is_repeat_concern=round_number > 0)
+        if not isinstance(repaired, dict) or len(repaired.get("notion_entries", [])) != 1:
+            return None
+        entry = repaired["notion_entries"][0]
+        if any(entry.get(k) != original.get(k) for k in ("desk", "action", "existing_id")):
+            raise ValueError("Source cross-check changed story identity; manual review required")
+        reject_if_final(repaired, original)
+        decision = repaired.get("editorial_decision", {})
+        briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
+        briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
+        if (decision.get("ready_to_post") is not True or
+                not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip() or
+                not isinstance(decision.get("evidence"), list) or not decision["evidence"] or
+                not all(isinstance(e, str) and "https://" in e for e in decision["evidence"]) or
+                not isinstance(decision.get("unverified_claims"), list) or
+                not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
+            return None
+        if decision["unverified_claims"] and "couldn't be verified from source" not in entry.get("body_markdown", "").lower():
+            return None
+        if len(entry.get("sources_text", "")) > 1900:
+            # Keep every direct citation, moving verbose evidence descriptions to the audit note.
+            citations = list(dict.fromkeys(re.findall(r"https://[^\s<>]+", entry["sources_text"])))
+            compact = "\n".join(citations)
+            if citations and len(compact) <= 1900:
+                entry["notes"] = (entry.get("notes", "") + "\nSource descriptions: " + entry["sources_text"]).strip()
+                entry["sources_text"] = compact
+        if entry.get("desk_ambiguous") is not False or not has_direct_source_url(entry):
+            return None
+        repaired = fit_signal_briefs(repaired)
+        if decision["unverified_claims"] and "couldn't be verified from source" not in repaired["notion_entries"][0]["body_markdown"].lower():
+            return None
+        entry = repaired["notion_entries"][0]
+        entry["notes"] = (entry.get("notes", "") + "\nSource cross-check: " + json.dumps(decision)).strip()
+        current = repaired
+    # Claude's source-backed decision resolves a repeated Gemini objection, per policy.
+    log("Claude source cross-check approved supported wording after repeated Gemini concerns")
+    return current
 
+
+def _rich_text_chunks(value):
+    value = str(value or "")
+    if len(value) > 190000:
+        raise ValueError("Private draft exceeds property storage limit; not silently truncated")
+    return [{"text": {"content": value[i:i + 1900]}} for i in range(0, len(value), 1900)]
+
+
+def save_unverified_signal(entry, findings):
+    """Private queue only: never change an existing published page or mark ready."""
+    fingerprint = hashlib.sha256(json.dumps(
+        [entry.get("title"), entry.get("desk"), entry.get("body_markdown")],
+        ensure_ascii=False).encode()).hexdigest()
+    marker = "V2_UNVERIFIED_SIGNAL:" + fingerprint
+    if DRY_RUN:
+        log("DRY RUN: would queue unverified draft: " + entry.get("title", "Untitled")[:120])
+        return None
+    # Idempotent recovery: an identical rejected draft is not created twice.
+    response = requests.post(
+        f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query",
+        headers=NOTION_HEADERS,
+        json={"page_size": 100, "filter": {"and": [
+              {"property": "Internal Note", "rich_text": {"contains": marker}},
+              {"property": "Ready to Post", "checkbox": {"equals": False}}]}}, timeout=30)
+    if response.status_code != 200:
+        raise RuntimeError("Private queue lookup failed: HTTP " + str(response.status_code))
+    matches = response.json().get("results", [])
+    if matches:
+        return matches[0]["id"]
+    notes = marker + "\nAwaiting editorial review; not approved for publication.\n" + str(findings)
+    properties = {
+        "Name": {"title": [{"text": {"content": entry.get("title", "Untitled draft")[:500]}}]},
+        "Signal Brief": {"rich_text": _rich_text_chunks(entry.get("body_markdown", ""))},
+        "Text 1": {"rich_text": _rich_text_chunks(entry.get("sources_text", ""))},
+        "Internal Note": {"rich_text": _rich_text_chunks(notes)},
+        "Ready to Post": {"checkbox": False},
+        "Long Read": {"checkbox": False},
+        "Content Type": {"select": {"name": "Signal"}},
+        "Today's Intelligence": {"checkbox": False},
+    }
+    if entry.get("desk") in DESKS:
+        properties["Category"] = {"select": {"name": entry["desk"]}}
+    # Retain the original metadata and rejected update target privately.
+    original = json.dumps(entry, ensure_ascii=False, indent=2)
+    children = [{"object": "block", "type": "paragraph", "paragraph": {
+        "rich_text": [{"type": "text", "text": {"content": original[i:i + 1900]}}]}}
+        for i in range(0, len(original), 1900)]
+    if len(children) > 100:
+        raise ValueError("Private draft exceeds queue storage limit; not silently truncated")
+    response = requests.post("https://api.notion.com/v1/pages", headers=NOTION_HEADERS,
+        json={"parent": {"database_id": NOTION_DATABASE_ID},
+              "properties": properties, "children": children}, timeout=30)
+    if response.status_code not in (200, 201):
+        raise RuntimeError("Private queue write failed: HTTP " + str(response.status_code))
+    page_id = response.json()["id"]
+    log("QUEUED UNVERIFIED: " + entry.get("title", "Untitled")[:120])
+    try:
+        try:
+            from pipeline.queue_notifications import notify_private_draft
+        except ImportError:
+            from queue_notifications import notify_private_draft
+        notify_private_draft(page_id, entry, notes, NOTION_HEADERS, dry_run=DRY_RUN)
+    except Exception as alert_error:
+        # The draft is safe in Notion; periodic queue checks can retry unclaimed alerts.
+        log("WARNING: Private queue alert unavailable (" + type(alert_error).__name__ + ")")
+    return page_id
+
+
+class FinalEditorialRejection(Exception):
+    def __init__(self, entry, rationale):
+        super().__init__(rationale)
+        self.entry = entry
+
+
+def reject_if_final(repaired, original):
+    """Destructive disposition must be explicit, evidenced, and for this draft."""
+    decision = repaired.get("editorial_decision", {})
+    if not isinstance(decision, dict) or decision.get("disposition") != "discard":
+        return
+    entries = repaired.get("notion_entries", [])
+    if (decision.get("ready_to_post") is not False
+            or not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip()
+            or not isinstance(decision.get("evidence"), list) or not decision["evidence"]
+            or not all(isinstance(e, str) and "https://" in e for e in decision["evidence"])
+            or not isinstance(entries, list) or len(entries) != 1 or not isinstance(entries[0], dict)
+            or any(entries[0].get(k) != original.get(k) for k in ("desk", "action", "existing_id"))):
+        raise ValueError("Discard verdict malformed or changed story identity; manual review required")
+    raise FinalEditorialRejection(entries[0], decision["rationale"])
+
+
+def discard_rejected_draft(original, rejected):
+    """Automatic rejection is retained for manual choice; only Delete trashes Notion."""
+    return save_unverified_signal(rejected, 'Claude did not approve; manual review required')
+
+
+def _claude_final_recovery(briefing_data, original, reason):
+    """One fresh source-backed adjudication; no Gemini veto or unbounded retry."""
+    recovered_input = json.loads(json.dumps(briefing_data))
+    versions = briefing_data.get("_reviewed_versions", [])
+    recovered_input["notion_entries"] = [dict(versions[-1] if versions else original)]
+    findings = "\n\n".join(briefing_data.get("_verification_findings", []))
+    instruction = (
+        "Automatic recovery after an incomplete or rejected review. Recheck the CURRENT "
+        "draft from live sources, including every material claim, not just prior flags. "
+        "Prior verdicts are context, not proof. Approve only supported reporting. "
+        "Return a plain-prose brief of 2-3 paragraphs, at most 1800 characters; "
+        "sources_text must contain direct HTTPS article URLs and fit 1900 characters. "
+        "Do not change desk, action or existing_id.\nFailure: " + reason +
+        "\nPrior findings:\n" + findings)
+    repaired = claude_respond_to_flags(recovered_input, instruction, is_repeat_concern=True)
+    if not isinstance(repaired, dict) or not isinstance(repaired.get("notion_entries"), list) or len(repaired["notion_entries"]) != 1:
+        raise ValueError("Recovery Claude response missing one valid entry")
+    entry = repaired["notion_entries"][0]
+    if not isinstance(entry, dict):
+        raise ValueError("Recovery Claude entry malformed")
+    if entry.get("desk") != original.get("desk"):
+        raise ValueError("Recovery changed story identity: desk")
+    # The verdict concerns this draft; a model cannot select a publication/deletion target.
+    entry["action"] = original.get("action")
+    entry["existing_id"] = original.get("existing_id")
+    briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
+    reject_if_final(repaired, original)
+    decision = repaired.get("editorial_decision", {})
+    briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
+    if not isinstance(decision, dict):
+        raise ValueError("Recovery Claude verdict malformed")
+    if decision.get("ready_to_post") is not True:
+        raise ValueError("Recovery Claude withheld publication: " + str(decision.get("rationale", "No explicit approval"))[:1000])
+    if (not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip()
+            or not isinstance(decision.get("evidence"), list) or not decision["evidence"]
+            or not all(isinstance(e, str) and "https://" in e for e in decision["evidence"])
+            or not isinstance(decision.get("unverified_claims"), list)
+            or not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
+        raise ValueError("Recovery Claude approval lacks required evidence or decision fields")
+    if entry.get("desk_ambiguous") is not False or entry.get("desk") not in DESKS:
+        raise ValueError("Recovery desk classification unresolved")
+    if not has_direct_source_url(entry):
+        raise ValueError("Recovery missing valid direct article sources")
+    body = entry.get("body_markdown", "")
+    if (not isinstance(body, str) or not 0 < len(body.strip()) <= 1800
+            or not 2 <= len([p for p in body.strip().split("\n\n") if p.strip()]) <= 3
+            or any(label in body.lower() for label in ("why it matters:", "what happened:", "##", "**"))):
+        raise ValueError("Recovery brief does not meet publication format")
+    if decision["unverified_claims"] and "couldn't be verified from source" not in body.lower():
+        raise ValueError("Recovery missing public uncertainty label")
+    entry["notes"] = (entry.get("notes", "") + "\nAutomatic Claude recovery: " + json.dumps(decision)).strip()
+    log("Claude automatic recovery approved source-backed reporting")
+    return repaired
+
+
+def verify_with_gemini_loop(briefing_data, max_rounds=1):
+    """Retain rejected drafts privately; independent approved stories continue."""
+    approved, withheld = [], []
+    for entry in briefing_data["notion_entries"]:
+        log(f"Reviewing Signal: {entry.get('title', '')[:120]}")
+        isolated = dict(briefing_data, notion_entries=[dict(entry)])
+        isolated["_verification_findings"] = []
+        isolated["_reviewed_versions"] = []
+        try:
+            if entry.get("desk_ambiguous") is not False:
+                raise ValueError("Desk classification requires editorial confirmation")
+            if not has_direct_source_url(entry):
+                raise ValueError("Missing or invalid direct source URL")
+            isolated = fit_signal_briefs(isolated)
+            result = _verify_single_signal(isolated, max_rounds=max_rounds)
+            if result is None:
+                reason = "Claude source cross-check did not approve publication; manual review required."
+            else:
+                approved.extend(result["notion_entries"])
+                continue
+        except FinalEditorialRejection as rejection:
+            save_unverified_signal(rejection.entry, str(rejection))
+            continue
+        except (Exception, SystemExit) as error:
+            # Never silently approve on provider/format errors; preserve the draft.
+            reason = "Verification incomplete (" + type(error).__name__ + ")."
+            if isinstance(error, ValueError) and (str(error).startswith("Free review") or str(error).startswith("Source evidence")):
+                reason = str(error)
+            elif "credit balance is too low" in str(error).lower():
+                reason = "Verification incomplete: Anthropic API credits exhausted."
+            elif isinstance(error, ValueError) and str(error) in (
+                    "Desk classification requires editorial confirmation", "Missing or invalid direct source URL",
+                    "Signal Brief format requires manual review; no paid rewrite attempted",
+                    "Fact-review provider unavailable", "Fact-review response malformed",
+                    "Fact-review response missing valid FLAGS count", "Fact-review count and concern lines disagree"):
+                reason = str(error)
+            if isinstance(error, ValueError):
+                reason = str(error)[:1000]
+            log("REVIEW ERROR: " + reason)
+        # Every held draft gets exactly one fresh Claude adjudication in this cycle.
+        # Preserve the first failure, even if the recovery fails technically.
+        isolated.setdefault("_verification_findings", []).append("Initial hold: " + reason)
+        try:
+            recovered = _claude_final_recovery(isolated, entry, reason)
+            approved.extend(recovered["notion_entries"])
+            continue
+        except FinalEditorialRejection as rejection:
+            save_unverified_signal(rejection.entry, str(rejection))
+            continue
+        except (Exception, SystemExit) as recovery_error:
+            if isinstance(recovery_error, ValueError):
+                reason = str(recovery_error)
+            else:
+                reason = "Automatic Claude recovery incomplete (" + type(recovery_error).__name__ + "); draft remains private."
+            isolated["_verification_findings"].append("Final hold: " + reason)
+            log("RECOVERY HOLD: " + reason)
+        findings = "\n\n".join(isolated.get("_verification_findings", []))
+        versions = isolated.get("_reviewed_versions", [])
+        queued_entry = dict(versions[-1] if versions else entry)
+        queued_entry["original_draft"] = entry
+        save_unverified_signal(queued_entry, reason + "\n" + findings)
+        withheld.append(entry.get("title", "Untitled"))
+    briefing_data["notion_entries"] = approved
+    briefing_data["unverified_count"] = len(withheld)
+    log(f"Fact review complete: {len(approved)} approved, {len(withheld)} queued for private review")
     return briefing_data
 
 
 
 
+def release_module():
+    try:
+        from pipeline import regional_release
+    except ImportError:
+        import regional_release
+    return regional_release
+
+
+def mark_publication_changed():
+    """Notify the workflow only after a successful live public Notion write."""
+    if DRY_RUN or not os.environ.get("GITHUB_OUTPUT"):
+        return
+    with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+        output.write("notion_stage_attempted=true\n")
+    with open("notion-stage-attempted.json", "w") as marker:
+        json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
+                   "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                   "edition_date": dubai_today()}, marker)
+
+
 def push_to_notion(entries, valid_existing_ids):
+    entries = sourced_signals(entries)
     import re as _re
     # Validate the entire batch before the first write. A Signal is a concise
     # report, not a long-form article split across Notion rich-text blocks.
     for entry in entries:
         body = entry.get("body_markdown", "")
         sources = entry.get("sources_text", "")
+        if entry.get("desk_ambiguous") is not False:
+            fail_hard(f"Desk classification unconfirmed: {entry.get('title', '')[:90]}")
+        themes = entry.get("coverage_theme")
+        related = entry.get("related_desks")
+        if (not isinstance(themes, list) or len(themes) > 3 or
+                any(not isinstance(t, str) or not t.strip() for t in themes) or
+                not isinstance(related, list) or
+                any(d not in DESKS or d == entry.get("desk") for d in related)):
+            fail_hard(f"Invalid desk/theme metadata: {entry.get('title', '')[:90]}")
+        if not isinstance(entry.get("watchlist"), bool):
+            fail_hard(f"Watchlist decision missing: {entry.get('title', '')[:90]}")
+        trigger = entry.get("watch_trigger")
+        review = entry.get("next_review")
+        if entry["watchlist"]:
+            try:
+                valid_review = (isinstance(review, str) and
+                                datetime.date.fromisoformat(review).isoformat() == review and
+                                review >= dubai_today())
+            except (ValueError, TypeError):
+                valid_review = False
+            if not isinstance(trigger, str) or not trigger.strip() or not valid_review:
+                fail_hard(f"Watchlist trigger or review date invalid: {entry.get('title', '')[:90]}")
+        elif trigger or review:
+            fail_hard(f"Non-Watchlist entry has Watchlist metadata: {entry.get('title', '')[:90]}")
         if not isinstance(body, str) or not body.strip() or len(body) > 1800:
             fail_hard(f"Desk entry has missing or overlong brief: {entry.get('title', '')[:90]}")
+        if "\n\n" not in body or any(label in body.lower() for label in
+                                     ("why it matters:", "what happened:", "##", "**")):
+            fail_hard(f"Desk entry lacks plain-prose paragraph structure: {entry.get('title', '')[:90]}")
         if not isinstance(sources, str) or len(sources) > 1900 or not _re.search(r"https://\S+", sources):
             fail_hard(f"Desk entry lacks a direct source URL: {entry.get('title', '')[:90]}")
         if entry.get("action") == "update" and entry.get("existing_id") not in valid_existing_ids:
@@ -1019,14 +1220,15 @@ def push_to_notion(entries, valid_existing_ids):
             "Signal Brief": {"rich_text": [{"text": {"content": signal_brief}}]},
             "Text 1": {"rich_text": [{"text": {"content": sources_text}}]},
             "Long Read": {"checkbox": False},
-            "Ready to Post": {"checkbox": True},  # fully automatic, per instruction
+            "Ready to Post": {"checkbox": False},
         }
-        if entry.get("notes"):
-            properties["Internal Note"] = {"rich_text": [{"text": {"content": entry["notes"][:2000]}}]}
+        from_release = release_module()
+        properties["Internal Note"] = {"rich_text": _rich_text_chunks(
+            from_release.pending_note(entry.get("notes", ""),
+                target=entry.get("existing_id") if entry.get("action") == "update" else None,
+                edition=os.environ.get("V2_EDITION_DATE") or dubai_today()))}
 
-        # Diagnostic-only: log what the model generated for the new metadata fields regardless
-        # of NEW_METADATA_STAGE_LIVE, so compliance can be verified before that gate is ever
-        # flipped to True. This never affects what gets written to Notion.
+        # Log the editorial metadata for traceability alongside the Notion write.
         log(f"DIAGNOSTIC (new fields, not yet written to Notion) for '{entry['title']}': "
             f"coverage_theme={entry.get('coverage_theme')!r}, "
             f"related_desks={entry.get('related_desks')!r}, "
@@ -1034,9 +1236,7 @@ def push_to_notion(entries, valid_existing_ids):
             f"watch_trigger={entry.get('watch_trigger')!r}, "
             f"next_review={entry.get('next_review')!r}")
 
-        # New metadata fields — only included once Stage 1C has created these properties in the
-        # live Notion database. Including an unrecognized property name in a Notion write payload
-        # causes the whole request to fail with a 400, so this MUST stay gated until confirmed.
+        # The live Stage 1C schema carries these fields on new Signals.
         if NEW_METADATA_STAGE_LIVE:
             properties["Content Type"] = {"select": {"name": "Signal"}}
             coverage_theme = entry.get("coverage_theme") or []
@@ -1066,30 +1266,47 @@ def push_to_notion(entries, valid_existing_ids):
             summary.append(f"[DRY RUN] {action_label} — {entry['title']} ({desk})")
             continue
 
-        if is_update:
-            url = f"https://api.notion.com/v1/pages/{entry['existing_id']}"
-            resp = requests.patch(url, headers=NOTION_HEADERS, json={"properties": properties}, timeout=30)
-        else:
-            url = "https://api.notion.com/v1/pages"
-            payload = {
-                "parent": {"database_id": NOTION_DATABASE_ID},
-                "properties": properties,
-            }
-            resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
+        # A staged update never overwrites or unpublishes an already-public page.
+        url = "https://api.notion.com/v1/pages"
+        payload = {"parent": {"database_id": NOTION_DATABASE_ID}, "properties": properties}
+        resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
 
         if resp.status_code not in (200, 201):
             log(f"WARNING: Notion write failed for '{entry['title']}' — skipping this entry, "
                 f"continuing with the rest of the run. {resp.status_code} {resp.text[:500]}")
             continue
 
+        mark_publication_changed()
         summary.append(f"{action_label} — {entry['title']} ({desk})" + (f" [NOTE: {entry['notes']}]" if entry.get("notes") else ""))
         log(summary[-1])
 
     return summary
 
 
+def write_verified_special_entry(title, body, sources_text, content_type, primary_desk=None,
+                                 related_desks=None, existing_id=None):
+    """Use the same Claude/Gemini policy and private hold queue as ordinary Signals."""
+    desk = primary_desk if primary_desk in DESKS else DESKS[0]
+    entry = {"title": title, "body_markdown": body, "sources_text": sources_text,
+             "desk": desk, "desk_ambiguous": False, "action": "update" if existing_id else "create",
+             "existing_id": existing_id, "coverage_theme": [],
+             "related_desks": [d for d in (related_desks or []) if d in DESKS and d != desk],
+             "watchlist": False, "watch_trigger": "", "next_review": "",
+             "notes": "Content Type: " + content_type}
+    reviewed = verify_with_gemini_loop({"notion_entries": [entry]})
+    if not reviewed["notion_entries"]:
+        log(f"{content_type} withheld for manual review")
+        return None
+    approved = reviewed["notion_entries"][0]
+    return write_special_entry(approved["title"], approved["body_markdown"],
+                               approved["sources_text"], content_type,
+                               primary_desk=primary_desk, related_desks=related_desks,
+                               existing_id=existing_id,
+                               notes=approved.get("notes", "") + "\nPassed Claude/Gemini publication policy.")
+
+
 def write_special_entry(title, body, sources_text, content_type, primary_desk=None,
-                         related_desks=None, existing_id=None):
+                         related_desks=None, existing_id=None, notes=""):
     """Write a Cross-Desk or Briefing entry. Unlike push_to_notion, this does NOT require a
     single validated desk (Cross-Desk pieces span multiple desks by definition) — primary_desk
     is used only if provided (picking the most central desk as Category, per the same
@@ -1105,12 +1322,15 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
 
     properties = {
         "Name": {"title": [{"text": {"content": title}}]},
-        "Signal Brief": {"rich_text": [{"text": {"content": body[:2000]}}]},
-        "Text 1": {"rich_text": [{"text": {"content": sources_text[:2000]}}]},
+        "Signal Brief": {"rich_text": _rich_text_chunks(body)},
+        "Text 1": {"rich_text": _rich_text_chunks(sources_text)},
         "Long Read": {"checkbox": False},
-        "Ready to Post": {"checkbox": True},
+        "Ready to Post": {"checkbox": False},
         "Content Type": {"select": {"name": content_type}},
     }
+    properties["Internal Note"] = {"rich_text": _rich_text_chunks(
+        release_module().pending_note(notes, target=existing_id,
+            edition=os.environ.get("V2_EDITION_DATE") or dubai_today()))}
     if primary_desk and primary_desk in DESKS:
         properties["Category"] = {"select": {"name": primary_desk}}
     if related_desks:
@@ -1123,18 +1343,15 @@ def write_special_entry(title, body, sources_text, content_type, primary_desk=No
             f"properties: {json.dumps(properties, default=str)[:600]}")
         return None
 
-    if existing_id:
-        url = f"https://api.notion.com/v1/pages/{existing_id}"
-        resp = requests.patch(url, headers=NOTION_HEADERS, json={"properties": properties}, timeout=30)
-    else:
-        url = "https://api.notion.com/v1/pages"
-        payload = {"parent": {"database_id": NOTION_DATABASE_ID}, "properties": properties}
-        resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
+    url = "https://api.notion.com/v1/pages"
+    payload = {"parent": {"database_id": NOTION_DATABASE_ID}, "properties": properties}
+    resp = requests.post(url, headers=NOTION_HEADERS, json=payload, timeout=30)
 
     if resp.status_code not in (200, 201):
         log(f"WARNING: Failed to {action} {content_type} entry '{title}': {resp.status_code} {resp.text[:500]}")
         return None
-    page_id = existing_id or resp.json().get("id")
+    mark_publication_changed()
+    page_id = resp.json().get("id")
     log(f"{'Updated' if existing_id else 'Created'} {content_type} entry: '{title}' (id={page_id})")
     return page_id
 
@@ -1157,8 +1374,42 @@ def compile_daily_signals():
     return briefing, todays_entries
 
 
+def assemble_daily_send(entries, edition_date=None):
+    """Format already approved reporting without generating new factual claims."""
+    edition_date = edition_date or dubai_today()
+    grouped = []
+    for desk in DESKS:
+        desk_entries = [entry for entry in entries if entry["desk"] == desk]
+        if not desk_entries:
+            continue
+        stories = []
+        for entry in desk_entries:
+            if not entry.get("body") or "https://" not in entry.get("sources", ""):
+                fail_hard(f"Approved Signal lacks report or direct sources: {entry['title'][:90]}")
+            url = f"https://navvyasignal.com/signals/{entry['id']}"
+            first_paragraph = entry["body"].replace("\\n", "\n").split("\n\n", 1)[0].strip()
+            stories.append(f'<li><a href="{html.escape(url, quote=True)}">'
+                           f'{html.escape(entry["title"])}</a><p>{html.escape(first_paragraph)}</p></li>')
+        grouped.append(f'<section><h2>{html.escape(desk.removesuffix(" Desk"))}</h2>'
+                       f'<ul>{"".join(stories)}</ul></section>')
+    subject = f"NavvyaSignal Daily Brief — {edition_date}"
+    email = ('<h1>NavvyaSignal Daily Brief</h1>'
+             f'<p>{html.escape(edition_date)} · Independent global intelligence</p>'
+             + ''.join(grouped) +
+             '<p>Follow the next development at <a href="https://navvyasignal.com">'
+             'navvyasignal.com</a>.</p>')
+    selected = sorted((e for e in entries if e.get("homepage_priority", 0) > 0),
+                      key=lambda e: e["homepage_priority"])
+    whatsapp_entries = (selected or entries)[:7]
+    whatsapp = (f"NavvyaSignal · {edition_date}\n\n" +
+                "\n".join(f"{i}. {e['title']}" for i, e in enumerate(whatsapp_entries, 1)) +
+                "\n\nRead today's intelligence: https://navvyasignal.com")
+    return {"edition_label": edition_date, "email_subject": subject,
+            "email_html": email, "whatsapp_text": whatsapp}
+
+
 TODAYS_INTELLIGENCE_SYSTEM_PROMPT = """You select which of today's already-published NavvyaSignal \
-entries deserve featured placement as "Today's Intelligence" on the homepage. You do NOT research \
+entries deserve inclusion in the curated Daily Brief for email subscribers and the WhatsApp channel. You do NOT research \
 or alter any facts — you are choosing from what's already written, based on genuine real-world \
 significance only.
 
@@ -1166,8 +1417,7 @@ Rules:
 - Choose AT MOST 7 entries. There is NO minimum — if only 2 entries are genuinely important \
 today, select 2. Never pad the selection to reach a target count.
 - Judge only by real-world significance: strategic consequence, scale of impact, how much a \
-reader needs to know this today. Do not favor any particular desk by default — some days West \
-Asia dominates, some days it's Markets, and that's fine.
+reader needs to know this today. Do not favor any particular desk by default — some days North America dominates, other days India or the Middle East, and that's fine.
 - If literally nothing today rises above routine coverage, it is correct to select zero.
 
 Output ONLY valid JSON, no preamble, no code fences:
@@ -1176,8 +1426,9 @@ Use the exact "id" values from the entries provided — do not invent or alter t
 """
 
 
-def select_todays_intelligence(todays_entries):
+def select_todays_intelligence(todays_entries, edition_date=None):
     """Select the V2 edition and write its Dubai date and ordered priorities."""
+    edition_date = edition_date or dubai_today()
     if not NEW_METADATA_STAGE_LIVE:
         log("select_todays_intelligence: new metadata stage not live yet — skipping.")
         return []
@@ -1187,7 +1438,7 @@ def select_todays_intelligence(todays_entries):
     user_prompt = f"""Today's entries (id | desk | title | body):
 {json.dumps([{"id": e["id"], "desk": e["desk"], "title": e["title"], "body": e["body"][:500]} for e in todays_entries], indent=2)}
 
-Select today's Today's Intelligence entries per your instructions."""
+Select the Daily Brief entries per your instructions."""
 
     with client.messages.stream(
         model="claude-sonnet-4-5",
@@ -1213,6 +1464,9 @@ Select today's Today's Intelligence entries per your instructions."""
         return []
     selected_ids = list(dict.fromkeys(i for i in selected_ids if isinstance(i, str) and i in valid_ids))[:7]
 
+    if not selected_ids:
+        fail_hard("Homepage selector returned no valid IDs; prior edition preserved")
+
     # Keep existing edition intact if selection could not be parsed. Once valid,
     # clear only this Dubai day's candidate flags, then set the chosen order.
     for e in todays_entries:
@@ -1226,12 +1480,12 @@ Select today's Today's Intelligence entries per your instructions."""
 
     for priority, entry_id in enumerate(selected_ids, 1):
         if DRY_RUN:
-            log(f"DRY RUN: would select id={entry_id}, date={dubai_today()}, priority={priority}")
+            log(f"DRY RUN: would select id={entry_id}, date={edition_date}, priority={priority}")
             continue
         url = f"https://api.notion.com/v1/pages/{entry_id}"
         resp = requests.patch(url, headers=NOTION_HEADERS, json={"properties": {
             "Today's Intelligence": {"checkbox": True},
-            "Homepage Date": {"date": {"start": dubai_today()}},
+            "Homepage Date": {"date": {"start": edition_date}},
             "Homepage Priority": {"number": priority},
         }}, timeout=30)
         if resp.status_code != 200:
@@ -1241,9 +1495,9 @@ Select today's Today's Intelligence entries per your instructions."""
     return selected_ids
 
 
-CROSS_DESK_SYSTEM_PROMPT = f"""You look for a genuine multi-domain connection among today's \
+CROSS_DESK_SYSTEM_PROMPT = f"""You look for a genuine multi-domain connection among recent approved \
 NavvyaSignal entries and, if one exists, write it up as a single Cross-Desk Signal. You do \
-NOT do new research — synthesize only from the entries provided.
+NOT do new research — synthesize only from the entries provided. Distinguish documented connections from simultaneous events. Do not assert causal links, motives or forecasts without direct source support. State uncertainty explicitly.
 
 A Cross-Desk Signal is a deliberately synthesized piece connecting 2+ domains — e.g. "Why a \
 Hormuz disruption would hit India's energy bill before it hits global oil supply." It is NOT \
@@ -1272,7 +1526,7 @@ If one exists, output:
   "existing_id": "the exact id of the existing Cross-Desk piece if action=update, else null",
   "title": "string",
   "body": "string, max 1800 chars, flowing prose synthesizing the connection — plain text, no markdown",
-  "sources_text": "string, referencing the underlying entries this draws from",
+  "sources_text": "string, direct HTTPS source article URLs from the supplied entries, max 1900 characters",
   "primary_desk": "the single most central desk, using the exact desk name from the list above",
   "related_desks": ["array of exact desk names from the list above genuinely involved, including primary_desk"]
 }}
@@ -1296,7 +1550,7 @@ def fetch_todays_cross_desk_entries():
     if resp.status_code != 200:
         log(f"WARNING: fetch_todays_cross_desk_entries failed: {resp.status_code} {resp.text[:500]}")
         return []
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=COMPILE_WINDOW_HOURS)
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=7)
     items = []
     for page in resp.json().get("results", []):
         edited_time_str = page.get("last_edited_time", "")
@@ -1322,13 +1576,13 @@ def generate_cross_desk_signal(todays_entries):
     if not NEW_METADATA_STAGE_LIVE:
         log("generate_cross_desk_signal: new metadata stage not live yet — skipping.")
         return None
-    if len(todays_entries) < 2:
+    if len({e.get("desk") for e in todays_entries if e.get("desk") in DESKS}) < 2:
         return None
 
     existing_cross_desk = fetch_todays_cross_desk_entries()
 
-    user_prompt = f"""Today's entries (desk | title | body):
-{json.dumps([{"desk": e["desk"], "title": e["title"], "body": e["body"]} for e in todays_entries], indent=2)}
+    user_prompt = f"""Recent approved entries (dates and source links must be respected):
+{json.dumps(todays_entries, indent=2)}
 
 Cross-Desk pieces already published today (id | title | body) — check these BEFORE deciding to \
 create a new piece:
@@ -1362,6 +1616,9 @@ Look for a genuine cross-desk connection per your instructions."""
     # Guard against the model slightly mis-copying an id (same known LLM failure mode handled
     # for regular Signals in push_to_notion) — if action=update but the claimed id doesn't
     # match anything we actually fetched, fall back to create rather than a failed/wrong PATCH.
+    related = data.get("related_desks", [])
+    if len({d for d in related if d in DESKS}) < 2 or data.get("primary_desk") not in DESKS:
+        fail_hard("Cross-Desk draft lacks two confirmed desks")
     existing_id = data.get("existing_id")
     valid_existing_ids = {e["id"] for e in existing_cross_desk}
     if data.get("action") == "update" and existing_id not in valid_existing_ids:
@@ -1369,7 +1626,7 @@ Look for a genuine cross-desk connection per your instructions."""
             f"treating as create instead of update.")
         existing_id = None
 
-    page_id = write_special_entry(
+    page_id = write_verified_special_entry(
         title=data["title"],
         body=data["body"],
         sources_text=data.get("sources_text", ""),
@@ -1484,7 +1741,8 @@ Review for resolutions per your instructions."""
 
 # ---------- STEP 4: Send via Kit ----------
 
-def send_kit(subject, html_content):
+def send_kit(subject, html_content, edition_date=None):
+    edition_date = edition_date or dubai_today()
     if DRY_RUN:
         log("DRY RUN: Kit send suppressed.")
         return None
@@ -1496,6 +1754,7 @@ def send_kit(subject, html_content):
     payload = {
         "subject": subject,
         "content": html_content,
+        "description": f"NavvyaSignal V2 daily {edition_date}",
         "public": False,
         "published_at": send_at,
         "send_at": send_at,
@@ -1507,6 +1766,43 @@ def send_kit(subject, html_content):
     broadcast_id = resp.json()["broadcast"]["id"]
     log(f"Kit broadcast created: id={broadcast_id}, send_at={send_at}")
     return broadcast_id
+
+
+def ensure_daily_send_not_started(edition_date=None):
+    """Fail closed if Kit already has a V2 broadcast for this Dubai day.
+
+    A newly scheduled Kit broadcast is the durable marker for the paired send.
+    Re-dispatching after a partial failure requires operator review, not a second
+    automatic broadcast to the whole list.
+    """
+    edition_date = edition_date or dubai_today()
+    if DRY_RUN:
+        return
+    marker = f"NavvyaSignal V2 daily {edition_date}"
+    cursor = None
+    seen = set()
+    for _ in range(100):
+        params = {"per_page": 1000, "slim": "true"}
+        if cursor:
+            params["after"] = cursor
+        resp = requests.get("https://api.kit.com/v4/broadcasts",
+                            headers={"X-Kit-Api-Key": KIT_API_KEY}, params=params, timeout=30)
+        if resp.status_code != 200:
+            fail_hard(f"Kit duplicate-send check failed: HTTP {resp.status_code}")
+        data = resp.json()
+        if not isinstance(data.get("broadcasts"), list):
+            fail_hard("Kit duplicate-send check returned an invalid response")
+        if any(b.get("description") == marker for b in data["broadcasts"]):
+            log(f"V2 daily send already started for {edition_date}; skipping duplicate delivery.")
+            return False
+        page = data.get("pagination") or {}
+        if not page.get("has_next_page"):
+            return True
+        cursor = page.get("end_cursor")
+        if not cursor or cursor in seen:
+            fail_hard("Kit duplicate-send check pagination failed")
+        seen.add(cursor)
+    fail_hard("Kit duplicate-send check exceeded 100 pages")
 
 
 def verify_kit_sent(broadcast_id, wait_seconds=420):
@@ -1541,14 +1837,40 @@ def send_whapi(text):
         return
     if not WHAPI_TOKEN or not WHAPI_CHANNEL_ID:
         fail_hard("Whapi credentials not configured; WhatsApp send withheld")
-    url = "https://gate.whapi.cloud/messages/text"
+    if not re.fullmatch(r"[0-9]{10,18}@newsletter", WHAPI_CHANNEL_ID):
+        fail_hard("Whapi channel ID is not a newsletter address")
     headers = {"Authorization": f"Bearer {WHAPI_TOKEN}", "Content-Type": "application/json"}
+    channel_path = quote(WHAPI_CHANNEL_ID, safe="@")
+    marker = text.splitlines()[0]
+    def read(path):
+        response = requests.get("https://gate.whapi.cloud" + path, headers=headers, timeout=30)
+        if response.status_code != 200:
+            fail_hard(f"Whapi channel verification failed: HTTP {response.status_code}")
+        return response.json()
+    metadata = read(f"/newsletters/{channel_path}")
+    if metadata.get("role") not in ("admin", "creator", "owner"):
+        fail_hard("Whapi account is not a channel admin or creator")
+    def contains_edition(data):
+        return any(marker in json.dumps(item, ensure_ascii=False)
+                   for item in data.get("messages", []))
+    history_path = f"/newsletters/{channel_path}/messages?count=100"
+    if contains_edition(read(history_path)):
+        log("Today's WhatsApp edition is already visible in channel history; skipping duplicate.")
+        return
+    if contains_edition(read(f"/messages/list/{channel_path}?count=100")):
+        fail_hard("Today's WhatsApp edition is already queued or sent; withholding duplicate")
+    url = "https://gate.whapi.cloud/messages/text"
     payload = {"to": WHAPI_CHANNEL_ID, "body": text}
     resp = requests.post(url, headers=headers, json=payload, timeout=30)
     if resp.status_code != 200 or not resp.json().get("sent"):
         fail_hard(f"Whapi send failed: HTTP {resp.status_code}")
-    log("Whapi message sent successfully.")
-
+    log("Whapi accepted message; checking channel history for publication.")
+    for _ in range(12):
+        time.sleep(15)
+        if contains_edition(read(history_path)):
+            log("WhatsApp edition confirmed in channel history.")
+            return
+    fail_hard("Whapi accepted message, but channel publication was not confirmed")
 
 # ---------- MAIN ----------
 
@@ -1556,6 +1878,10 @@ def main():
     log(f"Starting NavvyaSignal automated run (type={RUN_TYPE})")
     if RUN_TYPE == 'compile_send' and not DRY_RUN and int(os.environ.get('GITHUB_RUN_ATTEMPT', '1')) > 1:
         fail_hard('compile_send rerun blocked to prevent a duplicate Kit/WhatsApp edition')
+    if RUN_TYPE == 'compile_send' and not DRY_RUN and (
+            os.environ.get('V2_SENDER_ENABLED') != 'true' or
+            os.environ.get('V2_LEGACY_SENDER_DISABLED') != 'true'):
+        fail_hard('V2 sender and legacy cutover gates must both be true')
 
     if RUN_TYPE == "whapi_test":
         # Test-only path, manual trigger via workflow_dispatch only (never on a schedule).
@@ -1563,15 +1889,14 @@ def main():
         # it doesn't call either.
         return run_whapi_test()
 
-    required = {
-        "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY,
-        "NOTION_API_KEY": NOTION_API_KEY,
-        "NOTION_DATABASE_ID": NOTION_DATABASE_ID,
-    }
-    if RUN_TYPE != "site_only":
-        required["GEMINI_API_KEY"] = GEMINI_API_KEY
+    required = {"NOTION_API_KEY": NOTION_API_KEY,
+                "NOTION_DATABASE_ID": NOTION_DATABASE_ID}
+    if RUN_TYPE not in ("site_only", "compile_send"):
+        required["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
     if RUN_TYPE == "compile_send":
         required["KIT_API_KEY"] = KIT_API_KEY
+        required["WHAPI_TOKEN"] = WHAPI_TOKEN
+        required["WHAPI_CHANNEL_ID"] = WHAPI_CHANNEL_ID
     missing = [name for name, value in required.items() if not value]
     if missing:
         fail_hard(f"Missing required secret(s): {', '.join(missing)}. Check GitHub Actions secrets.")
@@ -1586,9 +1911,14 @@ def main():
     if RUN_TYPE in GROUPS:
         return run_group(RUN_TYPE)
     elif RUN_TYPE == "site_only":
-        return run_site_only()
+        fail_hard("Retired run type: use the 09:00 regional release workflow")
     elif RUN_TYPE == "compile_send":
         return run_compile_send()
+    elif RUN_TYPE == "cross_desk":
+        entries = fetch_week_entries_for_synthesis()
+        page_id = generate_cross_desk_signal(entries)
+        return {"edition_label": "cross_desk", "entry_count": int(bool(page_id)),
+                "notion_summary": [page_id] if page_id else [], "sent_output": False}
     elif RUN_TYPE == "weekly_synthesis":
         return run_weekly_synthesis()
     else:
@@ -1613,6 +1943,8 @@ def run_group(run_type):
     scope_desks = GROUPS[run_type]
     log(f"Desk run scoped to: {', '.join(scope_desks)}")
 
+    if not DRY_RUN:
+        release_module().Notion().ensure_schema()
     existing = fetch_existing_entries()
     log(f"Fetched {len(existing)} existing Notion entries for dedup reference.")
 
@@ -1631,9 +1963,7 @@ def run_group(run_type):
                 f"'{entry.get('desk')}' — not in this run's scope ({', '.join(scope_desks)}).")
     briefing["notion_entries"] = in_scope_entries
 
-    briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
-    if any(len(e.get("body_markdown", "")) > 1800 for e in briefing["notion_entries"]):
-        briefing = verify_with_gemini_loop(fit_signal_briefs(briefing))
+    briefing = verify_with_gemini_loop(briefing)
 
     valid_existing_ids = {e["id"] for e in existing}
     notion_summary = push_to_notion(briefing["notion_entries"], valid_existing_ids)
@@ -1673,63 +2003,40 @@ def run_whapi_test():
     return {"edition_label": "whapi_test", "entry_count": 1, "notion_summary": [latest["title"]], "sent_output": True}
 
 
-def run_site_only():
-    """Select an edition from approved Notion entries; no email or WhatsApp."""
-    todays_entries = fetch_todays_entries_for_compile()
-    selected_ids = select_todays_intelligence(todays_entries)
-    if selected_ids and not DRY_RUN and os.environ.get("GITHUB_OUTPUT"):
-        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-            output.write("notion_stage_attempted=true\n")
-        with open("notion-stage-attempted.json", "w") as marker:
-            json.dump({"run_id": os.environ.get("GITHUB_RUN_ID"),
-                       "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
-                       "edition_date": dubai_today()}, marker)
-    return {"edition_label": dubai_today(), "entry_count": len(todays_entries),
-            "notion_summary": [f"Selected {len(selected_ids)} homepage entries"],
-            "sent_output": False}
+def daily_brief_entries(entries):
+    """Both delivery surfaces receive the same nightly selection, never the whole feed."""
+    return sorted((e for e in entries if isinstance(e.get('homepage_priority'), (int, float))
+                   and 0 < e['homepage_priority'] < float('inf')),
+                  key=lambda e: (e['homepage_priority'], e['id']))[:7]
 
 
 def run_compile_send():
-    """Orchestrates the daily compile + send, plus the new Today's Intelligence / Cross-Desk /
-    Watchlist stages. Each new stage is independently wrapped — a failure in any one of them is
-    logged and skipped, never blocking the core email/WhatsApp send. The core flow (fetch ->
-    compile -> Kit -> verify -> Whapi) behaves exactly as it did before this refactor unless one
-    of the new stages explicitly fails, per the specified design."""
-    briefing, todays_entries = compile_daily_signals()
-
-    outcomes = {}
-    try:
-        select_todays_intelligence(todays_entries)
-        outcomes["selection"] = "ran"
-    except Exception as e:
-        outcomes["selection"] = "raised"
-        log(f"WARNING: select_todays_intelligence raised an exception (skipped, not fatal): {e}")
-
-    try:
-        generate_cross_desk_signal(todays_entries)
-        outcomes["cross_desk"] = "ran"
-    except Exception as e:
-        outcomes["cross_desk"] = "raised"
-        log(f"WARNING: generate_cross_desk_signal raised an exception (skipped, not fatal): {e}")
-
-    try:
-        resolve_watchlist_items(todays_entries)
-        outcomes["watchlist"] = "ran"
-    except Exception as e:
-        outcomes["watchlist"] = "raised"
-        log(f"WARNING: resolve_watchlist_items raised an exception (skipped, not fatal): {e}")
-
-    if not DRY_RUN and os.environ.get("GITHUB_RUN_ID") and os.environ.get("GITHUB_RUN_ATTEMPT"):
-        marker = {"run_id": os.environ["GITHUB_RUN_ID"], "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-                  "edition_date": dubai_today(), "outcomes": outcomes}
-        with open("notion-stage-attempted.json", "w") as f:
-            json.dump(marker, f)
-        if os.environ.get("GITHUB_OUTPUT"):
-            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write("notion_stage_attempted=true\n")
-        log(f"V2 Notion stage attempted; outcomes={outcomes}")
-
-    broadcast_id = send_kit(briefing["email_subject"], briefing["email_html"])
+    """Compile approved Signals and send one edition; site selection is independent."""
+    edition_date = daily_send_edition_date()
+    log(f"Compiling Dubai edition: {edition_date}")
+    if ensure_daily_send_not_started(edition_date) is False:
+        return {"edition_label": edition_date, "entry_count": 0,
+                "notion_summary": ["Daily edition already sent; duplicate delivery skipped"],
+                "sent_output": False}
+    if not DRY_RUN:
+        try:
+            from pipeline.verify_regional_send import check
+        except ImportError:
+            from verify_regional_send import check
+        check()
+    todays_entries = fetch_todays_entries_for_compile(edition_date)
+    log(f"Fetched {len(todays_entries)} approved Signals for Dubai edition {edition_date}.")
+    if not todays_entries:
+        fail_hard(f"No approved Signals for Dubai edition {edition_date}; daily send withheld")
+    selected_entries = daily_brief_entries(todays_entries)
+    if not selected_entries:
+        fail_hard(f"No curated Daily Brief selection for {edition_date}; send withheld")
+    todays_entries = selected_entries
+    briefing = assemble_daily_send(todays_entries, edition_date)
+    log(f"Assembled {len(todays_entries)} email stories and "
+        f"{min(len([e for e in todays_entries if e.get('homepage_priority', 0) > 0]) or len(todays_entries), 7)} "
+        "WhatsApp headlines from approved Signals.")
+    broadcast_id = send_kit(briefing["email_subject"], briefing["email_html"], edition_date)
     if not verify_kit_sent(broadcast_id):
         fail_hard("Kit broadcast not confirmed; WhatsApp send withheld to avoid divergent editions")
     send_whapi(briefing["whatsapp_text"])

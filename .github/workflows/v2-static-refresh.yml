@@ -1,51 +1,45 @@
-name: V2 static content refresh
-
-# Optional safety net; keep disabled while Netlify build credits are limited.
-# It only POSTs the isolated V2 Netlify site's build hook.
+name: Explicit exceptional publication
 on:
-  schedule:
-    # 07:10 Dubai, once daily only when the separate safety-net flag is enabled.
-    - cron: '10 3 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Validate the secret and format only; do NOT trigger a build (default: true)'
         type: boolean
         default: true
-
+      publish_now:
+        description: Explicitly authorize an exceptional production build
+        type: boolean
+        default: false
 permissions:
   contents: read
-
 concurrency:
-  group: v2-static-content-refresh
+  group: regional-publication
   cancel-in-progress: false
-
 jobs:
-  refresh:
-    if: github.repository == 'XyLyX/navvyasignal-v2' && (vars.V2_REFRESH_SAFETY_NET_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run))
+  release:
+    if: github.repository == 'XyLyX/navvyasignal-v2'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     environment: v2-preview
+    timeout-minutes: 30
     steps:
-      - name: Trigger isolated V2 Netlify build hook
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r pipeline/requirements.txt
+      - name: Check public snapshot without building
+        if: inputs.dry_run || !inputs.publish_now
         env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          DRY_RUN: 'true'
+        run: python pipeline/refresh_publication.py
+      - name: Publish explicitly approved Now action
+        if: inputs.publish_now && !inputs.dry_run
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
           V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
-          # Manual runs default to a dry run; scheduled runs always trigger the build.
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: |
-          set -euo pipefail
-          if [ -z "${V2_NETLIFY_BUILD_HOOK:-}" ]; then
-            echo 'V2_NETLIFY_BUILD_HOOK is not configured; no deployment triggered.'
-            exit 1
-          fi
-          if ! printf '%s' "$V2_NETLIFY_BUILD_HOOK" | grep -Eq '^https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+$'; then
-            echo 'Invalid Netlify build hook URL format; no deployment triggered.'
-            exit 1
-          fi
-          if [ "${DRY_RUN:-false}" = 'true' ]; then
-            echo 'Dry run: the secret is configured and well formed. No build was triggered.'
-            exit 0
-          fi
-          curl --fail --silent --show-error --retry 2 --max-time 30 \
-            -X POST "$V2_NETLIFY_BUILD_HOOK"
-          echo 'V2 preview build queued; deployment success must be checked separately.'
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: 'false'
+        run: python pipeline/regional_release.py --exceptional
