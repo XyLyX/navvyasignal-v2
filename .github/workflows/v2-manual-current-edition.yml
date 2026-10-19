@@ -1,0 +1,50 @@
+name: Manual current regional edition
+run-name: Manual fresh research and site update
+on:
+  push:
+    branches: [main]
+    paths: ['ops/manual-edition-request.json']
+  workflow_dispatch:
+    inputs:
+      edition_date:
+        type: string
+        description: Intended Dubai edition YYYY-MM-DD
+      dry_run:
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: regional-publication
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r pipeline/requirements.txt
+      - name: Research four regions, stage approved stories, release and verify once
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          V2_EDITION_DATE: ${{ inputs.edition_date }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python pipeline/manual_current_edition.py
+      - name: Notify held Unverified Signals privately
+        if: always()
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python pipeline/notify_unverified.py

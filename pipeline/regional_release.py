@@ -220,12 +220,14 @@ def publish_once(api, ledger, state):
     state['phase']='verified';api.save_ledger(ledger,state)
 
 
-def run(edition=None, now=None, exceptional=False):
+def run(edition=None, now=None, exceptional=False, manual_key=None):
     now = (now or dt.datetime.now(TZ)).astimezone(TZ)
     edition = edition or now.date().isoformat()
     if dt.date.fromisoformat(edition).isoformat()!=edition or edition>now.date().isoformat():
         raise ValueError('Invalid release edition date')
-    if not exceptional and edition==now.date().isoformat() and now.time()<dt.time(9):
+    if manual_key is not None and not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',manual_key):
+        raise ValueError('Invalid explicit manual release key')
+    if not exceptional and not manual_key and edition==now.date().isoformat() and now.time()<dt.time(9):
         raise ValueError('Publication cannot run before 09:00 Dubai')
     api=Notion()
     if os.environ.get('DRY_RUN','true').lower()=='true':
@@ -238,6 +240,7 @@ def run(edition=None, now=None, exceptional=False):
         try: from pipeline import refresh_publication as refresh
         except ImportError: import refresh_publication as refresh
         key=POLICY['version']+'/now/'+hashlib.sha256(json.dumps(refresh.fetch_entries(),sort_keys=True).encode()).hexdigest()
+    elif manual_key: key=POLICY['version']+'/manual/'+manual_key
     else: key=POLICY['version']+'/'+edition
     ledger,state=api.ledger(key)
     if not exceptional and state['phase']=='staging':
