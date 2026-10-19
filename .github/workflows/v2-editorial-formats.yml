@@ -1,0 +1,64 @@
+name: Editorial formats — daily assessment and completed-week synthesis
+on:
+  schedule:
+    - cron: '0 4 * * *' # 08:00 Dubai, before the single 09:00 release
+  workflow_dispatch:
+    inputs:
+      edition_date:
+        type: string
+        description: Dubai publication date YYYY-MM-DD
+      dry_run:
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths: ['ops/editorial-recovery-request.json']
+permissions:
+  contents: read
+concurrency:
+  group: regional-publication
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check external scheduler ownership
+        id: timer
+        if: github.event_name == 'schedule'
+        env:
+          SCHEDULER_STATUS_URL: https://navvyasignal.com/api/scheduler-status
+        run: python pipeline/scheduler_ownership.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r pipeline/requirements.txt
+      - name: Prepare verified editorial formats without a build
+        if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          OPS_NOTIFY_NUMBER: ${{ secrets.OPS_NOTIFY_NUMBER }}
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          V2_EDITION_DATE: ${{ inputs.edition_date }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            python -m pipeline.recover_editorial_formats
+          else
+            python -m pipeline.editorial_formats
+          fi
+      - name: Notify private held drafts
+        if: always() && (github.event_name != 'schedule' || steps.timer.outputs.external == 'false')
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python pipeline/notify_unverified.py

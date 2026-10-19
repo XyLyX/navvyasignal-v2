@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {dueJobs,dispatchOnce,schedulerActive,slots} from '../src/lib/editorial-scheduler.ts';
-test('four regional desks, one release and one send at exact Dubai times',()=>{
+test('four regional desks, editorial preparation, one release and one send at exact Dubai times',()=>{
  assert.deepEqual(slots().map(s=>[s.runType,(s.utcHour+4)%24,s.minute]),[
- ['north_america',2,30],['europe',4,0],['india_subcontinent',5,30],['uae_middle_east',7,0],['daily_release',9,0],['compile_send',10,0]]);
+ ['north_america',2,30],['europe',4,0],['india_subcontinent',5,30],['uae_middle_east',7,0],['editorial_formats',8,0],['daily_release',9,0],['compile_send',10,0]]);
 });
 test('North America crosses UTC day with correct Dubai edition and no half-hour refresh',()=>{
  const jobs=dueJobs(new Date('2026-10-02T22:35:00Z'),'2026-10-02T00:00:00Z');
@@ -48,3 +48,13 @@ test('GitHub rejection throws and persists a diagnostic status without token',as
  assert.equal(JSON.parse(store.data.get(job.key)!).status,403);
 });
 
+
+test('08:00 editorial preparation is distinct from desks, build and send',async()=>{
+ const job=dueJobs(new Date('2026-10-19T04:05:00Z'),'2026-10-01T00:00:00Z')[0];
+ assert.equal(job.runType,'editorial_formats');assert.equal(job.workflow,'v2-editorial-formats.yml');
+ await dispatchOnce(job,'fake',memory(),(async(_url,options)=>{
+  const body=JSON.parse(String(options?.body));
+  assert.deepEqual(body.inputs,{dry_run:'false',edition_date:'2026-10-19'});
+  return new Response(null,{status:204});
+ }) as typeof fetch);
+});
