@@ -1893,6 +1893,8 @@ def main():
 
     required = {"NOTION_API_KEY": NOTION_API_KEY,
                 "NOTION_DATABASE_ID": NOTION_DATABASE_ID}
+    if RUN_TYPE in GROUPS or RUN_TYPE == 'compile_send':
+        required['NOTION_DATA_SOURCE_ID'] = os.environ.get('NOTION_DATA_SOURCE_ID', '').strip()
     if RUN_TYPE not in ("site_only", "compile_send"):
         required["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
     if RUN_TYPE == "compile_send":
@@ -1973,6 +1975,15 @@ def run_group(run_type):
     log("Desk run complete (no send — compile_send handles that later today). Summary:")
     for line in notion_summary:
         log(f"  {line}")
+
+    if not DRY_RUN:
+        release = release_module()
+        api = release.Notion()
+        edition = os.environ.get('V2_EDITION_DATE') or dubai_today()
+        ledger, state = api.ledger(POLICY['version']+'/desk/'+edition+'/'+run_type)
+        state.update(phase='completed', edition=edition, desk=run_type,
+                     approved=len(briefing['notion_entries']), saved=len(notion_summary))
+        api.save_ledger(ledger, state)
 
     return {
         "edition_label": briefing["edition_label"],
@@ -2056,10 +2067,18 @@ def run_compile_send():
 def send_ops_notification(text):
     """Best-effort WhatsApp DM to the operator with a run status update.
     Never raises — a notification failure must not mask the real run result."""
-    if DRY_RUN or not OPS_NOTIFY_NUMBER or not WHAPI_TOKEN:
-        log("WARNING: OPS_NOTIFY_NUMBER or WHAPI_TOKEN not configured — skipping ops notification.")
+    if DRY_RUN or not WHAPI_TOKEN:
+        log("WARNING: WHAPI_TOKEN not configured or dry run — skipping ops notification.")
         return
     try:
+        if not OPS_NOTIFY_NUMBER:
+            try:
+                from pipeline.queue_notifications import send_self_alert
+            except ImportError:
+                from queue_notifications import send_self_alert
+            send_self_alert(text)
+            log('Ops notification accepted by connected Whapi account.')
+            return
         digits = "".join(ch for ch in OPS_NOTIFY_NUMBER if ch.isdigit())
         url = "https://gate.whapi.cloud/messages/text"
         headers = {"Authorization": f"Bearer {WHAPI_TOKEN}", "Content-Type": "application/json"}
