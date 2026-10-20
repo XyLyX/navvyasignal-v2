@@ -69,6 +69,9 @@ def pending(page, edition):
 
 class Notion:
     def __init__(self):
+        missing = [key for key in ('NOTION_DATA_SOURCE_ID','NOTION_API_KEY') if not os.environ.get(key,'').strip()]
+        if missing:
+            raise RuntimeError('Missing required configuration: '+', '.join(missing))
         self.source = os.environ['NOTION_DATA_SOURCE_ID'].strip()
         self.headers = {'Authorization': 'Bearer ' + os.environ['NOTION_API_KEY'].strip(),
                         'Notion-Version': '2025-09-03', 'Content-Type': 'application/json'}
@@ -222,7 +225,19 @@ def publish_once(api, ledger, state, force_build=False):
     state['phase']='verified';api.save_ledger(ledger,state)
 
 
-def run(edition=None, now=None, exceptional=False, manual_key=None, force_build=False):
+def require_completed_desks(api, edition):
+    """A matching old public snapshot is not evidence that today's research ran."""
+    missing = []
+    for desk in POLICY['desks']:
+        marker = LEDGER+POLICY['version']+'/desk/'+edition+'/'+desk['key']+'\n'
+        rows = api.query({'property':'Internal Note','rich_text':{'starts_with':marker}})
+        if len(rows) != 1 or json.loads(text(rows[0],'Internal Note').split('\n',1)[1]).get('phase') != 'completed':
+            missing.append(desk['key'])
+    if missing:
+        raise RuntimeError('Edition incomplete; desk runs not completed: '+', '.join(missing))
+
+
+def run(edition=None, now=None, exceptional=False, manual_key=None, force_build=False, repair_empty=False):
     now = (now or dt.datetime.now(TZ)).astimezone(TZ)
     edition = edition or now.date().isoformat()
     if dt.date.fromisoformat(edition).isoformat()!=edition or edition>now.date().isoformat():
@@ -239,6 +254,8 @@ def run(edition=None, now=None, exceptional=False, manual_key=None, force_build=
         print('DRY RUN: eligible staged stories:',sum(pending(p,edition) is not None for p in pages))
         return
     api.ensure_schema()
+    if not exceptional and not manual_key:
+        require_completed_desks(api,edition)
     if exceptional:
         # Immediate approvals have already saved Ready to Post. Key by full public snapshot.
         try: from pipeline import refresh_publication as refresh
@@ -247,11 +264,18 @@ def run(edition=None, now=None, exceptional=False, manual_key=None, force_build=
     elif manual_key: key=POLICY['version']+'/manual/'+manual_key
     else: key=POLICY['version']+'/'+edition
     ledger,state=api.ledger(key)
+    if repair_empty:
+        if exceptional or manual_key:
+            raise ValueError('Empty-edition repair applies only to the daily release')
+        if state.get('phase') == 'verified' and not state.get('entry_ids'):
+            state.update(phase='staging', repaired_empty_release=True)
     if not exceptional and state['phase']=='staging':
         pages=api.query({'property':'Ready to Post','checkbox':{'equals':False}})
         for page in pages:
             if pending(page,edition): release_page(api,page,edition)
         state['entry_ids']=select_homepage(api,edition)
+        if not state['entry_ids']:
+            raise RuntimeError('No approved Signals for this edition; release not verified')
         state['phase']='released';api.save_ledger(ledger,state)
     publish_once(api,ledger,state,force_build=force_build)
 
