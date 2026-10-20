@@ -19,6 +19,8 @@ def request():
         requested=dt.datetime.fromisoformat(value['requested_at'].replace('Z','+00:00'))
         age=(dt.datetime.now(dt.timezone.utc)-requested).total_seconds()
         if not 0<=age<86400:raise ValueError('Manual request is stale or future-dated')
+        if value.get('full_recovery') is True:
+            os.environ['V2_FULL_RECOVERY'] = 'true'
         return value['edition_date']
     return os.environ.get('V2_EDITION_DATE') or dt.datetime.now(release.TZ).date().isoformat()
 
@@ -52,7 +54,19 @@ def run(edition,run_id):
             print('MANUAL DESK FAILED: '+key+' ('+type(error).__name__+')',flush=True)
     if not any(v.get('saved',0)>0 for v in completed.values()):
         raise RuntimeError('No fresh verified stories saved; no site release requested')
-    release.run(edition,manual_key=run_id)
+    if os.environ.get('V2_FULL_RECOVERY') == 'true':
+        if failures:
+            raise RuntimeError('Full recovery withheld: one or more desks failed')
+        from pipeline import editorial_formats as formats
+        outcome = formats.run(edition, editor=editor)
+        if any(status in {'held','failed','no_inputs'} for status in outcome.values()):
+            raise RuntimeError('Editorial recovery needs attention; no release or send attempted')
+        release.run(edition,repair_empty=True)
+        os.environ['V2_SEND_EDITION_DATE'] = edition
+        editor.RUN_TYPE = 'compile_send'
+        editor.main()
+    else:
+        release.run(edition,manual_key=run_id)
     print('MANUAL EDITION RESULT: '+json.dumps({'edition':edition,'completed':completed,'failed':failures}),flush=True)
     if failures:raise RuntimeError('Partial manual edition published; failed desks listed above')
 
