@@ -196,10 +196,24 @@ class PipelineTests(unittest.TestCase):
                     'pagination': {'has_next_page': False},
                 })), patch.object(main, 'fetch_todays_entries_for_compile') as fetch, \
                 patch.object(main, 'send_kit') as send:
-            result = main.run_compile_send()
-        self.assertFalse(result['sent_output'])
+            result = main.ensure_daily_send_not_started('2026-09-29')
+        self.assertIs(result,False)
         fetch.assert_not_called()
         send.assert_not_called()
+
+    def test_completed_email_can_resume_whatsapp_without_another_email(self):
+        from pipeline import verify_regional_send as guard
+        entry={'id':'a','title':'Verified','desk':'North America Desk','body':'Facts.','sources':'https://example.com/a','homepage_priority':1}
+        briefing={'email_subject':'Subject','email_html':'Body','whatsapp_text':'NavvyaSignal · 2026-10-20','edition_label':'2026-10-20'}
+        with patch.object(main,'DRY_RUN',False),patch.object(main,'daily_send_edition_date',return_value='2026-10-20'),patch.object(main,'ensure_daily_send_not_started',return_value='123'),patch.object(guard,'check'),patch.object(main,'fetch_todays_entries_for_compile',return_value=[entry]),patch.object(main,'assemble_daily_send',return_value=briefing),patch.object(main,'verify_existing_broadcast_content') as content,patch.object(main,'send_kit') as email,patch.object(main,'verify_kit_sent',return_value=True) as verify,patch.object(main,'send_whapi') as whatsapp:
+            result=main.run_compile_send()
+        email.assert_not_called();verify.assert_called_once_with('123');whatsapp.assert_called_once_with(briefing['whatsapp_text'])
+        self.assertTrue(result['sent_output'])
+        content.assert_called_once_with('123','Body')
+
+    def test_changed_email_content_blocks_whatsapp_only_recovery(self):
+        with patch.object(main.requests,'get',return_value=Response({'broadcast':{'content':'Old edition'}})),patch.object(main,'fail_hard',side_effect=ValueError):
+            with self.assertRaises(ValueError):main.verify_existing_broadcast_content('123','Different edition')
 
     def test_whapi_confirms_channel_history_after_acceptance(self):
         marker = 'NavvyaSignal · 2026-09-29'
