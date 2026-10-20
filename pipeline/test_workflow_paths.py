@@ -4,6 +4,13 @@ import unittest
 
 
 class DeliveryWorkflowPathTests(unittest.TestCase):
+    def test_desk_receives_required_data_source(self):
+        root=Path(__file__).resolve().parents[1]
+        workflow=(root/'.github/workflows/v2-editorial-pipeline.yml').read_text()
+        block=workflow.split('- name: Research, verify and stage for 09:00',1)[1]
+        self.assertIn('NOTION_DATA_SOURCE_ID:',block)
+        self.assertIn('secrets.NOTION_DATA_SOURCE_ID',block)
+
     def test_verify_script_resolves_from_pipeline_working_directory(self):
         root=Path(__file__).resolve().parents[1]
         workflow=(root/'.github/workflows/v2-daily-send.yml').read_text()
