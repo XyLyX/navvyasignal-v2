@@ -1971,6 +1971,8 @@ def run_group(run_type):
 
     valid_existing_ids = {e["id"] for e in existing}
     notion_summary = push_to_notion(briefing["notion_entries"], valid_existing_ids)
+    if len(notion_summary) != len(briefing['notion_entries']):
+        raise RuntimeError('One or more verified Signals failed to save; desk is incomplete')
 
     log("Desk run complete (no send — compile_send handles that later today). Summary:")
     for line in notion_summary:
