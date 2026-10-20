@@ -21,6 +21,11 @@ def request():
         if not 0<=age<86400:raise ValueError('Manual request is stale or future-dated')
         if value.get('full_recovery') is True:
             os.environ['V2_FULL_RECOVERY'] = 'true'
+        resume = value.get('resume_research_run_id')
+        if resume is not None:
+            if value.get('full_recovery') is not True or not str(resume).isdigit():
+                raise ValueError('Invalid explicit research checkpoint resume')
+            os.environ['V2_RESUME_RESEARCH_RUN_ID'] = str(resume)
         return value['edition_date']
     return os.environ.get('V2_EDITION_DATE') or dt.datetime.now(release.TZ).date().isoformat()
 
@@ -34,7 +39,21 @@ def run(edition,run_id):
     except ImportError:
         import main as editor
     api=release.Notion()
-    ledger,state=api.ledger(release.POLICY['version']+'/manual-research/'+run_id)
+    resume = os.environ.get('V2_RESUME_RESEARCH_RUN_ID')
+    research_id = resume or run_id
+    research_key = release.POLICY['version']+'/manual-research/'+research_id
+    if resume:
+        release.require_completed_desks(api,edition)
+        records = api.query({'property':'Internal Note','rich_text':{'starts_with':release.LEDGER+research_key+'\n'}})
+        if len(records) != 1:
+            raise RuntimeError('Research checkpoint is missing or ambiguous; no research replay')
+        checkpoint = json.loads(release.text(records[0],'Internal Note').split('\n',1)[1])
+        if set(checkpoint.get('completed',{})) != {d['key'] for d in release.POLICY['desks']}:
+            raise RuntimeError('Research checkpoint is incomplete; no blind resume')
+    ledger,state=api.ledger(research_key)
+    if state.get('edition') not in (None,edition):
+        raise ValueError('Research checkpoint belongs to another edition')
+    state['edition'] = edition
     completed=state.setdefault('completed',{})
     failures={}
     for desk in release.POLICY['desks']:
