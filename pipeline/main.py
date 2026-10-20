@@ -1770,12 +1770,12 @@ def send_kit(subject, html_content, edition_date=None):
     return broadcast_id
 
 
-def ensure_daily_send_not_started(edition_date=None):
+def ensure_daily_send_not_started(edition_date=None, resume=False):
     """Fail closed if Kit already has a V2 broadcast for this Dubai day.
 
     A newly scheduled Kit broadcast is the durable marker for the paired send.
-    Re-dispatching after a partial failure requires operator review, not a second
-    automatic broadcast to the whole list.
+    An existing broadcast can be verified for a WhatsApp-only recovery, never
+    replaced by another broadcast to the list.
     """
     edition_date = edition_date or dubai_today()
     if DRY_RUN:
@@ -1794,7 +1794,14 @@ def ensure_daily_send_not_started(edition_date=None):
         data = resp.json()
         if not isinstance(data.get("broadcasts"), list):
             fail_hard("Kit duplicate-send check returned an invalid response")
-        if any(b.get("description") == marker for b in data["broadcasts"]):
+        existing = next((b for b in data['broadcasts'] if b.get('description') == marker), None)
+        if existing is not None:
+            if resume:
+                broadcast_id = existing.get('id')
+                if not broadcast_id:
+                    fail_hard('Existing Kit edition has no broadcast ID; manual reconciliation required')
+                log(f'Existing Kit edition found; verify broadcast {broadcast_id} before WhatsApp-only recovery.')
+                return str(broadcast_id)
             log(f"V2 daily send already started for {edition_date}; skipping duplicate delivery.")
             return False
         page = data.get("pagination") or {}
@@ -1805,6 +1812,13 @@ def ensure_daily_send_not_started(edition_date=None):
             fail_hard("Kit duplicate-send check pagination failed")
         seen.add(cursor)
     fail_hard("Kit duplicate-send check exceeded 100 pages")
+
+
+def verify_existing_broadcast_content(broadcast_id, html_content):
+    response = requests.get(f'https://api.kit.com/v4/broadcasts/{broadcast_id}',
+        headers={'X-Kit-Api-Key':KIT_API_KEY},timeout=30)
+    if response.status_code != 200 or response.json().get('broadcast',{}).get('content') != html_content:
+        fail_hard('Existing Kit edition content differs or is unavailable; WhatsApp recovery withheld')
 
 
 def verify_kit_sent(broadcast_id, wait_seconds=420):
@@ -2029,7 +2043,8 @@ def run_compile_send():
     """Compile approved Signals and send one edition; site selection is independent."""
     edition_date = daily_send_edition_date()
     log(f"Compiling Dubai edition: {edition_date}")
-    if ensure_daily_send_not_started(edition_date) is False:
+    delivery = ensure_daily_send_not_started(edition_date, resume=True)
+    if delivery is False:
         return {"edition_label": edition_date, "entry_count": 0,
                 "notion_summary": ["Daily edition already sent; duplicate delivery skipped"],
                 "sent_output": False}
@@ -2048,10 +2063,13 @@ def run_compile_send():
         fail_hard(f"No curated Daily Brief selection for {edition_date}; send withheld")
     todays_entries = selected_entries
     briefing = assemble_daily_send(todays_entries, edition_date)
+    if isinstance(delivery,str) and not DRY_RUN:
+        verify_existing_broadcast_content(delivery,briefing['email_html'])
     log(f"Assembled {len(todays_entries)} email stories and "
         f"{min(len([e for e in todays_entries if e.get('homepage_priority', 0) > 0]) or len(todays_entries), 7)} "
         "WhatsApp headlines from approved Signals.")
-    broadcast_id = send_kit(briefing["email_subject"], briefing["email_html"], edition_date)
+    broadcast_id = (send_kit(briefing["email_subject"], briefing["email_html"], edition_date)
+                    if delivery is True or DRY_RUN else delivery)
     if not verify_kit_sent(broadcast_id):
         fail_hard("Kit broadcast not confirmed; WhatsApp send withheld to avoid divergent editions")
     send_whapi(briefing["whatsapp_text"])
