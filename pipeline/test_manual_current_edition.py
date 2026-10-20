@@ -56,3 +56,18 @@ class ManualEditionTests(unittest.TestCase):
         with patch.dict(os.environ,{'DRY_RUN':'false'}),patch.object(release,'Notion',return_value=api),patch.object(release,'publish_once'):
             release.run('2026-10-19',dt.datetime.fromisoformat('2026-10-19T03:30:00Z'),manual_key='42')
         self.assertEqual(api.ledger.call_args.args[0],'regional-v1/manual/42')
+
+class CheckpointResumeTests(unittest.TestCase):
+    def test_resume_reuses_completed_research_and_sends_after_release(self):
+        from pipeline import editorial_formats as formats
+        import json
+        complete={d['key']:{'approved':1,'saved':1} for d in release.POLICY['desks']}
+        state={'key':'request','completed':complete}
+        record={'properties':{'Internal Note':{'rich_text':[{'plain_text':'marker\n'+json.dumps(state)}]}}}
+        api=Mock();api.query.return_value=[record];api.ledger.return_value=({},state)
+        with patch.dict(os.environ,{'DRY_RUN':'false','V2_FULL_RECOVERY':'true','V2_RESUME_RESEARCH_RUN_ID':'39398538131'}),patch.object(release,'Notion',return_value=api),patch.object(release,'require_completed_desks'),patch.object(editor,'run_group') as research,patch.object(formats,'run',return_value={'Cross-Desk':'staged'}),patch.object(release,'run') as publish,patch.object(editor,'main') as send,patch.object(editor,'RUN_TYPE',''):
+            manual.run('2026-10-20','new-run')
+        research.assert_not_called()
+        api.ledger.assert_called_once_with('regional-v1/manual-research/39398538131')
+        publish.assert_called_once_with('2026-10-20',repair_empty=True)
+        send.assert_called_once()

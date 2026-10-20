@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import requests
@@ -225,16 +226,23 @@ def publish_once(api, ledger, state, force_build=False):
     state['phase']='verified';api.save_ledger(ledger,state)
 
 
-def require_completed_desks(api, edition):
-    """A matching old public snapshot is not evidence that today's research ran."""
-    missing = []
-    for desk in POLICY['desks']:
-        marker = LEDGER+POLICY['version']+'/desk/'+edition+'/'+desk['key']+'\n'
-        rows = api.query({'property':'Internal Note','rich_text':{'starts_with':marker}})
-        if len(rows) != 1 or json.loads(text(rows[0],'Internal Note').split('\n',1)[1]).get('phase') != 'completed':
-            missing.append(desk['key'])
-    if missing:
-        raise RuntimeError('Edition incomplete; desk runs not completed: '+', '.join(missing))
+def require_completed_desks(api, edition, attempts=7, delay=5):
+    """Wait briefly for Notion's query index; never waive a missing desk receipt."""
+    for attempt in range(attempts):
+        missing = []
+        for desk in POLICY['desks']:
+            marker = LEDGER+POLICY['version']+'/desk/'+edition+'/'+desk['key']+'\n'
+            rows = api.query({'property':'Internal Note','rich_text':{'starts_with':marker}})
+            if len(rows) > 1:
+                raise RuntimeError('Duplicate desk completion receipts: '+desk['key'])
+            if len(rows) != 1 or json.loads(text(rows[0],'Internal Note').split('\n',1)[1]).get('phase') != 'completed':
+                missing.append(desk['key'])
+        if not missing:
+            return
+        if attempt+1 < attempts:
+            print('Waiting for desk completion receipt visibility: '+', '.join(missing),flush=True)
+            time.sleep(delay)
+    raise RuntimeError('Edition incomplete; desk runs not completed: '+', '.join(missing))
 
 
 def run(edition=None, now=None, exceptional=False, manual_key=None, force_build=False, repair_empty=False):

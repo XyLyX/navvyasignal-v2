@@ -42,7 +42,7 @@ class RegionalReleaseTests(unittest.TestCase):
 
     def test_incomplete_desks_cannot_release(self):
         api=Mock();api.query.return_value=[]
-        with self.assertRaisesRegex(RuntimeError,'north_america'):r.require_completed_desks(api,'2026-10-20')
+        with self.assertRaisesRegex(RuntimeError,'north_america'):r.require_completed_desks(api,'2026-10-20',attempts=1)
 
     def test_all_four_desk_receipts_are_required(self):
         receipt=page(r.LEDGER+'key\n'+json.dumps({'phase':'completed'}))
@@ -144,3 +144,19 @@ class ManualActionTests(unittest.TestCase):
         api=self.api()
         with self.assertRaises(ValueError):action.apply(api,page()['id'],'scheduled','')
         api.patch.assert_not_called()
+
+class ReceiptVisibilityTests(unittest.TestCase):
+    def test_query_index_delay_retries_without_bypassing_receipts(self):
+        receipt=page(r.LEDGER+'key\n'+json.dumps({'phase':'completed'}))
+        api=Mock();api.query.side_effect=[[],[],[],[]]+[[receipt]]*4
+        with patch.object(r.time,'sleep') as sleep:
+            r.require_completed_desks(api,'2026-10-20',attempts=2)
+        self.assertEqual(api.query.call_count,8)
+        sleep.assert_called_once_with(5)
+
+    def test_duplicate_receipts_fail_instead_of_retrying(self):
+        api=Mock();api.query.return_value=[page(),page()]
+        with patch.object(r.time,'sleep') as sleep:
+            with self.assertRaisesRegex(RuntimeError,'Duplicate'):
+                r.require_completed_desks(api,'2026-10-20')
+        sleep.assert_not_called()
