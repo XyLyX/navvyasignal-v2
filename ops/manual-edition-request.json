@@ -1,8 +1,9 @@
 {
   "policy": "regional-v1",
   "action": "research-and-release-now",
-  "requested_at": "2026-10-20T09:08:44Z",
+  "requested_at": "2026-10-20T09:45:24Z",
   "edition_date": "2026-10-20",
   "full_recovery": true,
-  "reason": "User authorized full recovery: four fresh desks, editorial formats, one verified site release, Daily Brief email and WhatsApp channel delivery with existing duplicate checks."
+  "resume_research_run_id": "39398538131",
+  "reason": "Resume user's authorized full recovery from all four completed desks (24 verified Signals). No paid desk research replay; prepare existing formats, verify one production release, deliver today's email and WhatsApp with duplicate safeguards."
 }
