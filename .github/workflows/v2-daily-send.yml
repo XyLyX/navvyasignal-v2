@@ -47,6 +47,7 @@ jobs:
           cache-dependency-path: pipeline/requirements.txt
       - run: pip install -r requirements.txt
       - name: Verify release before delivery
+        id: eligibility
         if: github.event_name != 'schedule' || steps.timer.outputs.external == 'false'
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
@@ -71,3 +72,9 @@ jobs:
           V2_SENDER_ENABLED: ${{ vars.V2_SENDER_ENABLED }}
           V2_LEGACY_SENDER_DISABLED: ${{ vars.V2_LEGACY_SENDER_DISABLED }}
         run: python main.py
+      - name: Alert private operator when delivery is withheld by release guard
+        if: failure() && steps.eligibility.outcome == 'failure'
+        env:
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python notify_run_failure.py

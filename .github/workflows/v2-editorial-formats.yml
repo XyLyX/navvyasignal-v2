@@ -62,3 +62,9 @@ jobs:
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: python pipeline/notify_unverified.py
+      - name: Alert private operator on editorial failure
+        if: failure()
+        env:
+          WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python pipeline/notify_run_failure.py

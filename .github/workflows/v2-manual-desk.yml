@@ -1,7 +1,7 @@
 name: V2 manual desk publication
 
-# This workflow can publish one desk to Notion. It carries no Kit or Whapi
-# credentials. Verified stories are private until the 09:00 release. No build path.
+# This workflow stages one desk in Notion. Whapi is for private alerts only;
+# no email/channel sends or build path. Verified stories wait for the 09:00 release.
 on:
   workflow_dispatch:
     inputs:
@@ -41,6 +41,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID || '35b11486-b145-80ac-891f-000bd4c62627' }}
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUN_TYPE: ${{ inputs.desk }}
