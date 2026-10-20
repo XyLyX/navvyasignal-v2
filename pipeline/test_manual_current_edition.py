@@ -7,6 +7,22 @@ from pipeline import regional_release as release
 from pipeline import main as editor
 
 class ManualEditionTests(unittest.TestCase):
+    def test_full_recovery_orders_formats_release_and_delivery(self):
+        from pipeline import editorial_formats as formats
+        api=Mock();api.ledger.return_value=({}, {'key':'request'})
+        events=[]
+        with patch.dict(os.environ,{'DRY_RUN':'false','V2_FULL_RECOVERY':'true'}),patch.object(release,'Notion',return_value=api),patch.object(editor,'run_group',return_value={'entry_count':1,'notion_summary':['a']}),patch.object(formats,'run',side_effect=lambda *a,**k:events.append('formats') or {'Cross-Desk':'staged'}),patch.object(release,'run',side_effect=lambda *a,**k:events.append('release')) as publish,patch.object(editor,'main',side_effect=lambda:events.append('send')),patch.object(editor,'RUN_TYPE',''):
+            manual.run('2026-10-20','42')
+        self.assertEqual(events,['formats','release','send'])
+        publish.assert_called_once_with('2026-10-20',repair_empty=True)
+
+    def test_full_recovery_never_sends_when_a_desk_fails(self):
+        api=Mock();api.ledger.return_value=({}, {'key':'request'})
+        result={'entry_count':1,'notion_summary':['a']}
+        with patch.dict(os.environ,{'DRY_RUN':'false','V2_FULL_RECOVERY':'true'}),patch.object(release,'Notion',return_value=api),patch.object(editor,'run_group',side_effect=[RuntimeError(),result,result,result]),patch.object(release,'run') as publish,patch.object(editor,'main') as send:
+            with self.assertRaisesRegex(RuntimeError,'Full recovery withheld'):manual.run('2026-10-20','42')
+        publish.assert_not_called();send.assert_not_called()
+
     def test_dry_run_does_not_research_or_release(self):
         with patch.dict(os.environ,{'DRY_RUN':'true'}),patch.object(editor,'run_group') as research,patch.object(release,'run') as publish:
             manual.run('2026-10-19','42')

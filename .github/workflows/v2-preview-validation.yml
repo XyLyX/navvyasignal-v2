@@ -1,7 +1,7 @@
 name: V2 preview validation
 on:
   push:
-    branches: [main, release/v2-english, fix/regional-daily-release, fix/editorial-formats]
+    branches: [main, release/v2-english, fix/regional-daily-release, fix/editorial-formats, fix/daily-recovery]
   workflow_dispatch:
 
 permissions:

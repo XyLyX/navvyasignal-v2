@@ -64,6 +64,7 @@ jobs:
           KIT_FROM_EMAIL: ${{ secrets.KIT_FROM_EMAIL || 'hello@navvyasignal.com' }}
           WHAPI_TOKEN: ${{ secrets.WHAPI_TOKEN }}
           WHAPI_CHANNEL_ID: ${{ secrets.WHAPI_CHANNEL_ID }}
+          OPS_NOTIFY_NUMBER: ${{ secrets.OPS_NOTIFY_NUMBER }}
           V2_SEND_EDITION_DATE: ${{ inputs.edition_date }}
           RUN_TYPE: compile_send
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}

@@ -21,6 +21,35 @@ def page(note=None,ready=False,desk='North America Desk'):
 
 
 class RegionalReleaseTests(unittest.TestCase):
+    def test_empty_daily_release_never_verifies_production(self):
+        api=Mock();api.ledger.return_value=({}, {'phase':'staging','key':'day'})
+        api.query.return_value=[]
+        with patch.dict(os.environ,{'DRY_RUN':'false'}),patch.object(r,'Notion',return_value=api),patch.object(r,'require_completed_desks'),patch.object(r,'publish_once') as publish:
+            with self.assertRaisesRegex(RuntimeError,'No approved Signals'):r.run('2026-10-19')
+        publish.assert_not_called()
+
+    def test_explicit_repair_of_empty_verified_edition_selects_fresh_signals(self):
+        api=Mock();state={'phase':'verified','key':'day','entry_ids':[]};api.ledger.return_value=({},state)
+        api.query.return_value=[]
+        with patch.dict(os.environ,{'DRY_RUN':'false'}),patch.object(r,'Notion',return_value=api),patch.object(r,'require_completed_desks'),patch.object(r,'select_homepage',return_value=['new']),patch.object(r,'publish_once') as publish:
+            r.run('2026-10-19',repair_empty=True)
+        self.assertEqual(state['entry_ids'],['new']);self.assertEqual(state['phase'],'released');publish.assert_called_once()
+
+    def test_missing_config_fails_before_network(self):
+        with patch.dict(os.environ,{},clear=True),patch.object(r.requests,'request') as network:
+            with self.assertRaisesRegex(RuntimeError,'NOTION_DATA_SOURCE_ID'):r.Notion()
+        network.assert_not_called()
+
+    def test_incomplete_desks_cannot_release(self):
+        api=Mock();api.query.return_value=[]
+        with self.assertRaisesRegex(RuntimeError,'north_america'):r.require_completed_desks(api,'2026-10-20')
+
+    def test_all_four_desk_receipts_are_required(self):
+        receipt=page(r.LEDGER+'key\n'+json.dumps({'phase':'completed'}))
+        api=Mock();api.query.return_value=[receipt]
+        r.require_completed_desks(api,'2026-10-20')
+        self.assertEqual(api.query.call_count,4)
+
     def test_only_explicit_current_policy_approvals_release(self):
         p=page();self.assertTrue(r.pending(p,'2026-10-19'))
         for note in ['ordinary draft','V2_UNVERIFIED_SIGNAL:abc\nHeld',r.pending_note(edition='2026-10-20'),r.pending_note(edition='2026-10-19').replace('regional-v1','old-policy')]:
