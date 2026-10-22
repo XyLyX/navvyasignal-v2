@@ -16,14 +16,14 @@ export type FeedPanel = {
   items: FeedItem[];
 };
 export type JoinPanel = { kind: 'join'; id: 'join'; title: string; href: string };
-export type VenturePanel = { kind: 'venture'; id: string; title: string; category: string; description: string; siteUrl: string; mark: string };
+export type VenturePanel = { kind: 'venture'; id: string; title: string; category: string; description: string; siteUrl: string; image?: { src: string; alt: string; fit: 'cover' | 'contain' } };
 export type NetworkPanel = FeedPanel | VenturePanel | JoinPanel;
 
 const VENTURES: VenturePanel[] = [
-  { kind:'venture', id:'zarbaft', title:'Zarbaft', category:'Craft & clothing', description:'Explore the Zarbaft edit: regional textiles, craft stories and occasion wear.', siteUrl:'https://zarbaft.art/', mark:'Z' },
-  { kind:'venture', id:'ideaiq', title:'IdeaIQ', category:'Ideas & ventures', description:'Explore IdeaIQ, an affiliated venture in the Navvya Network.', siteUrl:'https://ideaiq.io/', mark:'IQ' },
-  { kind:'venture', id:'fils-only', title:'FilsOnly', category:'Personal productivity', description:'Discover FilsOnly: email follow-ups today, with Ask Fils and a commitment ledger in development.', siteUrl:'https://filsonly.com/', mark:'F' },
-  { kind:'venture', id:'rate-manifest', title:'Rate Manifest', category:'Travel intelligence', description:'Explore destination insights and practical guidance for better travel decisions.', siteUrl:'https://ratemanifest.com/', mark:'RM' },
+  { kind:'venture', id:'zarbaft', title:'Zarbaft', category:'Craft & clothing', description:'Explore the Zarbaft edit: regional textiles, craft stories and occasion wear.', siteUrl:'https://zarbaft.art/', image:{src:'https://zarbaft.art/images/zarbaft-ivory-dupatta-hero.webp',alt:'Zarbaft website hero featuring ivory ethnic wear',fit:'cover'} },
+  { kind:'venture', id:'ideaiq', title:'IdeaIQ', category:'Ideas & ventures', description:'Explore IdeaIQ, an affiliated venture in the Navvya Network.', siteUrl:'https://ideaiq.io/' },
+  { kind:'venture', id:'fils-only', title:'FilsOnly', category:'Personal productivity', description:'Discover FilsOnly: email follow-ups today, with Ask Fils and a commitment ledger in development.', siteUrl:'https://filsonly.com/', image:{src:'https://filsonly.com/assets/v2-hero.webp?v=3',alt:'FilsOnly website hero illustration',fit:'contain'} },
+  { kind:'venture', id:'rate-manifest', title:'Rate Manifest', category:'Travel intelligence', description:'Explore destination insights and practical guidance for better travel decisions.', siteUrl:'https://ratemanifest.com/', image:{src:'https://ratemanifest.com/rate-manifest-og-1200x630.png',alt:'Rate Manifest — Travel Decision Intelligence',fit:'contain'} },
 ];
 const ORDER = ['zarbaft','ideaiq','fils-only','rate-manifest','om4biz','design-code','zen-insights','zen-portfolio','d6-kitchens'];
 

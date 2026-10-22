@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { FeedSections } from '@/lib/feeds';
 import { buildNetworkPanels, type FeedPanel, type VenturePanel } from '@/lib/networkPanels';
 import { formatPublished } from './FeedCards';
+import VentureImage from './VentureImage';
 
 const EMPTY_TEXT: Record<string, string> = {
   unavailable: 'This publication’s feed could not be reached at the latest check.',
@@ -43,7 +44,7 @@ function Venture({ p }: { p: VenturePanel }) {
     <header className="np-head"><div><span className="np-kicker">Affiliated venture · {p.category}</span><h3 id={`np-${p.id}`}>{p.title}</h3></div>
       <a className="np-site" href={p.siteUrl} target="_blank" rel="noopener noreferrer">Visit site ↗</a></header>
     <a className="np-venture-banner" href={p.siteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Explore ${p.title}`}>
-      <span className="np-venture-mark" aria-hidden="true">{p.mark}</span><span>{p.title}</span><small>{p.category}</small>
+      <VentureImage title={p.title} image={p.image} />
     </a>
     <p className="np-venture-description">{p.description}</p>
     <footer className="np-foot"><a href={p.siteUrl} target="_blank" rel="noopener noreferrer">Explore {p.title} ↗</a></footer>

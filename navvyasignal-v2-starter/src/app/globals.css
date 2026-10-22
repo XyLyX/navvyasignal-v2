@@ -114,11 +114,14 @@
 .np-join-cta{align-self:center;margin-top:6px;padding:15px 34px;background:var(--gold);color:#14283d;font:700 16px Arial,sans-serif;letter-spacing:.02em;text-decoration:none;border-radius:2px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
 .np-join-cta:hover{background:#dfc48d;color:#14283d}
 .np-meta{margin:20px 0 0;font:12px Arial,sans-serif;color:#44515c}
-.np-venture-banner{flex:1;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:linear-gradient(140deg,#173b60,#263e54);color:#fff;text-decoration:none}
-.np-venture-banner>span:not(.np-venture-mark){font-size:30px;line-height:1.2}
-.np-venture-banner small{font:11px Arial,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:#e8d3a2}
-.np-venture-mark{font-size:54px;line-height:1;color:#e8d3a2;opacity:.9}
+.np-venture-banner{flex:1;min-height:240px;display:flex;position:relative;overflow:hidden;text-align:center;background:#faf8f4;color:var(--navy);text-decoration:none}
+.np-venture-art{position:relative;flex:1;min-width:0;min-height:240px;display:flex;align-items:center;justify-content:center}
+.np-venture-image{position:absolute;inset:0;display:block;width:100%;height:100%;object-position:center}
+.np-venture-image--cover{object-fit:cover;object-position:center 24%}
+.np-venture-image--contain{object-fit:contain}
+.np-venture-wordmark{padding:30px;font-size:38px;line-height:1.2;color:#fff}
 .np-venture--zarbaft .np-venture-banner{background:linear-gradient(140deg,#402a35,#6e4245)}
+.np-venture--ideaiq .np-venture-banner{background:linear-gradient(140deg,#173b60,#263e54)}
 .np-venture--fils-only .np-venture-banner{background:linear-gradient(140deg,#362e48,#4b3a56)}
 .np-venture--rate-manifest .np-venture-banner{background:linear-gradient(140deg,#183c40,#28575b)}
 .np-venture-banner:hover{outline:2px solid var(--gold);outline-offset:-2px}

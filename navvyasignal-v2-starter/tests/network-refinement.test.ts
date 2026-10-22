@@ -164,6 +164,14 @@ test('panels retain all ten positions when sources are empty or down', async () 
   assert.ok(panels.filter(p => p.kind === 'feed').every(p => p.items.length === 0 && p.status === 'unavailable'));
   assert.equal(buildNetworkPanels([]).length,10);
   assert.deepEqual(panels.filter(p => p.kind === 'venture').map(p => p.siteUrl),['https://zarbaft.art/','https://ideaiq.io/','https://filsonly.com/','https://ratemanifest.com/']);
+  const ventures = panels.filter(p => p.kind === 'venture');
+  assert.equal(ventures.filter(p => p.image).length,3);
+  for (const p of ventures) {
+    if (p.image) {
+      assert.equal(new URL(p.image.src).hostname,new URL(p.siteUrl).hostname);
+      assert.ok(p.image.alt.length > 10);
+    }
+  }
 });
 
 test('panel markup uses a fixed number of slots and the shared grid rules', () => {
