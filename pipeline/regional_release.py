@@ -167,7 +167,7 @@ def release_page(api, page, edition):
 
 
 def select_homepage(api, edition):
-    """Deterministic regional representation; no extra paid selection or synthesis."""
+    """One audited editorial ranking shared by site, email and WhatsApp."""
     pages = api.query({'property':'Ready to Post','checkbox':{'equals':True}})
     candidates = []
     for p in pages:
@@ -179,14 +179,19 @@ def select_homepage(api, edition):
         except ValueError: raise ValueError('Malformed release record')
         if state.get('edition') == edition and (p['properties'].get('Category',{}).get('select') or {}).get('name') in DESKS:
             candidates.append(p)
-    candidates.sort(key=lambda p:(p['created_time'],p['id']),reverse=True)
-    selected = []
-    for desk in POLICY['desks']:
-        choice = next((p for p in candidates if (p['properties']['Category'].get('select') or {}).get('name') == desk['notion']),None)
-        if choice: selected.append(choice)
-    selected.extend(p for p in candidates if p not in selected)
-    selected = selected[:7]
-    # Only touch this edition; prior editions remain available if no candidates exist.
+    if not candidates:
+        return []
+    try:
+        from pipeline import editorial_selection
+    except ImportError:
+        import editorial_selection
+    selected = editorial_selection.select(api,edition,candidates,text)
+    selected_ids = {p['id'] for p in selected}
+    for p in candidates:
+        if p['id'] not in selected_ids and (p['properties'].get("Today's Intelligence",{}).get('checkbox')
+                or p['properties'].get('Homepage Priority',{}).get('number')):
+            api.patch(p['id'],{'properties':{"Today's Intelligence":{'checkbox':False},
+                'Homepage Date':{'date':None},'Homepage Priority':{'number':None}}})
     for priority,p in enumerate(selected,1):
         api.patch(p['id'], {'properties': {"Today's Intelligence":{'checkbox':True},
             'Homepage Date':{'date':{'start':edition}}, 'Homepage Priority':{'number':priority}}})
