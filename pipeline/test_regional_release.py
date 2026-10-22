@@ -113,12 +113,14 @@ class RegionalReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'retired'):refresh.main()
         hook.assert_not_called()
 
-    def test_homepage_represents_each_available_region_without_models(self):
+    def test_homepage_applies_audited_editorial_selection(self):
         rows=[]
         for i,d in enumerate(r.POLICY['desks']):
             p=page(r.RELEASED+json.dumps({'edition':'2026-10-19'}),True,d['notion']);p['id']=str(i);rows.append(p)
         api=Mock();api.query.return_value=rows
-        self.assertEqual(len(r.select_homepage(api,'2026-10-19')),4)
+        with patch('pipeline.editorial_selection.select',return_value=rows) as select:
+            self.assertEqual(len(r.select_homepage(api,'2026-10-19')),4)
+        select.assert_called_once()
         self.assertEqual(api.patch.call_count,4)
 
 
