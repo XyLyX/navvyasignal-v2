@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import type { FeedSections } from '@/lib/feeds';
-import { buildNetworkPanels, type FeedPanel } from '@/lib/networkPanels';
+import { buildNetworkPanels, type FeedPanel, type VenturePanel } from '@/lib/networkPanels';
 import { formatPublished } from './FeedCards';
 
 const EMPTY_TEXT: Record<string, string> = {
-  unavailable: 'This publication’s feed could not be reached when the site was last built.',
-  'all-rejected': 'No valid articles could be read from this publication’s feed when the site was last built.',
+  unavailable: 'This publication’s feed could not be reached at the latest check.',
+  'all-rejected': 'No valid articles could be read from this publication’s feed at the latest check.',
   empty: 'No published articles are listed yet.',
 };
 
@@ -38,14 +38,26 @@ function Panel({ p }: { p: FeedPanel }) {
   </section>;
 }
 
-/** Six equal panels: five RSS-fed publications plus Join Our Network. Editorially separate from NavvyaSignal reporting. */
+function Venture({ p }: { p: VenturePanel }) {
+  return <section className={`np-panel np-venture np-venture--${p.id}`} aria-labelledby={`np-${p.id}`}>
+    <header className="np-head"><div><span className="np-kicker">Affiliated venture · {p.category}</span><h3 id={`np-${p.id}`}>{p.title}</h3></div>
+      <a className="np-site" href={p.siteUrl} target="_blank" rel="noopener noreferrer">Visit site ↗</a></header>
+    <a className="np-venture-banner" href={p.siteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Explore ${p.title}`}>
+      <span className="np-venture-mark" aria-hidden="true">{p.mark}</span><span>{p.title}</span><small>{p.category}</small>
+    </a>
+    <p className="np-venture-description">{p.description}</p>
+    <footer className="np-foot"><a href={p.siteUrl} target="_blank" rel="noopener noreferrer">Explore {p.title} ↗</a></footer>
+  </section>;
+}
+
+/** Ten equal panels, in paired venture order, separate from independent reporting. */
 export default function NetworkPanels({ data, heading = 'Latest from the network' }: { data: FeedSections; heading?: string }) {
   const panels = buildNetworkPanels(data.network);
   return <section className="np-section" aria-label="Latest from the Navvya Network">
     <div className="np-intro"><span className="kicker">AFFILIATED VENTURES · NOT INDEPENDENT REPORTING</span><h2>{heading}</h2>
-      <p>Articles and announcements published by affiliated businesses on their own sites. They are commercial or promotional in nature, are not NavvyaSignal reporting, and carry no editorial endorsement.</p></div>
+      <p>Explore affiliated ventures and articles published on their own sites. These commercial or promotional listings are separate from NavvyaSignal reporting and carry no editorial endorsement.</p></div>
     <div className="np-grid">
-      {panels.map(p => p.kind === 'feed' ? <Panel key={p.id} p={p} /> : <section className="np-panel np-join" key={p.id} aria-labelledby="np-join">
+      {panels.map(p => p.kind === 'feed' ? <Panel key={p.id} p={p} /> : p.kind === 'venture' ? <Venture key={p.id} p={p} /> : <section className="np-panel np-join" key={p.id} aria-labelledby="np-join">
         <header className="np-head"><div><span className="np-kicker">Open invitation</span><h3 id="np-join">{p.title}</h3></div></header>
         <div className="np-join-body">
           <p>Run a publication or a business you would like to see in the Navvya Network? Introduce yourself and tell us what you publish.</p>
@@ -55,6 +67,6 @@ export default function NetworkPanels({ data, heading = 'Latest from the network
       </section>)}
     </div>
     {data.fixtureMode ? <p className="np-meta">Offline fixture data; not live publications.</p>
-      : <p className="np-meta">Feeds checked when this page was built, {formatPublished(data.retrievedAt)}. Publication dates are those shown by each source.</p>}
+      : <p className="np-meta">Feeds last checked {new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }).format(new Date(data.retrievedAt))} GST. Publication dates are those shown by each source.</p>}
   </section>;
 }
