@@ -57,14 +57,13 @@ function TradingViewQuote({ symbol, label, locale = 'en' }: { symbol: string; la
       symbol, width: '100%', isTransparent: true, colorTheme: 'dark', locale,
     });
     container.appendChild(script);
-    element.appendChild(container);
+    element.replaceChildren(container);
     return () => { element.replaceChildren(); };
-  }, [symbol]);
+  }, [symbol, locale]);
   return <div className="pulse-quote" aria-label={label}>
     <span className="pulse-quote-label">{label}</span>
-    <div ref={host} className="pulse-quote-embed">
-      <span className="pulse-quote-loading">{locale === 'ar' ? 'بيانات الأسعار من TradingView' : 'Quote provided by TradingView'}</span>
-    </div>
+    <div ref={host} className="pulse-quote-embed" />
+    <span className="pulse-quote-source"><a href={`https://www.tradingview.com/symbols/${symbol.replace(':', '-')}/`} target="_blank" rel="noopener noreferrer">{locale === 'ar' ? 'عرض الأسعار على TradingView' : 'View quote on TradingView'}</a></span>
   </div>;
 }
 export default function GlobalPulse({locale = 'en'}: {locale?: 'en' | 'ar'}) {
