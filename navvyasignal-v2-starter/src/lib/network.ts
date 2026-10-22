@@ -4,7 +4,7 @@ export type NetworkVenture = {
 };
 export const networkVentures: NetworkVenture[] = [
   {slug:'zarbaft',name:'Zarbaft',url:'https://zarbaft.art/',category:'Craft and clothing',description:'Regional textiles, craft stories and occasion wear.',feedStatus:'unverified'},
-  {slug:'ideaiq',name:'IdeaIQ',url:'https://ideaiq.io/',category:'Ideas and ventures',description:'An affiliated venture in the Navvya Network.',feedStatus:'unverified'},
+  {slug:'ideahq',name:'IdeaHQ',url:'https://ideahq.io/',category:'Ideas and ventures',description:'Explore ideas, test assumptions and build ventures.',feedStatus:'unverified'},
   {slug:'navyaa',name:'Navyaa',url:'https://navyaa.blog/',category:'Independent editorial',description:'Essays and perspectives from a separate publication.',feedStatus:'verified'},
   {slug:'zen-homes',name:'Zen Homes Global',url:'https://zenhomesglobal.com/',category:'Property advisory',description:'Property research, portfolio intelligence and advisory.',feedStatus:'verified'},
   {slug:'rate-manifest',name:'Rate Manifest',url:'https://ratemanifest.com/',category:'Travel intelligence',description:'Travel decision intelligence and destination guides.',feedStatus:'unverified'},

@@ -121,7 +121,8 @@
 .np-venture-image--contain{object-fit:contain}
 .np-venture-wordmark{padding:30px;font-size:38px;line-height:1.2;color:#fff}
 .np-venture--zarbaft .np-venture-banner{background:linear-gradient(140deg,#402a35,#6e4245)}
-.np-venture--ideaiq .np-venture-banner{background:linear-gradient(140deg,#173b60,#263e54)}
+.np-venture--ideahq .np-venture-banner{background:#F7F5F0}
+.np-venture--ideahq .np-venture-wordmark{color:#0F172A}
 .np-venture--fils-only .np-venture-banner{background:linear-gradient(140deg,#362e48,#4b3a56)}
 .np-venture--rate-manifest .np-venture-banner{background:linear-gradient(140deg,#183c40,#28575b)}
 .np-venture-banner:hover{outline:2px solid var(--gold);outline-offset:-2px}
