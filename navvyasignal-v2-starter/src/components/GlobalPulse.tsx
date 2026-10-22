@@ -61,9 +61,8 @@ function TradingViewQuote({ symbol, label, locale = 'en' }: { symbol: string; la
     return () => { element.replaceChildren(); };
   }, [symbol, locale]);
   return <div className="pulse-quote" aria-label={label}>
-    <span className="pulse-quote-label">{label}</span>
+    <a className="pulse-quote-label" href={`https://www.tradingview.com/symbols/${symbol.replace(':', '-')}/`} target="_blank" rel="noopener noreferrer">{label} ↗</a>
     <div ref={host} className="pulse-quote-embed" />
-    <span className="pulse-quote-source"><a href={`https://www.tradingview.com/symbols/${symbol.replace(':', '-')}/`} target="_blank" rel="noopener noreferrer">{locale === 'ar' ? 'عرض الأسعار على TradingView' : 'View quote on TradingView'}</a></span>
   </div>;
 }
 export default function GlobalPulse({locale = 'en'}: {locale?: 'en' | 'ar'}) {
