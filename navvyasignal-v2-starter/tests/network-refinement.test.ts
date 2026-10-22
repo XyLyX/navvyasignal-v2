@@ -146,22 +146,24 @@ test('OG helpers: extraction and generic-name detection', () => {
 
 // ---- six equal panels ----
 
-test('network panels: five feeds in order plus Join Our Network, capped per source', async () => {
+test('network panels follow the requested paired venture order, with feed caps', async () => {
   const dir = path.join(root, 'tests/fixtures/feeds');
   const fixtures = Object.fromEntries(FEED_SOURCES.map(s => [s.id, fs.readFileSync(path.join(dir, `${s.id}.xml`), 'utf8')]));
   const panels = buildNetworkPanels(await loadAllFeeds({ fixtures, now: NOW }));
-  assert.equal(panels.length, 6);
-  assert.deepEqual(panels.map(p => p.title), ['OM4BIZ Insights', 'D6 Kitchens Insights', 'Zen Homes Insights', 'Zen Homes Portfolio', 'Design Code Studios Insights', 'Join Our Network']);
-  assert.equal(panels[5].kind, 'join');
-  for (const p of panels.slice(0, 5)) assert.ok(p.kind === 'feed' && p.items.length <= NETWORK_PER_SOURCE);
+  assert.equal(panels.length, 10);
+  assert.deepEqual(panels.map(p => p.title), ['Zarbaft','IdeaIQ','FilsOnly','Rate Manifest','OM4BIZ Insights','Design Code Studios Insights','Zen Homes Insights','Zen Homes Portfolio','D6 Kitchens Insights','Join Our Network']);
+  assert.equal(panels[9].kind, 'join');
+  for (const p of panels.filter(p => p.kind === 'feed')) assert.ok(p.items.length <= NETWORK_PER_SOURCE);
   assert.ok(!panels.some(p => p.id === 'navyaa'), 'Navyaa stays in A Different Lens');
 });
 
-test('panels still render six when sources are empty or down', async () => {
+test('panels retain all ten positions when sources are empty or down', async () => {
   const down = await loadAllFeeds({ fixtures: {}, now: NOW });
   const panels = buildNetworkPanels(down);
-  assert.equal(panels.length, 6);
-  assert.ok(panels.slice(0, 5).every(p => p.kind === 'feed' && p.items.length === 0 && p.status === 'unavailable'));
+  assert.equal(panels.length, 10);
+  assert.ok(panels.filter(p => p.kind === 'feed').every(p => p.items.length === 0 && p.status === 'unavailable'));
+  assert.equal(buildNetworkPanels([]).length,10);
+  assert.deepEqual(panels.filter(p => p.kind === 'venture').map(p => p.siteUrl),['https://zarbaft.art/','https://ideaiq.io/','https://filsonly.com/','https://ratemanifest.com/']);
 });
 
 test('panel markup uses a fixed number of slots and the shared grid rules', () => {
