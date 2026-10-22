@@ -1,0 +1,58 @@
+name: Publish site code only
+on:
+  push:
+    branches: [main]
+    paths: ['ops/site-code-publish-request.json']
+permissions:
+  contents: read
+concurrency:
+  group: regional-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate explicit code publication and request one build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import re
+          import urllib.request
+          from pathlib import Path
+          if int(os.environ.get('GITHUB_RUN_ATTEMPT','1')) != 1:
+              raise RuntimeError('A build request must not be replayed; inspect Netlify before a new explicit request')
+          value=json.loads(Path('ops/site-code-publish-request.json').read_text())
+          if value.get('action') != 'publish-site-code-only':
+              raise ValueError('Not an explicit code-only publication request')
+          requested=dt.datetime.fromisoformat(value['requested_at'].replace('Z','+00:00'))
+          age=(dt.datetime.now(dt.timezone.utc)-requested).total_seconds()
+          if not 0 <= age < 3600:
+              raise ValueError('Code publication request is stale or future-dated')
+          expected=value.get('production_commit','')
+          if not re.fullmatch(r'[0-9a-f]{40}',expected):
+              raise ValueError('Expected production commit missing')
+          req=urllib.request.Request('https://api.github.com/repos/XyLyX/navvyasignal-v2/git/ref/heads/release/v2-english',
+              headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(req,timeout=30) as response:
+              actual=json.load(response)['object']['sha']
+          if actual != expected:
+              raise RuntimeError('Production branch changed; inspect before publishing')
+          hook=os.environ['V2_NETLIFY_BUILD_HOOK'].strip()
+          if not re.fullmatch(r'https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+',hook):
+              raise ValueError('Configured build hook invalid')
+          # No retries after an ambiguous external side effect. The request and
+          # target commit are durable in Git; only a fresh explicit request can replay.
+          with urllib.request.urlopen(urllib.request.Request(hook,data=b'',method='POST'),timeout=30) as response:
+              if response.status not in (200,201,202):
+                  raise RuntimeError('Build hook rejected the request')
+          print('Netlify accepted one code-only build for production commit '+expected)
+          print('No research, Notion changes, AI calls, email or WhatsApp actions were performed.')
+          PY
