@@ -82,7 +82,7 @@ test('homepage panels use the ten-card venture order with feed articles and a jo
   const dir = path.join(root, 'tests/fixtures/feeds');
   const fixtures = Object.fromEntries(FEED_SOURCES.map(s => [s.id, fs.readFileSync(path.join(dir, `${s.id}.xml`), 'utf8')]));
   const panels = buildNetworkPanels(await loadAllFeeds({ fixtures, now: new Date('2026-09-24T12:00:00Z') }));
-  assert.deepEqual(panels.map(p => p.title), ['Zarbaft','IdeaIQ','FilsOnly','Rate Manifest','OM4BIZ Insights','Design Code Studios Insights','Zen Homes Insights','Zen Homes Portfolio','D6 Kitchens Insights','Join Our Network']);
+  assert.deepEqual(panels.map(p => p.title), ['Zarbaft','IdeaHQ','FilsOnly','Rate Manifest','OM4BIZ Insights','Design Code Studios Insights','Zen Homes Insights','Zen Homes Portfolio','D6 Kitchens Insights','Join Our Network']);
   const one = panels.filter(p => p.kind === 'feed' && p.items.length === 1);
   assert.ok(one.length >= 3, 'one-article sources exist in the fixtures');
   assert.match(read('src/components/NetworkPanels.tsx'), /Browse Articles ↗/);
