@@ -84,7 +84,24 @@ def report_failure(error):
         message = "Refresh failed (" + type(error).__name__ + "); publication is unverified."
     print("Publication refresh failed: " + message, file=sys.stderr)
 
-def main():
+def publish_approved_snapshot(current):
+    # Reuse the durable build receipt, not the editorial release entrypoint:
+    # no approval changes, desk prerequisites, ranking, model calls or messages.
+    try:
+        from pipeline import regional_release as release
+    except ImportError:
+        import regional_release as release
+    key = 'notion-refresh-v1/' + hashlib.sha256(json.dumps(current, sort_keys=True).encode()).hexdigest()
+    api = release.Notion()
+    ledger, state = api.ledger(key)
+    if state.get('phase') == 'verified':
+        # A previously published snapshot may legitimately be restored later.
+        # In-flight/ambiguous requests are deliberately never reset here.
+        state['phase'] = 'staging'
+        api.save_ledger(ledger, state)
+    release.publish_once(api, ledger, state)
+
+def main(approved_refresh=False):
     current = fetch_entries()
     deployed = request("https://navvyasignal.com/publication-state")
     if deployed.get("version") != 1 or not isinstance(deployed.get("entries"), list):
@@ -96,10 +113,16 @@ def main():
     if os.environ.get("DRY_RUN", "false").lower() == "true":
         print("Dry run: no build triggered.")
         return
-    raise RuntimeError("Direct refresh builds are retired. Use the daily release or explicit Now workflow")
+    if not approved_refresh:
+        raise RuntimeError("Direct refresh builds are retired without --approved-refresh. Use the dedicated approved-content refresh workflow")
+    publish_approved_snapshot(current)
 
 if __name__ == "__main__":
-    try: main()
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--approved-refresh', action='store_true')
+    args = parser.parse_args()
+    try: main(approved_refresh=args.approved_refresh)
     except Exception as error:
         report_failure(error)
         sys.exit(1)
