@@ -151,7 +151,7 @@ test('network panels follow the requested paired venture order, with feed caps',
   const fixtures = Object.fromEntries(FEED_SOURCES.map(s => [s.id, fs.readFileSync(path.join(dir, `${s.id}.xml`), 'utf8')]));
   const panels = buildNetworkPanels(await loadAllFeeds({ fixtures, now: NOW }));
   assert.equal(panels.length, 10);
-  assert.deepEqual(panels.map(p => p.title), ['Zarbaft','IdeaIQ','FilsOnly','Rate Manifest','OM4BIZ Insights','Design Code Studios Insights','Zen Homes Insights','Zen Homes Portfolio','D6 Kitchens Insights','Join Our Network']);
+  assert.deepEqual(panels.map(p => p.title), ['Zarbaft','IdeaHQ','FilsOnly','Rate Manifest','OM4BIZ Insights','Design Code Studios Insights','Zen Homes Insights','Zen Homes Portfolio','D6 Kitchens Insights','Join Our Network']);
   assert.equal(panels[9].kind, 'join');
   for (const p of panels.filter(p => p.kind === 'feed')) assert.ok(p.items.length <= NETWORK_PER_SOURCE);
   assert.ok(!panels.some(p => p.id === 'navyaa'), 'Navyaa stays in A Different Lens');
@@ -163,12 +163,13 @@ test('panels retain all ten positions when sources are empty or down', async () 
   assert.equal(panels.length, 10);
   assert.ok(panels.filter(p => p.kind === 'feed').every(p => p.items.length === 0 && p.status === 'unavailable'));
   assert.equal(buildNetworkPanels([]).length,10);
-  assert.deepEqual(panels.filter(p => p.kind === 'venture').map(p => p.siteUrl),['https://zarbaft.art/','https://ideaiq.io/','https://filsonly.com/','https://ratemanifest.com/']);
+  assert.deepEqual(panels.filter(p => p.kind === 'venture').map(p => p.siteUrl),['https://zarbaft.art/','https://ideahq.io/','https://filsonly.com/','https://ratemanifest.com/']);
   const ventures = panels.filter(p => p.kind === 'venture');
-  assert.equal(ventures.filter(p => p.image).length,3);
+  assert.equal(ventures.filter(p => p.image).length,4);
   for (const p of ventures) {
     if (p.image) {
-      assert.equal(new URL(p.image.src).hostname,new URL(p.siteUrl).hostname);
+      if (p.image.src.startsWith('/network/')) assert.ok(fs.existsSync(path.join(root,'public',p.image.src)));
+      else assert.equal(new URL(p.image.src).hostname,new URL(p.siteUrl).hostname);
       assert.ok(p.image.alt.length > 10);
     }
   }
