@@ -114,6 +114,18 @@
 .np-join-cta{align-self:center;margin-top:6px;padding:15px 34px;background:var(--gold);color:#14283d;font:700 16px Arial,sans-serif;letter-spacing:.02em;text-decoration:none;border-radius:2px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
 .np-join-cta:hover{background:#dfc48d;color:#14283d}
 .np-meta{margin:20px 0 0;font:12px Arial,sans-serif;color:#44515c}
+.np-venture-banner{flex:1;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:linear-gradient(140deg,#173b60,#263e54);color:#fff;text-decoration:none}
+.np-venture-banner>span:not(.np-venture-mark){font-size:30px;line-height:1.2}
+.np-venture-banner small{font:11px Arial,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:#e8d3a2}
+.np-venture-mark{font-size:54px;line-height:1;color:#e8d3a2;opacity:.9}
+.np-venture--zarbaft .np-venture-banner{background:linear-gradient(140deg,#402a35,#6e4245)}
+.np-venture--fils-only .np-venture-banner{background:linear-gradient(140deg,#362e48,#4b3a56)}
+.np-venture--rate-manifest .np-venture-banner{background:linear-gradient(140deg,#183c40,#28575b)}
+.np-venture-banner:hover{outline:2px solid var(--gold);outline-offset:-2px}
+.np-venture-description{font-size:16px;line-height:1.6;color:var(--np-muted);margin:18px 0}
+.sponsor-reserve{background:var(--navy);border:1px solid var(--navy);border-top:3px solid var(--gold);padding:28px 30px;color:#eef2f6}
+.sponsor-reserve .kicker{color:#e8d3a2}
+.sponsor-reserve p{max-width:780px;margin:12px 0 0;color:#eef2f6;font-size:15px;line-height:1.6}
 .join-page .intro{max-width:640px}
 .join-preview-note{max-width:640px;margin:22px 0 28px;padding:16px 18px;background:#f0ece3;border-left:4px solid var(--gold);color:var(--np-ink,#1f2c38);font-size:15px}
 .join-preview-note a,.join-page a{color:var(--navy);text-decoration:underline;text-underline-offset:3px}
