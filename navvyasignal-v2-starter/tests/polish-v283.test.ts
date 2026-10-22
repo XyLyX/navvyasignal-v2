@@ -86,7 +86,7 @@ test('images: covers stay CSS-only, photos stack above them, no stock or generic
 test('directory keeps Rate Manifest and FilsOnly as venture entries, never as RSS contributors', () => {
   const slugs = networkVentures.map(v => v.slug);
   assert.ok(slugs.includes('rate-manifest') && slugs.includes('fils-only'));
-  assert.equal(networkVentures.length, 8);
+  assert.equal(networkVentures.length, 10);
   for (const slug of ['rate-manifest', 'fils-only']) {
     assert.equal(networkVentures.find(v => v.slug === slug)!.feedStatus, 'unverified', slug);
   }
