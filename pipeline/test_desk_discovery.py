@@ -78,7 +78,7 @@ class DiscoveryTests(unittest.TestCase):
                 e=Mock(GROUPS=editor.GROUPS)
                 replies=[response(payload) for _ in d.PASSES]
                 for i,reply in enumerate(replies):
-                    reply.content[1].input={'query':'latest site:'+d.SOURCES[key][i]}
+                    reply.content[1].input={'query':'latest site:'+d.targeted_source(key,i)}
                 e.client.messages.stream.side_effect=[stream(reply) for reply in replies]
                 with patch.object(d,'feed_leads',return_value=[]):audit=d.discover(e,key,NOW)
                 self.assertEqual([p['name'] for p in audit['passes']],list(d.PASSES))
@@ -86,27 +86,75 @@ class DiscoveryTests(unittest.TestCase):
                 self.assertTrue(all(p['queries'] and p['result_urls'] for p in audit['passes']))
                 self.assertEqual(e.client.messages.stream.call_count,3)
 
-    def test_claiming_search_without_actual_search_fails(self):
+    def test_claiming_search_without_actual_search_is_held_after_bounded_repair(self):
         e=Mock(GROUPS=editor.GROUPS);e.client.messages.stream.return_value=stream(response({},False))
-        with patch.object(d,'feed_leads',return_value=[]),self.assertRaisesRegex(ValueError,'observed live'):
-            d.discover(e,'uae_middle_east',NOW)
+        with patch.object(d,'feed_leads',return_value=[]):
+            audit=d.discover(e,'uae_middle_east',NOW)
+        self.assertTrue(audit['needs_review']);self.assertEqual(audit['candidates'],[])
+        self.assertEqual(e.client.messages.stream.call_count,6)
 
     def test_generic_search_alone_cannot_claim_source_checklist(self):
         result=response({})
         result.content[1].input={'query':'latest news'}
         e=Mock(GROUPS=editor.GROUPS);e.client.messages.stream.return_value=stream(result)
-        with patch.object(d,'feed_leads',return_value=[]),self.assertRaisesRegex(ValueError,'targeted source'):
-            d.discover(e,'europe',NOW)
+        with patch.object(d,'feed_leads',return_value=[]):audit=d.discover(e,'europe',NOW)
+        self.assertTrue(audit['needs_review']);self.assertTrue(all(p['status']=='incomplete' for p in audit['passes']))
 
     def test_feed_failure_is_visible_and_does_not_disable_search(self):
         e=Mock(GROUPS=editor.GROUPS)
         data={'candidates':[], 'source_checks':[{'domain':s,'status':'no_current_result','reason':'No dated story found'} for s in d.SOURCES['europe']]}
         replies=[response(data) for _ in d.PASSES]
         for i,reply in enumerate(replies):
-            reply.content[1].input={'query':'latest site:'+d.SOURCES['europe'][i]}
+            reply.content[1].input={'query':'latest site:'+d.targeted_source('europe',i)}
         e.client.messages.stream.side_effect=[stream(reply) for reply in replies]
         with patch.object(d,'feed_leads',side_effect=ValueError()):audit=d.discover(e,'europe',NOW)
         self.assertEqual(audit['feed_status'],'unavailable');self.assertTrue(audit['limitations'])
+
+    def test_missing_targeted_search_recovers_without_repeating_other_passes(self):
+        key='europe'
+        payload={'candidates':[candidate()], 'source_checks':[
+            {'domain':s,'status':'consulted','reason':'Observed dated sources'} for s in d.SOURCES[key]]}
+        replies=[]
+        for i in range(3):
+            if i==2: replies.append(response(payload,False))
+            reply=response(payload);reply.content[1].input={'query':'latest site:'+d.targeted_source(key,i)}
+            replies.append(reply)
+        e=Mock(GROUPS=editor.GROUPS);e.client.messages.stream.side_effect=[stream(x) for x in replies]
+        with patch.object(d,'feed_leads',return_value=[]):audit=d.discover(e,key,NOW)
+        self.assertEqual(len(audit['candidates']),3);self.assertFalse(audit['needs_review'])
+        self.assertEqual([p['attempts'] for p in audit['passes']],[1,1,2])
+
+    def test_all_stale_candidates_stay_excluded_and_are_not_freshened_by_retry(self):
+        key='india_subcontinent';old=candidate();old['event_at']='2026-03-24'
+        payload={'candidates':[old], 'source_checks':[
+            {'domain':s,'status':'no_current_result','reason':'Only old event found'} for s in d.SOURCES[key]]}
+        replies=[]
+        for i in range(3):
+            reply=response(payload);reply.content[1].input={'query':'latest site:'+d.targeted_source(key,i)}
+            replies.extend([stream(reply),stream(reply)])
+        e=Mock(GROUPS=editor.GROUPS);e.client.messages.stream.side_effect=replies
+        with patch.object(d,'feed_leads',return_value=[]):audit=d.discover(e,key,NOW)
+        self.assertTrue(audit['needs_review']);self.assertEqual(audit['candidates'],[])
+        self.assertEqual(len(audit['excluded']),3)
+        self.assertEqual(e.client.messages.stream.call_count,6)
+
+    def test_empty_discovery_is_queued_without_drafting_or_verification(self):
+        audit={'candidates':[], 'limitations':['No dated current evidence'], 'excluded':[], 'needs_review':True}
+        with patch.object(editor,'DRY_RUN',False),patch.object(d,'discover',return_value=audit),patch.object(editor,'save_unverified_signal') as queue,patch.object(editor.client.messages,'stream') as model:
+            result=editor.generate_briefing([],editor.GROUPS['india_subcontinent'])
+        self.assertEqual(result['notion_entries'],[]);queue.assert_called_once();model.assert_not_called()
+        self.assertEqual(result['_coverage_audit']['coverage_status'],'no_publishable_candidates')
+
+    def test_unknown_update_is_held_while_valid_story_continues_and_ids_normalize(self):
+        canonical='11111111-1111-1111-1111-111111111111'
+        entries=[{'title':'Valid update','desk':'North America Desk','action':'update','existing_id':canonical.replace('-','')},
+                 {'title':'Unsafe update','desk':'North America Desk','action':'update','existing_id':'unknown'}]
+        briefing={'edition_label':'today','notion_entries':entries}
+        with patch.object(editor,'DRY_RUN',True),patch.object(editor,'fetch_existing_entries',return_value=[{'id':canonical}]),patch.object(editor,'generate_briefing',return_value=briefing),patch.object(editor,'verify_with_gemini_loop',side_effect=lambda x:x),patch.object(editor,'push_to_notion',return_value=['saved']) as push,patch.object(editor,'save_unverified_signal') as queue:
+            result=editor.run_group('north_america')
+        self.assertEqual(result['entry_count'],1);queue.assert_called_once()
+        self.assertEqual(push.call_args.args[0][0]['existing_id'],canonical)
+        self.assertEqual(len(push.call_args.args[0]),1)
 
     def test_every_candidate_requires_a_decision_and_matching_draft(self):
         audit={'candidates':[dict(candidate(),candidate_id='a'),dict(candidate(),candidate_id='b')]}

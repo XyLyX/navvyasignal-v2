@@ -1,8 +1,13 @@
 import io
 import json
 import unittest
+import tempfile
+import os
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from unittest.mock import Mock
+from unittest.mock import patch
+from pipeline import scheduler_ownership as ownership
 from pipeline.scheduler_ownership import check_ownership, OwnershipUnavailable
 
 def reply(active):
@@ -12,6 +17,14 @@ def http(code, body=b""):
     return HTTPError("https://example.test", code, "Unavailable", {}, io.BytesIO(body))
 
 class OwnershipTests(unittest.TestCase):
+    def test_delegated_success_explicitly_reports_no_editorial_work(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'output';summary=Path(directory)/'summary'
+            with patch.dict(os.environ,{'SCHEDULER_STATUS_URL':'url','GITHUB_OUTPUT':str(output),'GITHUB_STEP_SUMMARY':str(summary)}),patch.object(ownership,'check_ownership',return_value=True):
+                self.assertEqual(ownership.main(),0)
+            self.assertIn('external=true',output.read_text())
+            self.assertIn('did not research, publish or send',summary.read_text())
+            self.assertIn('not proof',summary.read_text())
     def test_active(self):
         self.assertTrue(check_ownership("url", Mock(return_value=reply(True))))
     def test_inactive(self):

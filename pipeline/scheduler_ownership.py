@@ -52,6 +52,14 @@ def main():
     with open(os.environ["GITHUB_OUTPUT"], "a") as output:
         output.write("external=" + str(owned).lower() + "\n")
     print("Netlify owns scheduling: " + str(owned), flush=True)
+    if owned:
+        message = ('Delegated to Netlify scheduler: this fallback run did not research, '
+                   'publish or send. Its success is not proof that the delegated edition completed; '
+                   'inspect the workflow_dispatch runs for the intended edition.')
+        print('::notice::'+message, flush=True)
+        if os.environ.get('GITHUB_STEP_SUMMARY'):
+            with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                summary.write('### Delegated — no editorial work performed\n'+message+'\n')
     return 0
 
 if __name__ == "__main__":
