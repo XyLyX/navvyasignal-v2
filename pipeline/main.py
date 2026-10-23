@@ -502,6 +502,19 @@ def generate_briefing(existing_entries, scope_desks, on_progress=None):
                 'email_subject':'', 'email_html':'', 'whatsapp_text':''}
     desk_key = next(key for key, desks in GROUPS.items() if desks == scope_desks)
     audit = discovery.discover(sys.modules[__name__], desk_key, on_progress=on_progress)
+    if audit.get('needs_review'):
+        save_unverified_signal({
+            'title': 'Coverage review — '+scope_desks[0]+' — '+dubai_today(),
+            'desk': scope_desks[0],
+            'body_markdown': 'Discovery coverage needs manual review. This is a private operational record, not a news report.\n\n'+
+                json.dumps({'limitations':audit.get('limitations',[]), 'excluded':audit.get('excluded',[])},ensure_ascii=False),
+            'sources_text': '',
+        }, 'Incomplete discovery or no qualified current candidates. Do not approve this operational record as a Signal.')
+    if not audit['candidates']:
+        audit.update(decisions=[], coverage_status='no_publishable_candidates')
+        if on_progress: on_progress(audit)
+        return {'edition_label':dubai_today(), 'notion_entries':[],
+                'email_subject':'', 'email_html':'', 'whatsapp_text':'', '_coverage_audit':audit}
     scope_line = "Desks in scope for this run: " + ", ".join(scope_desks)
     user_prompt = f"""Run type: {RUN_TYPE}
 {scope_line}
@@ -2042,7 +2055,28 @@ def run_group(run_type):
                 f"'{entry.get('desk')}' — not in this run's scope ({', '.join(scope_desks)}).")
     briefing["notion_entries"] = in_scope_entries
 
+    # Normalize formatting only against the actual fetched IDs. Never guess a
+    # target or convert an unknown update into a new duplicate publication.
+    import uuid
+    known = {}
+    for row in existing:
+        try: known[uuid.UUID(row['id'])] = row['id']
+        except (ValueError, TypeError, AttributeError): pass
+    safe, held_targets = [], 0
+    for entry in briefing['notion_entries']:
+        if entry.get('action') == 'update':
+            target = entry.get('existing_id')
+            try: target = known.get(uuid.UUID(target))
+            except (ValueError, TypeError, AttributeError): target = None
+            if target is None:
+                save_unverified_signal(entry, 'Unknown update target; manual target confirmation required. No public page changed.')
+                held_targets += 1
+                continue
+            entry['existing_id'] = target
+        safe.append(entry)
+    briefing['notion_entries'] = safe
     briefing = verify_with_gemini_loop(briefing)
+    briefing['unverified_count'] = briefing.get('unverified_count',0) + held_targets
     audit = briefing.get('_coverage_audit')
     if audit:
         audit['approved_candidate_ids'] = [e.get('candidate_id') for e in briefing['notion_entries']]
@@ -2062,7 +2096,10 @@ def run_group(run_type):
     if not DRY_RUN:
         state = receipt_state
         state.update(phase='completed', edition=edition, desk=run_type,
-                     coverage_version=1, approved=len(briefing['notion_entries']), saved=len(notion_summary))
+                     coverage_version=1, approved=len(briefing['notion_entries']), saved=len(notion_summary),
+                     held=briefing.get('unverified_count',0),
+                     coverage_status=(audit or {}).get('coverage_status','unknown'),
+                     needs_review=(audit or {}).get('needs_review',False))
         api.save_ledger(receipt, state)
 
     return {

@@ -128,7 +128,62 @@ def search_evidence(response):
                 url = getattr(result, 'url', None)
                 if url:
                     urls.append(url[:1500])
-    return {'queries': queries[:4], 'result_urls': list(dict.fromkeys(urls))[:30]}
+    return {'queries': queries[:12], 'result_urls': list(dict.fromkeys(urls))[:30]}
+
+
+def targeted_source(desk_key, index):
+    # Society/technology needs regional reporting, not another financial regulator.
+    return SOURCES[desk_key][(0, 1, 5 if desk_key == 'north_america' else 4)[index]]
+
+
+def discover_pass(editor, prompt, required_source, now, checklist):
+    """One initial attempt and one bounded evidence/date repair; never approve by fallback."""
+    last = None
+    history = []
+    for attempt in range(2):
+        correction = '' if last is None else (
+            '\nRECOVERY: Previous attempt was incomplete: '+str(last)[:1200]+
+            '\nFIRST search must be site:'+required_source+' with the cutoff date and this pass theme.'
+            '\nUse the RSS article URLs as leads. Read dated sources; do not invent dates.'
+            '\nReturn no candidates if none can be supported. Preserve all source_checks.')
+        with editor.client.messages.stream(model='claude-sonnet-4-5', max_tokens=6000,
+                tools=[{'type':'web_search_20250305','name':'web_search','max_uses':4}],
+                messages=[{'role':'user','content':prompt+correction}]) as stream:
+            response = stream.get_final_message()
+        evidence = search_evidence(response)
+        try:
+            if not evidence['queries'] or not evidence['result_urls']:
+                raise ValueError('No observed live search results')
+            if not any(('site:'+required_source) in q.lower() for q in evidence['queries']):
+                raise ValueError('Missing targeted source search: '+required_source)
+            data = parse_json('\n'.join(b.text for b in response.content if getattr(b, 'type', '') == 'text'))
+            if not isinstance(data, dict):
+                raise ValueError('Discovery response must be an object')
+            checks = data.get('source_checks', [])
+            if (not isinstance(checks, list) or not all(isinstance(c,dict) for c in checks)
+                    or {c.get('domain') for c in checks} != set(checklist)
+                    or any(c.get('status') not in {'consulted','no_current_result','unavailable','not_checked'}
+                           or not c.get('reason') for c in checks)):
+                raise ValueError('Discovery source checklist incomplete')
+            rows = data.get('candidates')
+            if not isinstance(rows, list) or len(rows) > 8:
+                raise ValueError('Discovery candidate list malformed or exceeds limit')
+            valid, excluded = [], []
+            for row in rows:
+                try:
+                    valid.append(validate_candidate(row, now))
+                except (ValueError, TypeError, KeyError) as error:
+                    excluded.append({'title':row.get('title','') if isinstance(row,dict) else '', 'reason':str(error)})
+            if excluded and not valid and attempt == 0:
+                raise ValueError('All candidate dates/sources rejected: '+json.dumps(excluded))
+            evidence['recovery_history'] = history
+            return data, evidence, valid, excluded, attempt + 1
+        except (ValueError, TypeError, KeyError) as error:
+            last = error
+            history.append({'attempt':attempt+1, 'reason':str(error)[:1500],
+                            'queries':evidence['queries'], 'result_urls':evidence['result_urls'][:10]})
+    evidence['recovery_history'] = history
+    return None, evidence, [], [], 2
 
 
 def discover(editor, desk_key, now=None, on_progress=None):
@@ -143,7 +198,7 @@ def discover(editor, desk_key, now=None, on_progress=None):
         audit['feed_status'] = 'unavailable'
         audit['limitations'].append('RSS unavailable; live regional/local/official searches remain required')
     for index, (name, scope) in enumerate(PASSES.items()):
-        required_source = SOURCES[desk_key][index]
+        required_source = targeted_source(desk_key, index)
         prompt = f'''Discover current news for {editor.GROUPS[desk_key][0]}.
 Cutoff: {now.isoformat()}. Prioritize the previous 24 hours; 24–48 hours only for a still-current material development.
 This pass: {scope}
@@ -164,19 +219,16 @@ Return JSON only:
 {{"candidates":[{{"title":"...","development":"specific new development","event_at":"ISO timestamp with timezone or YYYY-MM-DD if only date known","still_current_reason":"required for 24–48h items","theme":"...","sources":[{{"publisher":"...","url":"direct HTTPS article/document","published_at":"ISO timestamp or YYYY-MM-DD"}}]}}],
 "source_checks":[{{"domain":"checklist domain","status":"consulted|no_current_result|unavailable|not_checked","reason":"specific finding/limitation"}}],"limitations":["..."]}}
 Include a truthful status for EVERY checklist domain. A search result is not independent corroboration.'''
-        with editor.client.messages.stream(model='claude-sonnet-4-5', max_tokens=6000,
-                tools=[{'type':'web_search_20250305','name':'web_search','max_uses':4}],
-                messages=[{'role':'user','content':prompt}]) as stream:
-            response = stream.get_final_message()
-        evidence = search_evidence(response)
-        if not evidence['queries'] or not evidence['result_urls']:
-            raise ValueError('Discovery pass lacks observed live search results: '+name)
+        data, evidence, valid, excluded, attempts = discover_pass(editor, prompt, required_source, now, SOURCES[desk_key])
+        if data is None:
+            audit['limitations'].append(name+': evidence requirements still unmet after bounded recovery')
+            audit['passes'].append({'name':name, 'status':'incomplete', 'attempts':attempts, **evidence})
+            editor.log('DISCOVERY HOLD: '+name+' remains incomplete; evidence retained for private review')
+            if on_progress: on_progress(audit)
+            continue
         attempted = [domain for domain in SOURCES[desk_key]
                      if any(('site:'+domain) in query.lower() for query in evidence['queries'])]
-        if required_source not in attempted:
-            raise ValueError('Discovery pass lacks targeted source search: '+name)
         evidence['observed_targeted_domains'] = attempted
-        data = parse_json('\n'.join(b.text for b in response.content if getattr(b, 'type', '') == 'text'))
         checks = data.get('source_checks', [])
         if (not isinstance(checks, list) or {c.get('domain') for c in checks} != set(SOURCES[desk_key])
                 or any(c.get('status') not in {'consulted','no_current_result','unavailable','not_checked'}
@@ -192,23 +244,18 @@ Include a truthful status for EVERY checklist domain. A search result is not ind
                 for url in evidence['result_urls'])
             if check['status'] in {'unavailable','not_checked'}:
                 audit['limitations'].append(name+': '+check['domain']+' '+check['status'])
-        audit['passes'].append({'name':name,'model_reported_source_checks':checks, **evidence})
-        rows = data.get('candidates')
-        if not isinstance(rows, list) or len(rows) > 8:
-            raise ValueError('Discovery candidate list malformed or exceeds limit')
-        for row in rows:
-            try:
-                item = validate_candidate(row, now)
-                item['candidate_id'] = f'{desk_key}-{len(audit["candidates"])+1}'
-                audit['candidates'].append(item)
-            except (ValueError, TypeError, KeyError) as error:
-                audit['excluded'].append({'title':row.get('title','') if isinstance(row,dict) else '', 'reason':str(error)})
+        audit['passes'].append({'name':name,'status':'checked','attempts':attempts,'model_reported_source_checks':checks, **evidence})
+        for item in valid:
+            item['candidate_id'] = f'{desk_key}-{len(audit["candidates"])+1}'
+            audit['candidates'].append(item)
+        audit['excluded'].extend(excluded)
         audit['limitations'].extend(str(x)[:500] for x in data.get('limitations', [])[:8])
         editor.log('DISCOVERY PASS: '+json.dumps(audit['passes'][-1], ensure_ascii=False))
         if on_progress:
             on_progress(audit)
-    if audit['excluded'] and not audit['candidates']:
-        raise ValueError('All discovered candidates failed freshness/source validation; coverage incomplete')
+    if not audit['candidates']:
+        audit['limitations'].append('No source/date-qualified candidates; nothing approved for publication')
+    audit['needs_review'] = not audit['candidates'] or any(p.get('status') == 'incomplete' for p in audit['passes'])
     return audit
 
 
