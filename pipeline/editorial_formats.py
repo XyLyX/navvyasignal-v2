@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import os
 import re
+import time
 from collections import defaultdict
 from zoneinfo import ZoneInfo
 from pipeline import regional_release as release
@@ -105,9 +106,18 @@ Output ONLY JSON with has_report:true, title (precise, factual), primary_desk, r
 paragraphs (exactly {count} plain-prose paragraphs, each at most 750 characters),
 source_ids (1 to 8 distinct IDs copied exactly from supplied source records).
 Do not output Markdown, headings or invented citations. The final paragraph states supported implications and limitations."""
-    with editor.client.messages.stream(model='claude-sonnet-4-5', max_tokens=8000,
-            system=instructions, messages=[{'role':'user','content':json.dumps(rows, ensure_ascii=False)}]) as stream:
-        response = stream.get_final_message()
+    from anthropic import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+    model = os.environ.get('V2_EDITORIAL_MODEL', 'claude-sonnet-4-5')
+    for attempt in range(3):
+        try:
+            with editor.client.messages.stream(model=model, max_tokens=8000,
+                    system=instructions, messages=[{'role':'user','content':json.dumps(rows, ensure_ascii=False)}]) as stream:
+                response = stream.get_final_message()
+            break
+        except (APIConnectionError, APITimeoutError, InternalServerError, RateLimitError):
+            if attempt == 2:
+                raise
+            time.sleep(2 ** attempt)
     output = '\n'.join(b.text for b in response.content if b.type == 'text')
     return json.loads(output[output.index('{'):output.rindex('}')+1])
 
