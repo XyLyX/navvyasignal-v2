@@ -297,5 +297,5 @@ def run(edition, api=None, editor=None, retry_technical=False):
 
 if __name__ == '__main__':
     outcome = run(os.environ.get('V2_EDITION_DATE') or dt.datetime.now(TZ).date().isoformat())
-    if any(status in {'held','failed','no_inputs'} for status in outcome.values()):
-        raise SystemExit('Some editorial formats remain unpublished; inspect private queue and audit ledger')
+    if any(status in {'failed','no_inputs'} for status in outcome.values()):
+        raise SystemExit('Editorial processing failed; inspect private queue and audit ledger')
