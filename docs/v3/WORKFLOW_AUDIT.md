@@ -24,3 +24,15 @@ v3_core/analyst.py: conservative evidence bundle and four-region routing.
 v3_core/editor.py: fail-closed candidate preparation; no LLM or Notion side effects.
 tests/test_v3_pipeline.py: isolated fixtures.
 No existing workflow has been removed; no live calls have been made.
+
+
+## Default-branch findings (additional audit)
+The repository default branch main contains 15 workflow YAML files, versus 12 on release/v2-english. The extra main-only files are v2-editorial-site-check.yml, v2-manual-current-edition.yml, v2-notion-refresh.yml and v2-site-code-publish.yml; v2-review-page.yml is on release but not in the main listing (check branch differences before cleanup).
+- main/.github/workflows/v2-notion-refresh.yml is the 30-minute approved-content reconciliation job. It invokes pipeline/refresh_publication.py --approved-refresh, without LLM calls; DO NOT REMOVE during V3 preparation.
+- main/.github/workflows/v2-site-code-publish.yml is a narrowly scoped explicit code-only Netlify build hook path; preserve until deployment ownership is verified.
+- main/.github/workflows/v2-editorial-site-check.yml is a read-only live-site verification workflow; preserve until V3 parity.
+- GitHub schedule events run on main only. The production release branch is separate. Inspect main pipeline compatibility and external Netlify dispatch before disabling any jobs.
+- This is a code inventory, not evidence of recent successful executions. Workflow runs and Netlify status remain unverified.
+
+## Decision
+No destructive deletion on the isolated branch yet: all identified workflows have potential operational dependencies. Implement and test V3 components in parallel, then produce a file-specific deletion PR after scheduler and publication parity are verified.
