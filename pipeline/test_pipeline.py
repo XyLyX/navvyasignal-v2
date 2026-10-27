@@ -28,31 +28,24 @@ def page(identifier, created, kind='Signal', ready=True):
 
 
 class PipelineTests(unittest.TestCase):
-    def test_repeated_fact_concern_never_reaches_publication(self):
-        entry = {'title': 'Disputed claim', 'desk': 'UAE & Middle East Desk',
-                 'desk_ambiguous': False, 'sources_text': 'https://example.com/report',
-                 'body_markdown': 'A factual paragraph.\n\nA consequence.'}
-        draft = {'notion_entries': [entry]}
-        with patch.object(main, 'gemini_review', side_effect=[
-                'FLAGS: 1\n- Officeholder is wrong',
-                'FLAGS: 1\n- Officeholder is wrong']), \
-                patch.object(main, 'claude_respond_to_flags', return_value={'notion_entries': [dict(entry)]}), \
-                patch.object(main, 'save_unverified_signal') as queue:
-            reviewed = main.verify_with_gemini_loop(draft)
-        self.assertEqual(reviewed['notion_entries'], [])
+    def test_missing_direct_source_is_held_privately(self):
+        entry = {'title': 'Unsupported', 'desk': 'UAE & Middle East Desk',
+                 'desk_ambiguous': False, 'sources_text': 'No direct URL',
+                 'body_markdown': 'Facts.\\n\\nConsequences.'}
+        with patch.object(main, 'save_unverified_signal') as queue:
+            result = main.check_editorial_entries({'notion_entries': [entry]})
+        self.assertEqual(result['notion_entries'], [])
+        self.assertEqual(result['unverified_count'], 1)
         queue.assert_called_once()
 
-    def test_fact_review_queues_missing_count_and_provider_failure(self):
-        entry = {'title': 'Draft', 'desk': 'UAE & Middle East Desk', 'desk_ambiguous': False,
-                 'sources_text': 'https://example.com/report',
-                 'body_markdown': 'Facts.\n\nConsequences.'}
-        for response in ('No concerns', None):
-            with self.subTest(response=response), \
-                    patch.object(main, 'gemini_review', return_value=response), \
-                    patch.object(main, 'save_unverified_signal') as queue:
-                result = main.verify_with_gemini_loop({'notion_entries': [dict(entry)]})
-                self.assertEqual(result['notion_entries'], [])
-                queue.assert_called_once()
+    def test_valid_source_passes_without_fact_review(self):
+        entry = {'title': 'Supported', 'desk': 'UAE & Middle East Desk',
+                 'desk_ambiguous': False, 'sources_text': 'https://example.com/report',
+                 'body_markdown': 'Facts.\\n\\nConsequences.'}
+        with patch.object(main, 'fit_signal_briefs', side_effect=lambda x:x), patch.object(main, 'save_unverified_signal') as queue:
+            result = main.check_editorial_entries({'notion_entries': [entry]})
+        self.assertEqual(len(result['notion_entries']), 1)
+        queue.assert_not_called()
 
     def test_compilation_reads_all_pages_and_excludes_previous_dubai_day(self):
         seen = []
