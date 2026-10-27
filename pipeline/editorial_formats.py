@@ -169,7 +169,7 @@ def review(editor, entry):
     for index in range(0, len(paragraphs), 2):
         section = dict(entry, body_markdown='\n\n'.join(paragraphs[index:index+2]),
                        full_draft=entry, notes=entry['notes']+f'; section {index//2+1}')
-        result = editor.verify_with_gemini_loop({'notion_entries':[section]})
+        result = editor.check_editorial_entries({'notion_entries':[section]})
         if not result['notion_entries']:
             return None
         checked = result['notion_entries'][0]
