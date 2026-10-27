@@ -1120,80 +1120,34 @@ def _claude_final_recovery(briefing_data, original, reason):
 
 
 def verify_with_gemini_loop(briefing_data, max_rounds=1):
-    """Retain rejected drafts privately; independent approved stories continue."""
+    """Compatibility entry point: deterministic editorial checks, no Gemini or AI re-review.
+
+    Claude is responsible for the original draft. Unsafe or incomplete drafts
+    stay private rather than being automatically approved or rewritten.
+    """
     approved, withheld = [], []
     for entry in briefing_data["notion_entries"]:
-        log(f"Reviewing Signal: {entry.get('title', '')[:120]}")
-        isolated = dict(briefing_data, notion_entries=[dict(entry)])
-        isolated["_verification_findings"] = []
-        isolated["_reviewed_versions"] = []
         try:
             if entry.get("desk_ambiguous") is not False:
                 raise ValueError("Desk classification requires editorial confirmation")
             if not has_direct_source_url(entry):
                 raise ValueError("Missing or invalid direct source URL")
-            isolated = fit_signal_briefs(isolated)
-            result = _verify_single_signal(isolated, max_rounds=max_rounds)
-            if result is None:
-                reason = "Claude source cross-check did not approve publication; manual review required."
-            else:
-                for checked in result['notion_entries']:
-                    for key in ('candidate_id','discovery'):
-                        if key in entry:
-                            checked[key] = entry[key]
-                approved.extend(result["notion_entries"])
-                continue
-        except FinalEditorialRejection as rejection:
-            save_unverified_signal(rejection.entry, str(rejection))
-            continue
+            checked = fit_signal_briefs({"notion_entries": [dict(entry)]})["notion_entries"][0]
+            for key in ("candidate_id", "discovery"):
+                if key in entry:
+                    checked[key] = entry[key]
+            approved.append(checked)
         except (Exception, SystemExit) as error:
-            # Never silently approve on provider/format errors; preserve the draft.
-            reason = "Verification incomplete (" + type(error).__name__ + ")."
-            if isinstance(error, ValueError) and (str(error).startswith("Free review") or str(error).startswith("Source evidence")):
-                reason = str(error)
-            elif "credit balance is too low" in str(error).lower():
-                reason = "Verification incomplete: Anthropic API credits exhausted."
-            elif isinstance(error, ValueError) and str(error) in (
-                    "Desk classification requires editorial confirmation", "Missing or invalid direct source URL",
-                    "Signal Brief format requires manual review; no paid rewrite attempted",
-                    "Fact-review provider unavailable", "Fact-review response malformed",
-                    "Fact-review response missing valid FLAGS count", "Fact-review count and concern lines disagree"):
-                reason = str(error)
-            if isinstance(error, ValueError):
-                reason = str(error)[:1000]
-            log("REVIEW ERROR: " + reason)
-        # Every held draft gets exactly one fresh Claude adjudication in this cycle.
-        # Preserve the first failure, even if the recovery fails technically.
-        isolated.setdefault("_verification_findings", []).append("Initial hold: " + reason)
-        try:
-            recovered = _claude_final_recovery(isolated, entry, reason)
-            for checked in recovered['notion_entries']:
-                for key in ('candidate_id','discovery'):
-                    if key in entry:
-                        checked[key] = entry[key]
-            approved.extend(recovered["notion_entries"])
-            continue
-        except FinalEditorialRejection as rejection:
-            save_unverified_signal(rejection.entry, str(rejection))
-            continue
-        except (Exception, SystemExit) as recovery_error:
-            if isinstance(recovery_error, ValueError):
-                reason = str(recovery_error)
-            else:
-                reason = "Automatic Claude recovery incomplete (" + type(recovery_error).__name__ + "); draft remains private."
-            isolated["_verification_findings"].append("Final hold: " + reason)
-            log("RECOVERY HOLD: " + reason)
-        findings = "\n\n".join(isolated.get("_verification_findings", []))
-        versions = isolated.get("_reviewed_versions", [])
-        queued_entry = dict(versions[-1] if versions else entry)
-        queued_entry["original_draft"] = entry
-        save_unverified_signal(queued_entry, reason + "\n" + findings)
-        withheld.append(entry.get("title", "Untitled"))
+            reason = str(error)[:1000] if isinstance(error, ValueError) else (
+                "Editorial checks incomplete (" + type(error).__name__ + ")"
+            )
+            log("EDITORIAL HOLD: " + reason)
+            save_unverified_signal(entry, reason)
+            withheld.append(entry.get("title", "Untitled"))
     briefing_data["notion_entries"] = approved
     briefing_data["unverified_count"] = len(withheld)
-    log(f"Fact review complete: {len(approved)} approved, {len(withheld)} queued for private review")
+    log(f"Editorial checks complete: {len(approved)} accepted, {len(withheld)} held privately; Gemini disabled")
     return briefing_data
-
 
 
 
@@ -1346,7 +1300,7 @@ def push_to_notion(entries, valid_existing_ids):
 
 def write_verified_special_entry(title, body, sources_text, content_type, primary_desk=None,
                                  related_desks=None, existing_id=None):
-    """Use the same Claude/Gemini policy and private hold queue as ordinary Signals."""
+    """Use the same deterministic editorial checks and private hold queue as ordinary Signals."""
     desk = primary_desk if primary_desk in DESKS else DESKS[0]
     entry = {"title": title, "body_markdown": body, "sources_text": sources_text,
              "desk": desk, "desk_ambiguous": False, "action": "update" if existing_id else "create",
@@ -1363,7 +1317,7 @@ def write_verified_special_entry(title, body, sources_text, content_type, primar
                                approved["sources_text"], content_type,
                                primary_desk=approved.get('desk', desk), related_desks=approved.get('related_desks', related_desks),
                                existing_id=existing_id,
-                               notes=approved.get("notes", "") + "\nPassed Claude/Gemini publication policy.")
+                               notes=approved.get("notes", "") + "\nPassed deterministic editorial checks; Gemini disabled.")
 
 
 def write_special_entry(title, body, sources_text, content_type, primary_desk=None,
