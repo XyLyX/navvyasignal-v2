@@ -868,63 +868,8 @@ def discard_rejected_draft(original, rejected):
     return save_unverified_signal(rejected, 'Claude did not approve; manual review required')
 
 
-def _claude_final_recovery(briefing_data, original, reason):
-    """One fresh source-backed adjudication; no Gemini veto or unbounded retry."""
-    recovered_input = json.loads(json.dumps(briefing_data))
-    versions = briefing_data.get("_reviewed_versions", [])
-    recovered_input["notion_entries"] = [dict(versions[-1] if versions else original)]
-    findings = "\n\n".join(briefing_data.get("_verification_findings", []))
-    instruction = (
-        "Automatic recovery after an incomplete or rejected review. Recheck the CURRENT "
-        "draft from live sources, including every material claim, not just prior flags. "
-        "Prior verdicts are context, not proof. Approve only supported reporting. "
-        "Return a plain-prose brief of 2-3 paragraphs, at most 1800 characters; "
-        "sources_text must contain direct HTTPS article URLs and fit 1900 characters. "
-        "Do not change desk, action or existing_id.\nFailure: " + reason +
-        "\nPrior findings:\n" + findings)
-    repaired = claude_respond_to_flags(recovered_input, instruction, is_repeat_concern=True)
-    if not isinstance(repaired, dict) or not isinstance(repaired.get("notion_entries"), list) or len(repaired["notion_entries"]) != 1:
-        raise ValueError("Recovery Claude response missing one valid entry")
-    entry = repaired["notion_entries"][0]
-    if not isinstance(entry, dict):
-        raise ValueError("Recovery Claude entry malformed")
-    if entry.get("desk") != original.get("desk"):
-        raise ValueError("Recovery changed story identity: desk")
-    # The verdict concerns this draft; a model cannot select a publication/deletion target.
-    entry["action"] = original.get("action")
-    entry["existing_id"] = original.get("existing_id")
-    briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
-    reject_if_final(repaired, original)
-    decision = repaired.get("editorial_decision", {})
-    briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
-    if not isinstance(decision, dict):
-        raise ValueError("Recovery Claude verdict malformed")
-    if decision.get("ready_to_post") is not True:
-        raise ValueError("Recovery Claude withheld publication: " + str(decision.get("rationale", "No explicit approval"))[:1000])
-    if (not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip()
-            or not isinstance(decision.get("evidence"), list) or not decision["evidence"]
-            or not all(isinstance(e, str) and "https://" in e for e in decision["evidence"])
-            or not isinstance(decision.get("unverified_claims"), list)
-            or not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
-        raise ValueError("Recovery Claude approval lacks required evidence or decision fields")
-    if entry.get("desk_ambiguous") is not False or entry.get("desk") not in DESKS:
-        raise ValueError("Recovery desk classification unresolved")
-    if not has_direct_source_url(entry):
-        raise ValueError("Recovery missing valid direct article sources")
-    body = entry.get("body_markdown", "")
-    if (not isinstance(body, str) or not 0 < len(body.strip()) <= 1800
-            or not 2 <= len([p for p in body.strip().split("\n\n") if p.strip()]) <= 3
-            or any(label in body.lower() for label in ("why it matters:", "what happened:", "##", "**"))):
-        raise ValueError("Recovery brief does not meet publication format")
-    if decision["unverified_claims"] and "couldn't be verified from source" not in body.lower():
-        raise ValueError("Recovery missing public uncertainty label")
-    entry["notes"] = (entry.get("notes", "") + "\nAutomatic Claude recovery: " + json.dumps(decision)).strip()
-    log("Claude automatic recovery approved source-backed reporting")
-    return repaired
-
-
 def check_editorial_entries(briefing_data):
-    """Compatibility entry point: deterministic editorial checks, no Gemini or AI re-review.
+    """Deterministic editorial checks without additional model calls.
 
     Claude is responsible for the original draft. Unsafe or incomplete drafts
     stay private rather than being automatically approved or rewritten.
