@@ -42,18 +42,18 @@ class EditorialFormatsTests(unittest.TestCase):
         entry={'title':'Checked title','body_markdown':'\n\n'.join(['A documented paragraph. '*28]*8),
                'sources_text':'https://example.com/a','desk':'North America Desk','action':'create','notes':'Full report'}
         editor=Mock()
-        editor.verify_with_gemini_loop.side_effect=lambda value:value
+        editor.check_editorial_entries.side_effect=lambda value:value
         result=f.review(editor,entry)
-        self.assertEqual(editor.verify_with_gemini_loop.call_count,4)
+        self.assertEqual(editor.check_editorial_entries.call_count,4)
         self.assertEqual(result['body_markdown'],entry['body_markdown'])
         self.assertGreater(len(result['body_markdown']),1800)
-        for call in editor.verify_with_gemini_loop.call_args_list:
+        for call in editor.check_editorial_entries.call_args_list:
             section=call.args[0]['notion_entries'][0]
             self.assertLessEqual(len(section['body_markdown']),1800)
             self.assertEqual(section['full_draft'],entry)
 
     def test_one_held_section_prevents_whole_long_read_publication(self):
-        editor=Mock();editor.verify_with_gemini_loop.return_value={'notion_entries':[]}
+        editor=Mock();editor.check_editorial_entries.return_value={'notion_entries':[]}
         result=f.review(editor,{'title':'Full','body_markdown':'One.\n\nTwo.','notes':'','desk':'North America Desk','action':'create'})
         self.assertIsNone(result)
 
