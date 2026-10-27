@@ -156,14 +156,12 @@ if __name__ == '__main__':
         if parent_id.replace('-', '') != editor.NOTION_DATABASE_ID.replace('-', ''):
             raise SystemExit('Verification target is outside Signal Feed')
         entry = draft(page)
-        context = {'notion_entries': [entry], '_verification_findings': [
-            'Read-only production verification of a previously manually reviewed signal. ' + text(page, 'Internal Note')]}
-        try:
-            verified = editor._claude_final_recovery(context, entry, 'Read-only live verification; no Notion writes')
-            print('LIVE CLAUDE CHECK: ' + json.dumps(verified['editorial_decision']))
-        except editor.FinalEditorialRejection as rejection:
-            print('LIVE CLAUDE CHECK: rejected; existing publication untouched: ' + str(rejection))
-        except (Exception, SystemExit) as error:
-            print('LIVE CLAUDE CHECK: incomplete (' + type(error).__name__ + ')')
-            raise
+        if not private(page):
+            raise SystemExit('Page is not a private unverified draft')
+        passed = entry['desk_ambiguous'] is False and editor.has_direct_source_url(entry)
+        print('DETERMINISTIC CHECK: ' + json.dumps({
+            'passed': passed,
+            'note': 'This is not independent fact verification or publication approval.'
+        }))
+
     run()

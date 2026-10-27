@@ -150,7 +150,7 @@ class DiscoveryTests(unittest.TestCase):
         entries=[{'title':'Valid update','desk':'North America Desk','action':'update','existing_id':canonical.replace('-','')},
                  {'title':'Unsafe update','desk':'North America Desk','action':'update','existing_id':'unknown'}]
         briefing={'edition_label':'today','notion_entries':entries}
-        with patch.object(editor,'DRY_RUN',True),patch.object(editor,'fetch_existing_entries',return_value=[{'id':canonical}]),patch.object(editor,'generate_briefing',return_value=briefing),patch.object(editor,'verify_with_gemini_loop',side_effect=lambda x:x),patch.object(editor,'push_to_notion',return_value=['saved']) as push,patch.object(editor,'save_unverified_signal') as queue:
+        with patch.object(editor,'DRY_RUN',True),patch.object(editor,'fetch_existing_entries',return_value=[{'id':canonical}]),patch.object(editor,'generate_briefing',return_value=briefing),patch.object(editor,'check_editorial_entries',side_effect=lambda x:x),patch.object(editor,'push_to_notion',return_value=['saved']) as push,patch.object(editor,'save_unverified_signal') as queue:
             result=editor.run_group('north_america')
         self.assertEqual(result['entry_count'],1);queue.assert_called_once()
         self.assertEqual(push.call_args.args[0][0]['existing_id'],canonical)

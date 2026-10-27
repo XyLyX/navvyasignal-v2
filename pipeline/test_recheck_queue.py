@@ -9,7 +9,7 @@ class QueueRecoveryTests(unittest.TestCase):
         return {'id':'draft','created_time':'2026-10-01T00:00:00Z','properties':{
             'Ready to Post':{'checkbox':False},'Internal Note':{'rich_text':[{'plain_text':'V2_UNVERIFIED_SIGNAL:abc\nReview needed'}]}}}
     def test_notifications_never_review_approve_or_delete(self):
-        with patch.object(queue,'list_queue',return_value=[self.page()]),patch.object(queue,'notify_private_draft') as alert,patch.object(queue.editor,'DRY_RUN',False),patch.object(queue.editor,'_claude_final_recovery') as review,patch.object(queue,'notion') as write:
+        with patch.object(queue,'list_queue',return_value=[self.page()]),patch.object(queue,'notify_private_draft') as alert,patch.object(queue.editor,'DRY_RUN',False),patch.object(queue.editor,'check_editorial_entries') as review,patch.object(queue,'notion') as write:
             result=queue.run()
         alert.assert_called_once();review.assert_not_called();write.assert_not_called()
         self.assertEqual(result['approved'],0);self.assertEqual(result['discarded'],0)

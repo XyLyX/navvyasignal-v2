@@ -31,7 +31,6 @@ KIT_FROM_EMAIL = os.environ.get("KIT_FROM_EMAIL", "hello@navvyasignal.com")
 WHAPI_TOKEN = os.environ.get("WHAPI_TOKEN", "")
 WHAPI_CHANNEL_ID = os.environ.get("WHAPI_CHANNEL_ID", "")
 OPS_NOTIFY_NUMBER = os.environ.get("OPS_NOTIFY_NUMBER", "")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # Four regional desks; the shared policy supersedes every earlier desk schedule.
 from pathlib import Path
@@ -592,7 +591,7 @@ Return the normal JSON schema plus coverage_decisions and candidate_id on each s
 
 
 def fit_signal_briefs(briefing_data):
-    """Fit briefs to the agreed format before Gemini fact review."""
+    """Fit briefs to the agreed format before deterministic editorial checks."""
     forbidden_labels = (
         "why it matters:",
         "what happened:",
@@ -744,147 +743,7 @@ Assemble the final email and WhatsApp content per your instructions."""
     return data
 
 
-# ---------- STEP 2.5: Gemini cross-verification ----------
-
-def call_gemini(prompt_text):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-    resp = requests.post(url, json=payload, timeout=60)
-    if resp.status_code != 200:
-        log(f"WARNING: Gemini call failed ({resp.status_code}): {resp.text[:500]}")
-        return None
-    try:
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-        log(f"WARNING: Unexpected Gemini response shape: {resp.text[:500]}")
-        return None
-
-
-def gemini_review(briefing_json_str):
-    prompt = f"""You are fact-checking a draft news briefing before publication for NavvyaSignal, \
-a credibility-focused intelligence publication. Review the JSON draft below.
-
-Flag ONLY genuine concerns: factual claims that seem implausible, internally contradictory, \
-unsupported by the stated sources, or that you have reason to believe are outdated or wrong. \
-Flag a headline that states a disputed outcome as settled when the body documents conflicting source reports. Do not flag stylistic choices or things you simply cannot verify either way — only flag \
-things you have an actual, specific reason to doubt.
-
-Respond in this exact format:
-FLAGS: <number of concerns, 0 if none>
-If FLAGS > 0, list each concern on its own line starting with "- ", specific enough to act on.
-
-Draft to review:
-{briefing_json_str}"""
-    prompt += (f"\nCurrent UTC date: {datetime.datetime.utcnow().date().isoformat()}. "
-               "Review only the provided story. Do not treat current events as future "
-               "hypotheticals based on your training cutoff. Do not infer contradictions "
-               "between unrelated diplomatic meetings. Specify the disputed claim and "
-               "its source/date issue; do not flag a calendar combination you find consistent.")
-    return call_gemini(prompt)
-
-
-def claude_respond_to_flags(briefing_data, gemini_flags_text, is_repeat_concern=False):
-    """Ask Claude to address Gemini's specific concerns: confirm with better sourcing,
-    revise, or explain — using web search to re-check if needed."""
-    repeat_warning = ""
-    if is_repeat_concern:
-        repeat_warning = """
-IMPORTANT: this same concern (or a closely related one) was already raised in a previous \
-round and your prior response did not resolve it — Gemini is flagging it again. Do NOT \
-reconfirm the claim as accurate a second time unless you can name one specific, checkable \
-source (outlet + article) you searched THIS round that directly supports it. A vague or \
-blanket claim of confirmation ("confirmed via multiple sources") without a specific, named \
-source is not acceptable and must not be used. If you cannot produce a specific source this \
-round, you MUST either revise the claim to remove the disputed specific detail entirely, or \
-drop that sentence/clause — do not restate it with invented-sounding verification language.
-"""
-
-    prompt = f"""Cross Check from all sources.
-You are the final editorial adjudicator after Gemini raised ambiguity. Search all cited
-sources and additional primary/corroborating sources relevant to EACH disputed claim.
-A middle route means the supported common ground, never averaging conflicting figures
-or inventing a compromise. Attribute genuine disagreements. Remove unsupported claims;
-where a non-central detail remains unresolved, explicitly say "couldn't be verified from source"
-in the public brief and explain which detail. If the central claim cannot be verified,
-set ready_to_post=false. Never treat that label as permission to report speculation as fact.
-Add top-level editorial_decision with ready_to_post (boolean), rationale (nonempty string),
-evidence (nonempty list of source URLs and what each establishes), and
-unverified_claims (list of nonempty strings; empty if none), and disposition ("publish",\n"hold", or "discard"). Use "discard" with ready_to_post=false when your final recommendation\nis unpublishable, do not publish, reject the article, or equivalent. Use "hold" only\nfor incomplete verification or a technical problem awaiting review, not a final editorial rejection.\nSet ready_to_post=false if
-any material concern makes publication unsafe. Keep this decision private.
-
-Gemini raised the following concerns about your draft briefing:
-
-{gemini_flags_text}
-{repeat_warning}
-For each concern, either:
-1. Re-verify via web search and confirm the claim stands — ONLY if you can cite a specific, \
-named source (outlet + article) found in an actual search this round, not a general assertion \
-of confidence, or
-2. Revise the specific claim to be accurate, or
-3. Remove unsupported background details. Do not salvage an unsupported factual claim
-by merely labelling it disputed. Preserve uncertainty only where a real source reports it.
-
-You MUST use live web search this round. Include publisher, publication date and direct
-https article URLs supporting retained disputed claims in sources_text. Keep the same
-single entry and its desk, action and existing_id; do not invent or add replacement stories. Preserve the content type and synthesis purpose. Where sources conflict, narrow both title and body to the supported common ground; never assert a disputed outcome in the headline.
-
-Never fabricate or imply verification you did not actually perform this round. If you did not \
-run a new search for a specific claim, you may not describe it as "confirmed."
-
-Current draft JSON:
-{json.dumps(briefing_data)}
-
-Output the FULL corrected JSON (same schema as before), with fixes applied. Output ONLY \
-the JSON, no other text."""
-
-    with client.messages.stream(
-        model="claude-sonnet-4-5",
-        max_tokens=32000,
-        system=SYSTEM_PROMPT,
-        tools=[{"type": "web_search_20250305", "name": "web_search"}],
-        messages=[{"role": "user", "content": prompt}],
-    ) as stream:
-        response = stream.get_final_message()
-    if not any(getattr(block, "type", "") == "server_tool_use"
-               and getattr(block, "name", "") == "web_search"
-               for block in response.content):
-        log("HOLD: repair did not perform live search")
-        return None
-    text_parts = [block.text for block in response.content if block.type == "text"]
-    full_text = "\n".join(text_parts).strip()
-
-    import re
-    fence_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", full_text, re.DOTALL)
-    json_str = fence_match.group(1) if fence_match else full_text[full_text.find("{"):full_text.rfind("}") + 1]
-    json_str = re.sub(r"</?cite[^>]*>", "", json_str)
-
-    try:
-        return json.loads(json_str)
-    except json.JSONDecodeError:
-        log("HOLD: repair did not return valid JSON")
-        return None
-
-
-def _flag_lines(review_text):
-    """Extract just the '- ' concern lines from a Gemini review, for repeat-detection."""
-    return [l.strip().lower() for l in review_text.splitlines() if l.strip().startswith("-")]
-
-
-def _concern_overlaps(prev_flags, current_flags, threshold=0.5):
-    """Rough repeat-detection: does a current flag share enough words with any previous
-    flag to be considered 'the same concern raised again'? Word-overlap is crude but
-    good enough to catch a Gemini re-flag of the same underlying issue."""
-    for cur in current_flags:
-        cur_words = set(w for w in cur.split() if len(w) > 4)
-        for prev in prev_flags:
-            prev_words = set(w for w in prev.split() if len(w) > 4)
-            if not cur_words or not prev_words:
-                continue
-            overlap = len(cur_words & prev_words) / min(len(cur_words), len(prev_words))
-            if overlap >= threshold:
-                return True
-    return False
-
+# Source integrity checks and private editorial holds.
 
 def has_direct_source_url(entry):
     """Require an actual HTTPS article/document URL, not just outlet names."""
@@ -913,61 +772,6 @@ def sourced_signals(entries):
     if entries and not accepted:
         fail_hard("No Signals have valid direct source URLs; desk publication withheld")
     return accepted
-
-
-def _verify_single_signal(briefing_data, max_rounds=2):
-    """Gemini checks; Claude resolves ambiguity with live source research."""
-    original = dict(briefing_data["notion_entries"][0])
-    current = briefing_data
-    for round_number in range(2):
-        current.setdefault("_reviewed_versions", []).append(dict(current["notion_entries"][0]))
-        log(f"Gemini cross-check round {round_number + 1}")
-        review = gemini_review(json.dumps({"notion_entries": current["notion_entries"]}))
-        if not isinstance(review, str) or not re.match(r"^FLAGS: \d+(?:\n|$)", review):
-            raise ValueError("Gemini review unavailable or malformed; manual review required")
-        count = int(review.splitlines()[0].split(":", 1)[1])
-        if len(_flag_lines(review)) != count:
-            raise ValueError("Gemini review findings inconsistent; manual review required")
-        briefing_data.setdefault("_verification_findings", []).append(review)
-        if count == 0:
-            return current
-        repaired = claude_respond_to_flags(current, review, is_repeat_concern=round_number > 0)
-        if not isinstance(repaired, dict) or len(repaired.get("notion_entries", [])) != 1:
-            return None
-        entry = repaired["notion_entries"][0]
-        if any(entry.get(k) != original.get(k) for k in ("desk", "action", "existing_id")):
-            raise ValueError("Source cross-check changed story identity; manual review required")
-        reject_if_final(repaired, original)
-        decision = repaired.get("editorial_decision", {})
-        briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
-        briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
-        if (decision.get("ready_to_post") is not True or
-                not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip() or
-                not isinstance(decision.get("evidence"), list) or not decision["evidence"] or
-                not all(isinstance(e, str) and "https://" in e for e in decision["evidence"]) or
-                not isinstance(decision.get("unverified_claims"), list) or
-                not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
-            return None
-        if decision["unverified_claims"] and "couldn't be verified from source" not in entry.get("body_markdown", "").lower():
-            return None
-        if len(entry.get("sources_text", "")) > 1900:
-            # Keep every direct citation, moving verbose evidence descriptions to the audit note.
-            citations = list(dict.fromkeys(re.findall(r"https://[^\s<>]+", entry["sources_text"])))
-            compact = "\n".join(citations)
-            if citations and len(compact) <= 1900:
-                entry["notes"] = (entry.get("notes", "") + "\nSource descriptions: " + entry["sources_text"]).strip()
-                entry["sources_text"] = compact
-        if entry.get("desk_ambiguous") is not False or not has_direct_source_url(entry):
-            return None
-        repaired = fit_signal_briefs(repaired)
-        if decision["unverified_claims"] and "couldn't be verified from source" not in repaired["notion_entries"][0]["body_markdown"].lower():
-            return None
-        entry = repaired["notion_entries"][0]
-        entry["notes"] = (entry.get("notes", "") + "\nSource cross-check: " + json.dumps(decision)).strip()
-        current = repaired
-    # Claude's source-backed decision resolves a repeated Gemini objection, per policy.
-    log("Claude source cross-check approved supported wording after repeated Gemini concerns")
-    return current
 
 
 def _rich_text_chunks(value):
@@ -1064,63 +868,8 @@ def discard_rejected_draft(original, rejected):
     return save_unverified_signal(rejected, 'Claude did not approve; manual review required')
 
 
-def _claude_final_recovery(briefing_data, original, reason):
-    """One fresh source-backed adjudication; no Gemini veto or unbounded retry."""
-    recovered_input = json.loads(json.dumps(briefing_data))
-    versions = briefing_data.get("_reviewed_versions", [])
-    recovered_input["notion_entries"] = [dict(versions[-1] if versions else original)]
-    findings = "\n\n".join(briefing_data.get("_verification_findings", []))
-    instruction = (
-        "Automatic recovery after an incomplete or rejected review. Recheck the CURRENT "
-        "draft from live sources, including every material claim, not just prior flags. "
-        "Prior verdicts are context, not proof. Approve only supported reporting. "
-        "Return a plain-prose brief of 2-3 paragraphs, at most 1800 characters; "
-        "sources_text must contain direct HTTPS article URLs and fit 1900 characters. "
-        "Do not change desk, action or existing_id.\nFailure: " + reason +
-        "\nPrior findings:\n" + findings)
-    repaired = claude_respond_to_flags(recovered_input, instruction, is_repeat_concern=True)
-    if not isinstance(repaired, dict) or not isinstance(repaired.get("notion_entries"), list) or len(repaired["notion_entries"]) != 1:
-        raise ValueError("Recovery Claude response missing one valid entry")
-    entry = repaired["notion_entries"][0]
-    if not isinstance(entry, dict):
-        raise ValueError("Recovery Claude entry malformed")
-    if entry.get("desk") != original.get("desk"):
-        raise ValueError("Recovery changed story identity: desk")
-    # The verdict concerns this draft; a model cannot select a publication/deletion target.
-    entry["action"] = original.get("action")
-    entry["existing_id"] = original.get("existing_id")
-    briefing_data.setdefault("_reviewed_versions", []).append(dict(entry))
-    reject_if_final(repaired, original)
-    decision = repaired.get("editorial_decision", {})
-    briefing_data.setdefault("_verification_findings", []).append(json.dumps(decision))
-    if not isinstance(decision, dict):
-        raise ValueError("Recovery Claude verdict malformed")
-    if decision.get("ready_to_post") is not True:
-        raise ValueError("Recovery Claude withheld publication: " + str(decision.get("rationale", "No explicit approval"))[:1000])
-    if (not isinstance(decision.get("rationale"), str) or not decision["rationale"].strip()
-            or not isinstance(decision.get("evidence"), list) or not decision["evidence"]
-            or not all(isinstance(e, str) and "https://" in e for e in decision["evidence"])
-            or not isinstance(decision.get("unverified_claims"), list)
-            or not all(isinstance(e, str) and e.strip() for e in decision["unverified_claims"])):
-        raise ValueError("Recovery Claude approval lacks required evidence or decision fields")
-    if entry.get("desk_ambiguous") is not False or entry.get("desk") not in DESKS:
-        raise ValueError("Recovery desk classification unresolved")
-    if not has_direct_source_url(entry):
-        raise ValueError("Recovery missing valid direct article sources")
-    body = entry.get("body_markdown", "")
-    if (not isinstance(body, str) or not 0 < len(body.strip()) <= 1800
-            or not 2 <= len([p for p in body.strip().split("\n\n") if p.strip()]) <= 3
-            or any(label in body.lower() for label in ("why it matters:", "what happened:", "##", "**"))):
-        raise ValueError("Recovery brief does not meet publication format")
-    if decision["unverified_claims"] and "couldn't be verified from source" not in body.lower():
-        raise ValueError("Recovery missing public uncertainty label")
-    entry["notes"] = (entry.get("notes", "") + "\nAutomatic Claude recovery: " + json.dumps(decision)).strip()
-    log("Claude automatic recovery approved source-backed reporting")
-    return repaired
-
-
-def verify_with_gemini_loop(briefing_data, max_rounds=1):
-    """Compatibility entry point: deterministic editorial checks, no Gemini or AI re-review.
+def check_editorial_entries(briefing_data):
+    """Deterministic editorial checks without additional model calls.
 
     Claude is responsible for the original draft. Unsafe or incomplete drafts
     stay private rather than being automatically approved or rewritten.
@@ -1146,7 +895,7 @@ def verify_with_gemini_loop(briefing_data, max_rounds=1):
             withheld.append(entry.get("title", "Untitled"))
     briefing_data["notion_entries"] = approved
     briefing_data["unverified_count"] = len(withheld)
-    log(f"Editorial checks complete: {len(approved)} accepted, {len(withheld)} held privately; Gemini disabled")
+    log(f"Editorial checks complete: {len(approved)} accepted, {len(withheld)} held privately")
     return briefing_data
 
 
@@ -1308,7 +1057,7 @@ def write_verified_special_entry(title, body, sources_text, content_type, primar
              "related_desks": [d for d in (related_desks or []) if d in DESKS and d != desk],
              "watchlist": False, "watch_trigger": "", "next_review": "",
              "notes": "Content Type: " + content_type}
-    reviewed = verify_with_gemini_loop({"notion_entries": [entry]})
+    reviewed = check_editorial_entries({"notion_entries": [entry]})
     if not reviewed["notion_entries"]:
         log(f"{content_type} withheld for manual review")
         return None
@@ -1317,7 +1066,7 @@ def write_verified_special_entry(title, body, sources_text, content_type, primar
                                approved["sources_text"], content_type,
                                primary_desk=approved.get('desk', desk), related_desks=approved.get('related_desks', related_desks),
                                existing_id=existing_id,
-                               notes=approved.get("notes", "") + "\nPassed deterministic editorial checks; Gemini disabled.")
+                               notes=approved.get("notes", "") + "\nPassed deterministic editorial checks.")
 
 
 def write_special_entry(title, body, sources_text, content_type, primary_desk=None,
@@ -2029,7 +1778,7 @@ def run_group(run_type):
             entry['existing_id'] = target
         safe.append(entry)
     briefing['notion_entries'] = safe
-    briefing = verify_with_gemini_loop(briefing)
+    briefing = check_editorial_entries(briefing)
     briefing['unverified_count'] = briefing.get('unverified_count',0) + held_targets
     audit = briefing.get('_coverage_audit')
     if audit:
