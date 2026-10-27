@@ -158,10 +158,9 @@ if __name__ == '__main__':
         entry = draft(page)
         if not private(page):
             raise SystemExit('Page is not a private unverified draft')
-        result = editor.check_editorial_entries({'notion_entries': [entry]})
+        passed = entry['desk_ambiguous'] is False and editor.has_direct_source_url(entry)
         print('DETERMINISTIC CHECK: ' + json.dumps({
-            'passed': bool(result['notion_entries']),
-            'held': result['unverified_count'],
+            'passed': passed,
             'note': 'This is not independent fact verification or publication approval.'
         }))
 
