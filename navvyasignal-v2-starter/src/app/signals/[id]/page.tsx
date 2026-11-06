@@ -3,7 +3,7 @@ import ShareLinks from '@/components/ShareLinks';
 import { notFound } from 'next/navigation';
 import { getStories, getLongReadBlocks } from '@/lib/notion';
 import { desks, matchesDeskCategory } from '@/lib/desks';
-import { v2ArticleRoutes } from '@/lib/v2Editorial';
+import { v2ArticleRoutes, publishedStories } from '@/lib/v2Editorial';
 
 export const dynamicParams = false;
 
@@ -18,6 +18,7 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
   const visible = v2ArticleRoutes(stories);
   const story = visible.find(item => item.id === id);
   if (!story) notFound();
+  const historical = !publishedStories(stories).some(item => item.id === id);
   const desk = desks.find(d => matchesDeskCategory(d.slug, story.category));
   const related = visible.filter(item => item.id !== story.id && item.category === story.category).slice(0, 3);
   // Current pipeline: Signal Brief is editorial prose; Text 1 is sources, never article body.
@@ -26,15 +27,16 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
   const sources = story.body.trim();
   // Notion page blocks on short Signals can contain unreviewed working notes.
   // Only explicitly classified Long Reads expose the full page body.
-  const fullEditorial = story.contentType === 'Long Read'
+  const fullEditorial = !historical && story.contentType === 'Long Read'
     ? await getLongReadBlocks(story.id) : [];
   const recordedDate = new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(story.createdAt));
   return <main className="container inner">
-    <p className="eyebrow">CURRENT INTELLIGENCE · V2</p>
+    <p className="eyebrow">{historical ? "HISTORICAL REFERENCE · V1" : "CURRENT INTELLIGENCE · V2"}</p>
     <p className="kicker">{story.category}{story.contentType ? ` · ${story.contentType}` : ''}</p>
     <h1>{story.title}</h1>
+    {historical && <p><small>Historical record: original Framer publication date and full-article fidelity are not yet verified.</small></p>}
     <p><small>Notion record created: {recordedDate}. This is not a verified original publication date.</small></p>
     {briefParagraphs.length > 0 ? <section aria-label="Signal brief">
       <h2>Signal brief</h2>
@@ -51,7 +53,7 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
       <h2>Continue exploring</h2>
       {desk && <p><Link href={`/desks/${desk.slug}`}>Explore the {desk.name} desk →</Link></p>}
       {related.length > 0 && <><h3>Related signals</h3><ul>{related.map(item => <li key={item.id}><Link href={`/signals/${item.id}`}>{item.title}</Link></li>)}</ul></>}
-      <p><Link href="/signals">← Back to Signal Feed</Link></p>
+      <p><Link href={historical ? "/old-archives-v1" : "/signals"}>← Back to {historical ? "V1 archive" : "Signal Feed"}</Link></p>
     </section>
   </main>;
 }
