@@ -20,5 +20,7 @@ jobs:
           python-version: '3.11'
       - name: Install pipeline test dependencies
         run: pip install -r pipeline/requirements.txt
+      - name: Verify approved-content bridge fixtures (no network or builds)
+        run: python -m unittest discover -s pipeline -p 'test_refresh_publication.py' -v
       - name: Verify editorial discovery and safeguards
         run: python -m unittest discover -s pipeline -p 'test_desk_discovery.py' -v
