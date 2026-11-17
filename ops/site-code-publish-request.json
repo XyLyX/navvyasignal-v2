@@ -1,6 +1,6 @@
 {
   "action": "publish-site-code-only",
-  "production_commit": "d921eaf71f39d04fc831c34e346bee054843330a",
-  "requested_at": "2026-10-22T15:30:16Z",
-  "reason": "Publish the requested network venture cards and sponsorship styling"
+  "production_commit": "713370bd45ca354af2caf40f098a75205a2b4dd8",
+  "requested_at": "2026-11-17T23:07:03Z",
+  "reason": "Publish production-branch Netlify Git isolation config through fenced build hook; verify commit-specific production deployment"
 }
