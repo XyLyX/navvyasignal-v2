@@ -166,6 +166,19 @@ class DiscoveryTests(unittest.TestCase):
                          dict(data,notion_entries=[]),dict(data,notion_entries=[{'candidate_id':'unknown'}])]:
             with self.assertRaises(ValueError):d.validate_decisions(audit,mutation)
 
+    def test_mismatched_drafts_explain_missing_and_unapproved_without_auto_publishing(self):
+        audit={'candidates':[{'candidate_id':'north-1'},{'candidate_id':'north-2'}]}
+        data={'coverage_decisions':[
+            {'candidate_id':'north-1','decision':'include','reason':'verified'},
+            {'candidate_id':'north-2','decision':'withhold','reason':'insufficient evidence'}],
+            'notion_entries':[{'candidate_id':'north-2'}]}
+        with self.assertRaisesRegex(ValueError, 'missing_drafts=') as failure:
+            d.validate_decisions(audit, data)
+        self.assertIn('north-1', str(failure.exception))
+        self.assertIn('unapproved_drafts=', str(failure.exception))
+        self.assertIn('north-2', str(failure.exception))
+        self.assertNotIn('discovery', data['notion_entries'][0])
+
     def test_completed_desk_reuses_receipt_without_research(self):
         api=Mock();api.ledger.return_value=({}, {'phase':'completed','saved':5})
         with patch.object(editor,'DRY_RUN',False),patch.object(release,'Notion',return_value=api),patch.object(editor,'generate_briefing') as research,patch.object(editor,'fetch_existing_entries') as fetch:
