@@ -55,6 +55,8 @@ jobs:
           if not re.fullmatch(r'https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+',hook):
               raise ValueError('Configured build hook invalid')
           from pipeline import publication_lease_gate as gate
+          if gate.required():
+              raise RuntimeError('Code-only publication requires a verifiable deploy receipt before shared lease activation')
           client, handle = gate.claim(gate.code_fingerprint(expected,value['requested_at']))
           gate.reserve(client,handle)
           # No retries after an ambiguous external side effect. The request and
