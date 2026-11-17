@@ -4,7 +4,7 @@ on:
     paths:
       - 'ops/publication_atomic_lease.sql'
       - 'v3_core/atomic_lease.py'
-      - 'tests/test_atomic_lease.py'
+      - 'tests/test_atomic_lease*.py'
       - '.github/workflows/atomic-publication-lease.yml'
   workflow_dispatch:
 permissions:
@@ -17,5 +17,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Test fail-closed lease parsing
-        run: python -m unittest discover -s tests -p 'test_atomic_lease.py' -v
+      - name: Test fail-closed lease parsing and contention model
+        run: python -m unittest discover -s tests -p 'test_atomic_lease*.py' -v
