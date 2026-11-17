@@ -35,6 +35,8 @@ jobs:
           python-version: '3.11'
       - name: Install test driver
         run: pip install 'psycopg[binary]==3.2.10'
+      - name: Create Supabase-compatible roles in disposable PostgreSQL
+        run: psql -h localhost -U postgres -d lease_ci -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
       - name: Apply staged schema to disposable PostgreSQL
         run: psql -h localhost -U postgres -d lease_ci -v ON_ERROR_STOP=1 -f ops/publication_atomic_lease.sql
       - name: Test PostgreSQL atomic claims and crash recovery
