@@ -1,1 +1,0 @@
-NavvyaSignal Git-only deployment isolation acceptance probe 2026-11-18. This file must not become public through an automatic Git build.
