@@ -6,6 +6,7 @@ publish = "out"
 # ignore command for build-hook requests, preserving the fenced GitHub
 # publication workflow. Never change this to stop builds at site level.
 ignore = "exit 0"
+# Acceptance probe 2026-11-18: Git-only production-branch change; must not publish.
 
 # Historical article redirects are intentionally disabled until the Framer\n# archive hostname and original V1 article path structure are verified.\n# The /old-archives-v1 landing page links to the existing Framer base address.\n
 [functions]
