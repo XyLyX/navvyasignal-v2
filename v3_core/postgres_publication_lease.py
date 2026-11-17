@@ -49,6 +49,24 @@ class PostgresPublicationLease:
         if row != (True,):
             raise LeaseUnavailable("Publication lease ownership lost; build blocked")
 
+    def reconcile(self, fingerprint):
+        """Read fenced owner after interruption, without claiming or replaying."""
+        row=self._one(
+            "select owner::text, fencing_token, phase, fingerprint from publication_private.leases where resource=%s",
+            ("navvyasignal/v2/production-build",),
+        )
+        if not row or row[3] != fingerprint or row[2] not in ("build_requested", "ambiguous"):
+            raise LeaseUnavailable("No matching outstanding publication lease; manual reconciliation required")
+        return LeaseHandle("navvyasignal/v2/production-build",row[0],row[1]),row[2]
+
+    def mark_reconciled(self, handle, phase):
+        if phase == "build_requested":
+            self.mark_verified(handle)
+        elif phase == "ambiguous":
+            self.transition(handle,"ambiguous","verified")
+        else:
+            raise LeaseUnavailable("Invalid reconciliation phase")
+
     def reserve_build(self, handle):
         """Persist build_requested BEFORE making any external hook request."""
         self.transition(handle,"claimed","build_requested")
