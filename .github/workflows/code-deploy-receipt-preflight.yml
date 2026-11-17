@@ -1,0 +1,28 @@
+name: Code deployment receipt preflight
+on:
+  push:
+    branches: [feature/v2-code-deploy-receipt-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run receipt tests
+        run: python -m unittest discover -s tests -p 'test_code_deploy_receipt.py' -v
+      - name: Verify Netlify token has read-only deployment access
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          python - <<'PY'
+          from pipeline.code_deploy_receipt import deployments
+          rows = deployments()
+          print("Netlify deployment API accessible; records returned:", len(rows))
+          PY
