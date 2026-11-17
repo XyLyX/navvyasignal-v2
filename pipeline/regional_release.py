@@ -257,7 +257,10 @@ def publish_once(api, ledger, state, force_build=False):
     try:
         refresh.wait_for_publication(current)
     except Exception:
-        if 'gate' in locals():
+        if recovery:
+            if recovery[2] == 'build_requested':
+                gate.ambiguous(recovery[0], recovery[1])
+        elif 'gate' in locals():
             gate.ambiguous(client,handle)
         raise
     if recovery:
