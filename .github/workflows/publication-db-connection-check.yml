@@ -1,0 +1,36 @@
+name: Publication database credential verification
+on:
+  push:
+    branches: ['test/publication-secret-connection-20261118']
+    paths: ['.github/workflows/publication-db-connection-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'psycopg[binary]==3.2.10'
+      - name: Verify secret and read-only lease access (no publication)
+        env:
+          PUBLICATION_DATABASE_URL: ${{ secrets.PUBLICATION_DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg
+          url=os.environ.get('PUBLICATION_DATABASE_URL','')
+          if not url: raise RuntimeError('PUBLICATION_DATABASE_URL secret is absent')
+          with psycopg.connect(url, connect_timeout=12) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("select to_regclass('publication_private.leases') is not null")
+                  if cur.fetchone() != (True,): raise RuntimeError('Publication schema inaccessible')
+                  cur.execute("select has_function_privilege(current_user, 'publication_private.claim_lease(text,uuid,text,interval)', 'EXECUTE')")
+                  if cur.fetchone() != (True,): raise RuntimeError('Lease claim privilege missing')
+          print('Private publication database connection and schema permissions verified.')
+          PY
