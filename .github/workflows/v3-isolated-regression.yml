@@ -1,0 +1,18 @@
+name: V3 isolated regression checks
+on:
+  pull_request:
+    branches: [release/v2-english]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  v3-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify isolated V3 core and publication safeguards
+        run: python -m unittest discover -s tests -p 'test_v3_*.py' -v

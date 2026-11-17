@@ -38,5 +38,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r pipeline/requirements.txt
       - run: python -m pipeline.run_offline_tests
+      - name: Verify V3 isolated core and publication safeguards
+        run: python -m unittest discover -s tests -p 'test_v3_*.py' -v
         env:
           ANTHROPIC_API_KEY: test-only
