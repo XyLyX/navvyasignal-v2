@@ -51,7 +51,7 @@ begin
  end if;
  update publication_private.leases set phase=p_to,updated_at=clock_timestamp()
  where resource=p_resource and owner=p_owner and fencing_token=p_token
-   and phase=p_from and expires_at>=clock_timestamp();
+   and phase=p_from\n   and (expires_at>=clock_timestamp() or p_from in ('build_requested','ambiguous'));
  get diagnostics changed = row_count;
  return changed=1;
 end $$;
