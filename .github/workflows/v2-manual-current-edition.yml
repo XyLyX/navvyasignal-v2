@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt 'psycopg[binary]==3.2.10'
       - name: Research four regions, stage approved stories, release and verify once
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -43,6 +43,8 @@ jobs:
           V2_SENDER_ENABLED: ${{ vars.V2_SENDER_ENABLED }}
           V2_LEGACY_SENDER_DISABLED: ${{ vars.V2_LEGACY_SENDER_DISABLED }}
           V2_NETLIFY_BUILD_HOOK: ${{ secrets.V2_NETLIFY_BUILD_HOOK }}
+          PUBLICATION_LEASE_REQUIRED: ${{ vars.PUBLICATION_LEASE_REQUIRED }}
+          PUBLICATION_DATABASE_URL: ${{ secrets.PUBLICATION_DATABASE_URL }}
           V2_EDITION_DATE: ${{ inputs.edition_date }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: python -m pipeline.manual_current_edition

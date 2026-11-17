@@ -18,6 +18,7 @@ jobs:
       - name: Run receipt tests and compile publication modules
         run: |
           python -m unittest discover -s tests -p 'test_code_deploy_receipt.py' -v
+          python -m unittest discover -s tests -p 'test_publication_workflow_gate.py' -v
           python -m py_compile pipeline/regional_release.py pipeline/code_deploy_receipt.py v3_core/postgres_publication_lease.py
       - run: pip install 'psycopg[binary]==3.2.10'
       - name: Assert production lease gate is activated
