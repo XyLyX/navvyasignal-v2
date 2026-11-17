@@ -208,7 +208,23 @@ def publish_once(api, ledger, state, force_build=False):
     if live.get('version') != 1 or not isinstance(live.get('entries'),list):
         raise RuntimeError('Invalid production snapshot; no blind build')
     digest = hashlib.sha256(json.dumps(current,sort_keys=True).encode()).hexdigest()
+    # An interrupted request must reconcile the original fenced database lease,
+    # even when the public snapshot already matches. Never silently mark verified.
+    recovery = None
+    if state.get('phase') == 'build_requested':
+        if state.get('fingerprint') != digest:
+            raise RuntimeError('Content changed during pending build; reconcile manually')
+        try:
+            from pipeline import publication_lease_gate as gate
+        except ImportError:
+            import publication_lease_gate as gate
+        if gate.required():
+            client = gate.PostgresPublicationLease(gate.connect)
+            handle, phase = client.reconcile(digest)
+            recovery = (client, handle, phase)
     if live['entries'] == current and (not force_build or state.get('phase') == 'verified'):
+        if recovery:
+            recovery[0].mark_reconciled(recovery[1], recovery[2])
         state.update(phase='verified',fingerprint=digest)
         api.save_ledger(ledger,state)
         print('Release verified: approved public content matches production.')
@@ -244,7 +260,9 @@ def publish_once(api, ledger, state, force_build=False):
         if 'gate' in locals():
             gate.ambiguous(client,handle)
         raise
-    if 'gate' in locals():
+    if recovery:
+        recovery[0].mark_reconciled(recovery[1], recovery[2])
+    elif 'gate' in locals():
         gate.verified(client,handle)
     state['phase']='verified';api.save_ledger(ledger,state)
 
