@@ -22,5 +22,5 @@ jobs:
         run: pip install -r pipeline/requirements.txt
       - name: Verify approved-content bridge fixtures (no network or builds)
         run: python -m unittest discover -s pipeline -p 'test_refresh_publication.py' -v
-      - name: Verify editorial discovery and safeguards
+      - name: Verify publication retry safeguards (offline)\n        run: python -m unittest discover -s pipeline -p 'test_publication_retry_guards.py' -v\n      - name: Verify editorial discovery and safeguards
         run: python -m unittest discover -s pipeline -p 'test_desk_discovery.py' -v
