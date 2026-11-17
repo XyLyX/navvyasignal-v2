@@ -7,6 +7,9 @@ on:
       - 'tests/test_atomic_lease*.py'
       - 'v3_core/postgres_publication_lease.py'
       - 'tests/test_postgres_publication_lease_client.py'
+      - 'pipeline/publication_lease_gate.py'
+      - 'tests/test_publication_lease_gate.py'
+      - 'pipeline/regional_release.py'
       - '.github/workflows/atomic-publication-lease.yml'
   workflow_dispatch:
 permissions:
@@ -23,3 +26,4 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_atomic_lease*.py' -v
           python -m unittest discover -s tests -p 'test_postgres_publication_lease_client.py' -v
+          python -m unittest discover -s tests -p 'test_publication_lease_gate.py' -v
