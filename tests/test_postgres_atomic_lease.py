@@ -21,8 +21,8 @@ class PostgresAtomicLeaseTests(unittest.TestCase):
             with conn.cursor() as cur:
                 cur.execute(sql,params)
                 return cur.fetchone()
-    def claim(self,owner,ttl="10 minutes"):
-        return self.call("select * from publication_private.claim_lease(%s,%s,%s,%s::interval)",(self.resource,owner,"a"*64,ttl))
+    def claim(self,owner,ttl="10 minutes",fingerprint=None):
+        return self.call("select * from publication_private.claim_lease(%s,%s,%s,%s::interval)",(self.resource,owner,fingerprint or "a"*64,ttl))
     def transition(self,owner,token,old,new):
         return self.call("select publication_private.transition_lease(%s,%s,%s,%s,%s)",(self.resource,owner,token,old,new))[0]
     def test_concurrent_transactions_have_single_winner(self):
@@ -49,6 +49,24 @@ class PostgresAtomicLeaseTests(unittest.TestCase):
         self.assertTrue(self.transition(owner,token,"claimed","build_requested"))
         self.call("update publication_private.leases set expires_at=clock_timestamp()-interval '1 second' where resource=%s returning 1",(self.resource,))
         self.assertFalse(self.claim(uuid.uuid4())[0])
+    def test_verified_allows_new_fingerprint_but_not_same(self):
+        first=uuid.uuid4();acquired,token,_=self.claim(first)
+        self.assertTrue(acquired)
+        self.assertTrue(self.transition(first,token,"claimed","build_requested"))
+        self.assertTrue(self.transition(first,token,"build_requested","verified"))
+        self.assertFalse(self.claim(uuid.uuid4(),fingerprint="a"*64)[0])
+        acquired,new_token,_=self.claim(uuid.uuid4(),fingerprint="b"*64)
+        self.assertTrue(acquired)
+        self.assertGreater(new_token,token)
+
+    def test_ambiguous_rejects_new_fingerprint_even_after_expiry(self):
+        first=uuid.uuid4();acquired,token,_=self.claim(first)
+        self.assertTrue(acquired)
+        self.assertTrue(self.transition(first,token,"claimed","build_requested"))
+        self.assertTrue(self.transition(first,token,"build_requested","ambiguous"))
+        self.call("update publication_private.leases set expires_at=clock_timestamp()-interval '1 second' where resource=%s returning 1",(self.resource,))
+        self.assertFalse(self.claim(uuid.uuid4(),fingerprint="b"*64)[0])
+
     def test_claimed_crash_can_be_recovered_after_expiry(self):
         owner=uuid.uuid4();self.assertTrue(self.claim(owner)[0])
         self.call("update publication_private.leases set expires_at=clock_timestamp()-interval '1 second' where resource=%s returning 1",(self.resource,))
