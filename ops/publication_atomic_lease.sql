@@ -13,7 +13,9 @@ create table if not exists publication_private.leases (
 revoke all on schema publication_private from public, anon, authenticated;
 revoke all on all tables in schema publication_private from public, anon, authenticated;
 -- All calls use a dedicated server-only database role; never a browser key.
--- Single-statement CAS: expired unrequested claims may be stolen. A verified\n-- publication permits a DIFFERENT fingerprint, but never replays the same one.\n-- Build-requested and ambiguous records are never automatically reclaimed.
+-- Single-statement CAS: expired unrequested claims may be stolen. A verified
+-- publication permits a DIFFERENT fingerprint, but never replays the same one.
+-- Build-requested and ambiguous records are never automatically reclaimed.
 create or replace function publication_private.claim_lease(
   p_resource text, p_owner uuid, p_fingerprint text, p_ttl interval
 ) returns table(acquired boolean, token bigint, phase text)
@@ -30,7 +32,8 @@ begin
     set owner=excluded.owner, fingerprint=excluded.fingerprint,
         expires_at=excluded.expires_at, fencing_token=l.fencing_token+1,
         phase='claimed', updated_at=clock_timestamp()
-    where (l.expires_at < clock_timestamp() and l.phase='claimed')\n       or (l.phase='verified' and l.fingerprint <> excluded.fingerprint)
+    where (l.expires_at < clock_timestamp() and l.phase='claimed')
+       or (l.phase='verified' and l.fingerprint <> excluded.fingerprint)
   returning true,l.fencing_token,l.phase;
   if not found then return query select false, null::bigint, null::text; end if;
 end $$;
