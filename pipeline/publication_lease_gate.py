@@ -17,10 +17,10 @@ def required():
     return os.environ.get("PUBLICATION_LEASE_REQUIRED", "").lower() == "true"
 
 def connect():
-    import psycopg
     url=os.environ.get("PUBLICATION_DATABASE_URL", "").strip()
     if not url:
         raise RuntimeError("Private publication database URL missing; build blocked")
+    import psycopg
     return psycopg.connect(url, connect_timeout=10)
 
 def claim(fingerprint):
