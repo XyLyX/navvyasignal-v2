@@ -260,12 +260,12 @@ def publish_once(api, ledger, state, force_build=False):
         if recovery:
             if recovery[2] == 'build_requested':
                 gate.ambiguous(recovery[0], recovery[1])
-        elif 'gate' in locals():
+        elif 'handle' in locals():
             gate.ambiguous(client,handle)
         raise
     if recovery:
         recovery[0].mark_reconciled(recovery[1], recovery[2])
-    elif 'gate' in locals():
+    elif 'handle' in locals():
         gate.verified(client,handle)
     state['phase']='verified';api.save_ledger(ledger,state)
 
