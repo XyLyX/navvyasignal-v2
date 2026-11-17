@@ -277,7 +277,17 @@ def validate_decisions(audit, data):
     included = {d['candidate_id'] for d in decisions if d['decision'] == 'include'}
     used = [e.get('candidate_id') for e in entries]
     if len(used) != len(set(used)) or set(used) != included:
-        raise ValueError('Drafts and included candidate decisions disagree')
+        # Do not silently create drafts or reclassify decisions: that would
+        # bypass the editorial gate. Expose bounded candidate IDs for recovery.
+        missing_drafts = sorted(included - set(used))
+        unapproved_drafts = sorted(set(used) - included, key=str)
+        duplicate_drafts = sorted({cid for cid in used if used.count(cid) > 1}, key=str)
+        raise ValueError(
+            'Drafts and included candidate decisions disagree: '
+            f'missing_drafts={missing_drafts[:12]!r}; '
+            f'unapproved_drafts={unapproved_drafts[:12]!r}; '
+            f'duplicate_drafts={duplicate_drafts[:12]!r}'
+        )
     for entry in entries:
         entry['discovery'] = candidates[entry['candidate_id']]
     audit['decisions'] = decisions
