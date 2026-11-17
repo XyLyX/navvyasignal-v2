@@ -238,7 +238,12 @@ def publish_once(api, ledger, state, force_build=False):
             raise
     elif state.get('fingerprint') != digest:
         raise RuntimeError('Content changed during pending build; reconcile before another build')
-    refresh.wait_for_publication(current)
+    try:
+        refresh.wait_for_publication(current)
+    except Exception:
+        if 'gate' in locals():
+            gate.ambiguous(client,handle)
+        raise
     if 'gate' in locals():
         gate.verified(client,handle)
     state['phase']='verified';api.save_ledger(ledger,state)
