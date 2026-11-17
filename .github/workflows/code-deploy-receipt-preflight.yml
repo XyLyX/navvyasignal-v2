@@ -19,6 +19,22 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_code_deploy_receipt.py' -v
           python -m py_compile pipeline/regional_release.py pipeline/code_deploy_receipt.py v3_core/postgres_publication_lease.py
+      - name: Assert production lease gate is activated
+        env:
+          PUBLICATION_LEASE_REQUIRED: ${{ vars.PUBLICATION_LEASE_REQUIRED }}
+          PUBLICATION_DATABASE_URL: ${{ secrets.PUBLICATION_DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          from pipeline import publication_lease_gate as gate
+          if not gate.required():
+              raise RuntimeError("PUBLICATION_LEASE_REQUIRED is not true in v2-preview")
+          with gate.connect() as conn:
+              with conn.cursor() as cursor:
+                  cursor.execute("select to_regclass('publication_private.leases') is not null")
+                  if cursor.fetchone() != (True,):
+                      raise RuntimeError("Publication lease table inaccessible")
+          print("Publication lease gate active; database accessible")
+          PY
       - name: Verify Netlify token has read-only deployment access
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
