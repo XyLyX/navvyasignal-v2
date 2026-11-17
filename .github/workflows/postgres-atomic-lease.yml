@@ -1,0 +1,41 @@
+name: PostgreSQL publication lease integration
+on:
+  pull_request:
+    paths:
+      - 'ops/publication_atomic_lease.sql'
+      - 'tests/test_postgres_atomic_lease.py'
+      - '.github/workflows/postgres-atomic-lease.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testonly
+          POSTGRES_DB: lease_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd 'pg_isready -U postgres -d lease_ci'
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      LEASE_TEST_DATABASE_URL: postgresql://postgres:testonly@localhost:5432/lease_ci
+      PGPASSWORD: testonly
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test driver
+        run: pip install 'psycopg[binary]==3.2.10'
+      - name: Apply staged schema to disposable PostgreSQL
+        run: psql -h localhost -U postgres -d lease_ci -v ON_ERROR_STOP=1 -f ops/publication_atomic_lease.sql
+      - name: Test PostgreSQL atomic claims and crash recovery
+        run: python -m unittest discover -s tests -p 'test_postgres_atomic_lease.py' -v
