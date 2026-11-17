@@ -219,15 +219,28 @@ def publish_once(api, ledger, state, force_build=False):
         hook = os.environ['V2_NETLIFY_BUILD_HOOK'].strip()
         if not re.fullmatch(r'https://api\.netlify\.com/build_hooks/[A-Za-z0-9]+',hook):
             raise ValueError('Invalid build hook')
-        # Persist BEFORE the external side effect: ambiguous failures never blindly replay.
+        try:
+            from pipeline import publication_lease_gate as gate
+        except ImportError:
+            import publication_lease_gate as gate
+        client, handle = gate.claim(digest)
+        # Persist durable receipt and atomic reservation BEFORE the external effect.
+        # On a failure the lock remains build_requested/ambiguous: never replay.
+        gate.reserve(client, handle)
         state.update(phase='build_requested',fingerprint=digest)
         api.save_ledger(ledger,state)
         import urllib.request
-        with urllib.request.urlopen(urllib.request.Request(hook,data=b'',method='POST'),timeout=30) as r:
-            if r.status not in (200,201,202): raise RuntimeError('Build request rejected')
+        try:
+            with urllib.request.urlopen(urllib.request.Request(hook,data=b'',method='POST'),timeout=30) as r:
+                if r.status not in (200,201,202): raise RuntimeError('Build request rejected')
+        except Exception:
+            gate.ambiguous(client,handle)
+            raise
     elif state.get('fingerprint') != digest:
         raise RuntimeError('Content changed during pending build; reconcile before another build')
     refresh.wait_for_publication(current)
+    if 'gate' in locals():
+        gate.verified(client,handle)
     state['phase']='verified';api.save_ledger(ledger,state)
 
 
