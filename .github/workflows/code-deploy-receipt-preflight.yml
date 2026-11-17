@@ -15,8 +15,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Run receipt tests
-        run: python -m unittest discover -s tests -p 'test_code_deploy_receipt.py' -v
+      - name: Run receipt tests and compile publication modules
+        run: |
+          python -m unittest discover -s tests -p 'test_code_deploy_receipt.py' -v
+          python -m py_compile pipeline/regional_release.py pipeline/code_deploy_receipt.py v3_core/postgres_publication_lease.py
       - name: Verify Netlify token has read-only deployment access
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
