@@ -1,5 +1,8 @@
 name: Notion approved-content refresh
 on:
+  push:
+    branches: [main]
+    paths: ['ops/notion-publication-acceptance.json']
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
@@ -25,6 +28,16 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install 'requests>=2.31.0' 'psycopg[binary]==3.2.10'
+      - name: Validate explicit production acceptance request
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          request=json.loads(Path('ops/notion-publication-acceptance.json').read_text())
+          if request.get('action') != 'refresh-approved-content' or request.get('no_ai') is not True:
+              raise ValueError('Invalid controlled publication acceptance request')
+          PY
       - name: Publish only changed approved Notion content
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
