@@ -6,6 +6,9 @@ Never fall back to an unlocked build when explicitly enabled.
 """
 import hashlib
 import os
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from v3_core.postgres_publication_lease import PostgresPublicationLease
 
 RESOURCE = "navvyasignal/v2/production-build"
