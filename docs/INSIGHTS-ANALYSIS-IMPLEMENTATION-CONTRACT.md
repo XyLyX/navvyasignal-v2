@@ -110,3 +110,12 @@ Do not assume these properties already exist; validate before writing. No migrat
 - Test article revision, deletion/unpublish, schedule boundary, malformed source metadata, image failures and 404/410 behavior across page, sitemap and feeds.
 - Verify Google Search Console and Bing Webmaster Tools ownership only with authorized account access; submit sitemaps after release, then monitor indexing, crawl errors, search impressions and AI referral traffic where observable.
 - Run mobile performance/accessibility tests and verify that no additional Git-triggered Netlify production path is introduced.
+
+## Notion bridge (implemented in `insights/`, not wired to any workflow or deployment)
+- `notion-bridge.cjs`: reads only the dedicated Insights data source (refuses the Signal Feed id), normalises pages, applies fail-closed category/scope mappings and every publication gate, and builds the public snapshot from an explicit field allowlist.
+- Gates (all required): Status Approved (or Published), Ready to Post checked, Verification Status Verified, Publish At/Published At present and not in the future, valid slug/author/BLUF/body, every source with an https URL, and an **Approval Fingerprint** equal to the current content fingerprint.
+- Content fingerprint = SHA-256 over Title, BLUF, body paragraphs and Sources (NFC-normalised). Metadata edits, status changes and the approval action itself do not change it; any change to those four fields invalidates approval.
+- Writes are limited to two explicit actions: `--reconcile` returns a materially revised article to In Review (Status, Ready to Post, Approval Fingerprint only) and `--approve <pageId>` records the fingerprint of an article that otherwise passes every gate. Default is a read-only dry run.
+- **Required Notion property (not yet created):** `Approval Fingerprint` (rich text) on the Insights database. Until it exists every record fails closed (`missing_property:Approval Fingerprint`).
+- `Editorial Notes` is never read into public output; `assertNoPrivateLeak` fails the build if its text appears in any public field.
+- `insights/verify-build-output.cjs` scans a static export for exposure (`--absent`) or confirms a positive control (`--present`).

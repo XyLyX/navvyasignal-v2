@@ -3,9 +3,12 @@ import Link from 'next/link';
 import {notFound} from 'next/navigation';
 import {getInsights,articleUrl} from '@/lib/insights';
 type Props={params:Promise<{slug:string}>};
-export async function generateStaticParams(){return (await getInsights()).map(a=>({slug:a.slug}));}
+// Next's static export rejects an empty generateStaticParams(). With no published articles we emit one placeholder that can never be a real
+// slug (real slugs are lowercase alphanumerics and hyphens) and that always resolves to a 404 with noindex metadata.
+const PLACEHOLDER_SLUG='__no-published-insights__';
+export async function generateStaticParams(){const articles=await getInsights();return articles.length?articles.map(a=>({slug:a.slug})):[{slug:PLACEHOLDER_SLUG}];}
 export async function generateMetadata({params}:Props):Promise<Metadata>{
- const {slug}=await params;const a=(await getInsights()).find(x=>x.slug===slug);if(!a)return {title:'Article not found',robots:{index:false}};
+ const {slug}=await params;const a=(await getInsights()).find(x=>x.slug===slug);if(!a)return {title:'Article not found',robots:{index:false,follow:false}};
  return {title:a.seoTitle||a.title,description:a.seoDescription||a.summary,alternates:{canonical:articleUrl(slug),types:{'application/rss+xml':'/insights/rss.xml'}},openGraph:{type:'article',title:a.seoTitle||a.title,description:a.seoDescription||a.summary,url:articleUrl(slug),publishedTime:a.publishedAt,modifiedTime:a.modifiedAt,authors:[a.author],images:a.heroImage?[{url:a.heroImage,alt:a.heroAlt||a.title}]:undefined},twitter:{card:a.heroImage?'summary_large_image':'summary'}};
 }
 export default async function InsightArticle({params}:Props){
