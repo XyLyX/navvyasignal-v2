@@ -1,0 +1,10 @@
+const test=require('node:test');const assert=require('node:assert/strict');
+const {publishedArticles,metadata,rss,sitemap}=require('./discovery.cjs');
+const a={status:'Published',public:true,slug:'world-ahead',title:'The World Ahead',summary:'Evidence & outlook <analysis>',publishedAt:'2026-11-01T08:00:00Z',modifiedAt:'2026-11-02T08:00:00Z',category:'Analysis',author:'Editorial Desk'};
+test('published only, future excluded',()=>{assert.equal(publishedArticles([a,{...a,slug:'draft',status:'Draft'},{...a,slug:'future',publishedAt:'2099-01-01T00:00:00Z'}]).length,1)});
+test('canonical and JSON-LD',()=>{let m=metadata(a);assert.equal(m.canonical,'https://navvyasignal.com/insights/world-ahead');assert.equal(m.jsonLd['@type'],'Article')});
+test('rss escapes content and omits drafts',()=>{let s=rss([a,{...a,slug:'secret',status:'Draft'}]);assert.match(s,/Evidence &amp; outlook &lt;analysis&gt;/);assert.doesNotMatch(s,/secret/);assert.match(s,/atom:link/)});
+test('category feeds filter',()=>assert.doesNotMatch(rss([a],'explainers'),/<item>/));
+test('sitemap includes only public',()=>assert.doesNotMatch(sitemap([a,{...a,slug:'secret',status:'Draft'}]),/secret/));
+test('duplicate slug rejected',()=>assert.throws(()=>publishedArticles([a,a]),/Duplicate/));
+test('unsafe slug rejected',()=>assert.throws(()=>publishedArticles([{...a,slug:'../x'}]),/Invalid slug/));
