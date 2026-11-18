@@ -67,3 +67,46 @@ Do not assume these properties already exist; validate before writing. No migrat
 - No WordPress, second CMS or independent publishing infrastructure.
 - No automatic AI-authored publication without editorial approval.
 - No change to existing signal desks, schedules, publication leases or Netlify production settings without separate verification.
+
+## Mandatory discoverability: SEO, GEO, metadata and syndication
+
+### Technical SEO and indexing
+- Render article content and metadata in crawlable HTML (SSR or static prerender); do not depend on client-only JavaScript or a live Notion request for article text.
+- Maintain a single canonical origin https://navvyasignal.com, canonical /insights/[slug] URLs, correct HTTP 200/301/404/410, and consistent trailing-slash policy.
+- Generate /sitemap.xml or a sitemap index containing only publicly approved canonical URLs, accurate lastmod derived from material content changes, and discoverable sitemap links in robots.txt.
+- Use noindex on staging, previews, internal search and unpublished articles. Never rely on robots.txt alone to hide confidential drafts; drafts require access controls.
+- Provide semantic H1/H2 hierarchy, descriptive internal anchors, breadcrumbs, optimized responsive images, alt text, image dimensions, loading priorities and Core Web Vitals monitoring.
+- Link relevant articles to Signal Feed coverage and vice versa where editorially appropriate. Avoid duplicate article routes and thin tag archives.
+
+### Per-article metadata contract
+- Required: SEO title, meta description, canonical URL, language, title, subtitle, author, publishedAt, modifiedAt, hero image and alt text, desk, category, article body, primary sources.
+- Optional: tags, geographic coverage, series ID/part, editor, correction note, original reporting flag, social image override and summary.
+- Generate title and description from reviewed editorial fields if absent, but never silently invent authors, facts, sources or dates. Enforce sensible length guidance without hard truncation of essential meaning.
+- Generate Open Graph og:type=article, og:title, og:description, og:url, og:image, og:image:alt, article:published_time, article:modified_time, article:author when a valid URL exists, and article:section; add X/Twitter summary_large_image tags.
+- Emit one consistent JSON-LD graph with Organization/Publisher, WebSite, BreadcrumbList and Article or NewsArticle as factually appropriate. Use real author identity (Person/Organization), headline, description, image, datePublished, dateModified, mainEntityOfPage, publisher, inLanguage and articleSection. Do not falsely label opinion or analysis as breaking news.
+- All timestamps must be ISO 8601 with timezone; publishedAt stays stable through edits and modifiedAt changes only for substantive approved updates.
+
+### GEO: AI answer-engine discoverability
+- Use original, attributable analysis with explicit evidence, primary-source links, author expertise, corrections policy and concise factual executive summaries.
+- Provide meaningful section headings, dated context, clearly distinguished facts vs inference vs scenarios, definitional explainers and machine-readable article semantics.
+- Make approved article text available to permitted crawlers in server-rendered HTML; assess robots directives and CDN/WAF rules for Googlebot, Bingbot and relevant AI crawlers individually according to editorial licensing policy.
+- No guarantee of AI citations, rankings or inclusion. Do not promise that llms.txt or schema markup forces citations. Optional /llms.txt may be evaluated separately, never substituted for crawlability.
+- Geographic coverage is editorial topic metadata, not automatic local-business SEO: do not fabricate UAE local-business addresses or geographic claims.
+
+### RSS feeds and feed discovery
+- /insights/rss.xml: valid RSS 2.0 with channel title, link, description, language, lastBuildDate and atom:link rel=self.
+- /insights/analysis/rss.xml, /insights/explainers/rss.xml, /insights/world-ahead/rss.xml and /insights/special-reports/rss.xml: category feeds, generated only from published approved content.
+- Desk-specific feeds may be added at /insights/desks/[desk-slug]/rss.xml after validating existing desk slugs and taxonomy.
+- Each item includes stable GUID (canonical URL or immutable published ID), title, canonical link, description/summary, pubDate RFC 822, author when verified, category and source attribution; content:encoded is optional and must be sanitized and licensing-safe.
+- Order newest first; cap feed length with documented retention; preserve GUID and original pubDate on edits. Update channel lastBuildDate only for actual feed content changes.
+- Add HTML <link rel="alternate" type="application/rss+xml"> feed discovery on index, article and category pages. Return application/rss+xml; charset=utf-8 and validate XML escaping.
+- Feed generation must read the same approved published snapshot as site rendering and sitemap generation. A Notion draft or scheduled item must never leak into RSS.
+- Do not create separate uncontrolled deployment triggers to refresh feeds.
+
+### SEO/GEO/RSS acceptance gates
+- Assert exact title, description, canonical, OG/X tags and valid JSON-LD for index and article routes.
+- Assert robots and sitemap contain only eligible canonical URLs; staged/draft content is absent from public HTML, sitemap and RSS.
+- Validate RSS 2.0 with XML parser, feed autodiscovery, stable GUIDs, timezone-correct pubDate, categories, UTF-8 and XML escaping.
+- Test article revision, deletion/unpublish, schedule boundary, malformed source metadata, image failures and 404/410 behavior across page, sitemap and feeds.
+- Verify Google Search Console and Bing Webmaster Tools ownership only with authorized account access; submit sitemaps after release, then monitor indexing, crawl errors, search impressions and AI referral traffic where observable.
+- Run mobile performance/accessibility tests and verify that no additional Git-triggered Netlify production path is introduced.
