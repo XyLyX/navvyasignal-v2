@@ -1,0 +1,115 @@
+{
+  "sections": [
+    {
+      "slug": "opening",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "6ca1a38992a4b05a03125bd304f229b89f324d0f4f9b5e6f22712c7a80c657f9",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-01",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "52511ecce5110f4d07d611ec810fb93abf357310684c86b2f993afbb586d316c",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-02",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "283d77d0af12681c2c592be3a3274f78c91484c9fc96b4190a699e1645c163ad",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-03",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "438b8910bf727e92576077a55f801957f4d92956b0e3c59b77b58b8391720754",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-04",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "74f007b91786d7aaa4709909da70e6a8acae6c7137638d32df129c74a7f161ea",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-05",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "0d0a9639594fe578ef54f4aca1282a95a4b65e0c7ab49ef7200997d717ac6d62",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-06",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "6739c7bd9535adb09b7f05bc0d1a9a1e3165b0d8394748aa79b47ce88c5a39f8",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-07",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "e4e1c5717f9ef0ac79ff9c3c3b79c01cb940abbad125629c4428064d75664f21",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "part-08",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "662680e892dad5dfe901c6265b53945ed7d17888fbdfa1073d8ac6614c84598e",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    },
+    {
+      "slug": "closing",
+      "status": "Approved",
+      "verificationStatus": "Verified",
+      "readyToPost": true,
+      "approvedBy": "Navin Bhalla",
+      "approvedRevision": "d59ff2bc4796787d832986c0a3b0e39a06e0aabe621b49abc7afd4d136e65dc3",
+      "category": "Special Report",
+      "editorialScope": "Cross-Desk",
+      "imageRightsReference": "Original NavvyaSignal globe artwork, reused as the edition-wide public hero"
+    }
+  ],
+  "publishedAt": "2026-11-19T19:47:48+00:00"
+}
