@@ -5,11 +5,14 @@ import {notFound} from 'next/navigation';
 import {outlookSections,outlookYears,outlookPreviewEnabled} from '@/lib/strategicOutlook';
 import {OutlookNavigation} from './OutlookNavigation';
 import styles from './strategicOutlook.module.css';
-import {outlookDescription,outlookSeriesTitle,outlookNoIndex} from '@/lib/strategicOutlookSeo';
+import {outlookDescription,outlookSeriesTitle,outlookNoIndex,outlookSocialImage} from '@/lib/strategicOutlookSeo';
 const previewMetadata:Metadata={title:outlookSeriesTitle+' — Private Editorial Preview',description:outlookDescription,robots:outlookNoIndex,openGraph:{type:'website',siteName:'NavvyaSignal',title:outlookSeriesTitle,description:outlookDescription,locale:'en_US'},twitter:{card:'summary',title:outlookSeriesTitle,description:outlookDescription}};
 export function generateMetadata(): Metadata {
  if (!getPublishedOutlook().length) return previewMetadata;
  return {title:outlookSeriesTitle,description:outlookDescription,robots:{index:true,follow:true},
+  openGraph:{type:'website',siteName:'NavvyaSignal',url:'https://navvyasignal.com/strategic-outlook',
+   title:outlookSeriesTitle,description:outlookDescription,images:[outlookSocialImage]},
+  twitter:{card:'summary_large_image',title:outlookSeriesTitle,description:outlookDescription,images:[outlookSocialImage]},
   alternates:{canonical:'/strategic-outlook',types:{'application/rss+xml':'/strategic-outlook/rss.xml',
    'application/atom+xml':'/strategic-outlook/atom.xml','application/feed+json':'/strategic-outlook/feed.json'}}};
 }

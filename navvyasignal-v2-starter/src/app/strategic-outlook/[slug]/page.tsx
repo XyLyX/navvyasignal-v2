@@ -6,7 +6,7 @@ import {outlookSections,outlookPreviewEnabled} from '@/lib/strategicOutlook';
 import {outlookManuscript} from '@/lib/strategicOutlookManuscript';
 import {OutlookNavigation} from '../OutlookNavigation';
 import styles from '../strategicOutlook.module.css';
-import {outlookNoIndex} from '@/lib/strategicOutlookSeo';
+import {outlookNoIndex, outlookSocialImage} from '@/lib/strategicOutlookSeo';
 export const dynamicParams=false;
 export function generateStaticParams(){return outlookSections.map(({slug})=>({slug}));}
 export async function generateMetadata({params}:{params:Promise<{slug:string}>}):Promise<Metadata>{
@@ -17,7 +17,7 @@ export async function generateMetadata({params}:{params:Promise<{slug:string}>})
   const section = outlookSections.find(item => item.slug === slug);
   return {title:section?.title,description:section?.summary,robots:outlookNoIndex};
  }
- const image = {url:outlookArtworkPath(slug),alt:entry.imageAlt};
+ const image = outlookSocialImage;
  const canonical = outlookArticleUrl(slug);
  return {title:entry.title,description:entry.summary,robots:{index:true,follow:true},
   alternates:{canonical},openGraph:{type:'article',url:canonical,title:entry.title,
