@@ -19,10 +19,10 @@ test('outlook preview is fail-closed and never enabled in production',()=>{
  assert.match(page,/robots:outlookNoIndex/);
  assert.match(section,/robots:outlookNoIndex/);
 });
-test('outlook route has no Notion or Signals dependency and no manuscript text',()=>{
+test('outlook route has no Notion or Signals dependency',()=>{
  assert.doesNotMatch(lib+page+section,/from ['"][^'"]*(?:\/insights|\/notion|\/signals|\/feeds)['"]/);
  assert.doesNotMatch(lib+page+section,/getInsights\(|getSignals\(|NOTION_TOKEN/);
- assert.match(page,/metadata only/);
+ assert.match(section,/outlookManuscript\(section\)/);
 });
 test('Insights page and global layout remain unchanged on this branch',()=>{
  assert.match(insights,/getInsights/);

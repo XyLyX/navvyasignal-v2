@@ -11,7 +11,7 @@ export default function StrategicOutlookPage(){
  <p className={styles.eyebrow}>NAVVYASIGNAL · INDEPENDENT STRATEGIC RESEARCH · PRIVATE STAGING</p>
  <h1>Strategic Outlook <span>2027–2030</span></h1>
  <p className={styles.lede}>Ten original editorial sections establish the 2027 baseline. Annual reviews will track the evidence, compare forecasts with outcomes and preserve the original dated assessments.</p>
- <p className={styles.hold}>EDITORIAL HOLD — Manuscripts are not approved for publication. This preview contains section metadata only.</p>
+ <p className={styles.hold}>EDITORIAL HOLD — Manuscripts are not approved for publication. Private editorial review.</p>
  <div className={styles.yearGrid}>{outlookYears.map((y,i)=><div key={y}><strong>{y}</strong><small>{i===0?'Original baseline':i===3?'Final assessment':'Annual comparison'}</small></div>)}</div>
  <h2>2027 baseline edition</h2>
  <div className={styles.cards}>{outlookSections.map(s=><article key={s.slug} className={styles.card}><p>{s.label}</p><h3><Link href={`/strategic-outlook/${s.slug}`}>{s.title}</Link></h3><span>{s.summary}</span></article>)}</div>
