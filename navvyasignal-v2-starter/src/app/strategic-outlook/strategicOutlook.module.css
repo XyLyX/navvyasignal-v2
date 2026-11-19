@@ -1,0 +1,20 @@
+.wrap{background:#f7f4ef;color:#1a2027;min-height:70vh;padding:70px 0}.inner{width:min(1100px,calc(100% - 36px));margin:auto}.eyebrow{font:700 11px Arial,sans-serif;letter-spacing:2px;color:#9a2630}.wrap h1{font:400 clamp(38px,6vw,72px)/1.1 Georgia,serif;max-width:1000px;margin:20px 0}.wrap h1 span{color:#ad2432}.lede{font:20px/1.65 Georgia,serif;max-width:830px;color:#47515a}.hold{border-left:4px solid #b22b34;background:#f0e7e4;padding:16px 20px;font:13px/1.5 Arial,sans-serif;margin:35px 0}.yearGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:35px 0 55px}.yearGrid>div{background:#202c39;color:white;padding:20px}.yearGrid strong{display:block;font:700 30px Arial,sans-serif}.yearGrid small{display:block;font:12px Arial,sans-serif;color:#e2d6c5;margin-top:8px}.wrap h2{font:400 32px Georgia,serif}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{background:white;border-top:3px solid #a72b36;padding:25px;min-height:185px}.card p{font:700 11px Arial,sans-serif;text-transform:uppercase;letter-spacing:1px;color:#9a2630}.card h3{font:400 23px/1.25 Georgia,serif;margin:12px 0}.card span{color:#5c6670;font:14px/1.5 Arial,sans-serif}.note{font:13px/1.6 Arial,sans-serif;color:#6b737b;margin-top:35px}.sectionNav{display:flex;gap:25px;margin-top:40px;font:700 13px Arial,sans-serif}.sectionNav a{color:#a72b36}@media(max-width:680px){.cards{grid-template-columns:1fr}.yearGrid{grid-template-columns:repeat(2,1fr)}.wrap{padding:35px 0}}
+.hero{display:block;width:100%;height:auto;margin:32px 0}
+.manuscript{max-width:78ch;font:18px/1.7 Georgia,serif;overflow-wrap:anywhere}
+.manuscript h2,.manuscript h3{line-height:1.25;margin-top:1.6em}
+.manuscript a{color:#952530;text-decoration:underline}
+.manuscript table{display:block;max-width:100%;overflow:auto;border-collapse:collapse}
+.manuscript th,.manuscript td{border:1px solid #b8afa4;padding:8px;text-align:left}
+.card{display:block;text-decoration:none;color:inherit;min-height:0;padding:20px 24px}
+.card p{margin:0}
+.card h3{margin:8px 0}
+.card:hover h3,.card:focus-visible h3{text-decoration:underline}
+.card:focus-visible,.outlookNavigation a:focus-visible{outline:2px solid #952530;outline-offset:3px}
+.manuscript{font-size:18px;line-height:1.5}
+.manuscript p,.manuscript ul,.manuscript ol{margin:0 0 .75em}
+.manuscript h2,.manuscript h3{margin:1.15em 0 .4em}
+.manuscript > :first-child{margin-top:0}
+.outlookNavigation,.sectionNav{display:flex;flex-wrap:wrap;gap:6px 12px}
+.outlookNavigation{margin:0 0 20px;font:700 13px/1.25 Arial,sans-serif}
+.outlookNavigation a{color:#952530;padding:7px 8px;border-radius:3px;white-space:nowrap}
+.outlookNavigation a[aria-current="page"]{background:#952530;color:#fff;text-decoration:none}

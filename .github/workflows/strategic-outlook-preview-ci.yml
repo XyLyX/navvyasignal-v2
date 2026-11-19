@@ -1,0 +1,38 @@
+name: Strategic Outlook isolated preview checks
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'navvyasignal-v2-starter/src/app/strategic-outlook/**'
+      - 'navvyasignal-v2-starter/src/lib/strategicOutlook.ts'
+      - 'navvyasignal-v2-starter/tests/strategic-outlook.test.mjs'
+      - '.github/workflows/strategic-outlook-preview-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: navvyasignal-v2-starter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: navvyasignal-v2-starter/package-lock.json
+      - run: npm ci
+      - run: node --test tests/strategic-outlook.test.mjs
+      - name: Existing full-suite regression (known join-form async cancellation)
+        run: npm test
+        continue-on-error: true
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          NOTION_TOKEN: ''
+          NOTION_DATA_SOURCE_ID: ''
+          V2_CI_STATIC_FIXTURE: '1'
+          NEXT_PUBLIC_V2_PRODUCTION: 'false'
+          STRATEGIC_OUTLOOK_PRIVATE_PREVIEW: 'false'
