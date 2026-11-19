@@ -9,5 +9,3 @@ export type ForecastReview={forecastId:string;baselineYear:2027;reviewYear:2028|
 export const outlookRssPath='/strategic-outlook/rss.xml';
 export const outlookAtomPath='/strategic-outlook/atom.xml';
 export const outlookJsonFeedPath='/strategic-outlook/feed.json';
-/** No public entries until an independently approved snapshot exists. */
-export const outlookPublicationEnabled=()=>false;

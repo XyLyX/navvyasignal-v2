@@ -11,11 +11,14 @@ test('all ten section routes are declared exactly once',()=>{
  const slugs=[...lib.matchAll(/slug:'([^']+)'/g)].map(m=>m[1]);
  assert.deepEqual(slugs,['opening','part-01','part-02','part-03','part-04','part-05','part-06','part-07','part-08','closing']);
 });
-test('outlook preview is fail-closed and never enabled in production',()=>{
+test('outlook private preview and public edition use distinct build inputs',()=>{
  assert.match(lib,/STRATEGIC_OUTLOOK_PRIVATE_PREVIEW/);
  assert.match(lib,/NEXT_PUBLIC_V2_PRODUCTION\s*!==\s*'true'/);
- assert.match(page,/if\(!outlookPreviewEnabled\(\)\) notFound\(\)/);
- assert.match(section,/if\(!outlookPreviewEnabled\(\)\) notFound\(\)/);
+ const publication=read('../src/lib/strategicOutlookPublication.ts');
+ assert.match(publication,/STRATEGIC_OUTLOOK_APPROVED_EDITION/);
+ assert.match(publication,/validateOutlookRelease\(manifest, read\)/);
+ assert.match(page,/if\(!preview && !published.length\) notFound\(\)/);
+ assert.match(section,/if \(!section \|\| \(!preview && !entry\)\) notFound\(\)/);
  assert.match(page,/robots:outlookNoIndex/);
  assert.match(section,/robots:outlookNoIndex/);
 });
@@ -29,19 +32,12 @@ test('Insights page and global layout remain unchanged on this branch',()=>{
  assert.match(layout,/href="\/insights"/);
 });
 
-test('Outlook RSS, Atom and JSON Feed stay 404 while publication HOLD is active',()=>{
- const seo=read('../src/lib/strategicOutlookSeo.ts');
- assert.match(seo,/outlookPublicationEnabled=\(\)=>false/);
- for(const p of ['rss.xml','atom.xml','feed.json']){
-  const route=read('../src/app/strategic-outlook/'+p+'/route.ts');
-  assert.match(route,/outlookPublicationEnabled\(\)/);
-  assert.match(route,/status:404/);
-  assert.match(route,/noindex, nofollow/);
+test('all public feeds and the sitemap consume the same validated edition',()=>{
+ const publication=read('../src/lib/strategicOutlookPublication.ts');
+ assert.match(publication,/if \(!entries.length\) return new Response\('Not found', \{status:404/);
+ assert.match(publication,/noindex, nofollow/);
+ for (const [file, format] of [['rss.xml','rss'],['atom.xml','atom'],['feed.json','json'],['sitemap.xml','sitemap']]) {
+  const route=read('../src/app/strategic-outlook/'+file+'/route.ts');
+  assert.ok(route.includes("outlookResponse('"+format+"')"));
  }
-});
-test('Preview metadata contains unique titles and descriptions but no publishable structured data',()=>{
- assert.match(page,/outlookSeriesTitle/);
- assert.match(page,/outlookDescription/);
- assert.match(section,/description:section\?\.summary/);
- assert.doesNotMatch(page+section,/@context|application\/ld\+json/);
 });

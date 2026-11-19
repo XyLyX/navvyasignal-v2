@@ -1,6 +1,0 @@
-{
-  "action": "publish-site-code-only",
-  "production_commit": "713370bd45ca354af2caf40f098a75205a2b4dd8",
-  "requested_at": "2026-11-17T23:07:03Z",
-  "reason": "Publish production-branch Netlify Git isolation config through fenced build hook; verify commit-specific production deployment"
-}

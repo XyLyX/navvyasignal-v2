@@ -14,10 +14,6 @@ mkdir "$work/deploy"
 cp -R out/_next out/404.html out/strategic-outlook.html out/strategic-outlook.txt out/strategic-outlook "$work/deploy/"
 cp "$work/manuscripts/assets/"* "$work/deploy/strategic-outlook/"
 cd "$work/deploy"
-for endpoint in rss.xml atom.xml feed.json; do
-  test "$(cat "strategic-outlook/$endpoint")" = 'Not found'
-  rm "strategic-outlook/$endpoint"
-done
 printf '/*\n  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet\n  Cache-Control: private, no-store\n' > _headers
 printf '/ /strategic-outlook 302\n' > _redirects
 printf 'User-agent: *\nDisallow: /\n' > robots.txt

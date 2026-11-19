@@ -1,6 +1,0 @@
-{
-  "action": "refresh-approved-content",
-  "no_ai": true,
-  "reason": "Verify live Notion publication and fenced PostgreSQL receipt for approved Signal Feed change",
-  "notion_page_id": "41b11486-b145-81a5-bc9a-f54b30967172"
-}
