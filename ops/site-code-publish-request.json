@@ -1,6 +1,6 @@
 {
   "action": "publish-site-code-only",
-  "production_commit": "95b24451066a4f6049fb282523e9c8671b37f3ec",
-  "requested_at": "2026-11-19T20:02:21Z",
-  "reason": "Remove the reader-facing feed link row while preserving RSS, Atom, JSON Feed and the sitemap"
+  "production_commit": "8e42176203566100d959fa3d25a5d2e61e92676b",
+  "requested_at": "2026-11-19T20:13:35Z",
+  "reason": "Publish dedicated share metadata and crawler-friendly artwork for Strategic Outlook pages"
 }
