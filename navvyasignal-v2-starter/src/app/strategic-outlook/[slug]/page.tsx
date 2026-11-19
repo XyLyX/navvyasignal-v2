@@ -1,0 +1,20 @@
+import type {Metadata} from 'next';
+import Link from 'next/link';
+import {notFound} from 'next/navigation';
+import {outlookSections,outlookPreviewEnabled} from '@/lib/strategicOutlook';
+import styles from '../strategicOutlook.module.css';
+export const dynamicParams=false;
+export function generateStaticParams(){return outlookSections.map(({slug})=>({slug}));}
+export function generateMetadata({params}:{params:{slug:string}}):Metadata{const section=outlookSections.find(s=>s.slug===params.slug);return {title:section?.title??'Strategic Outlook',robots:{index:false,follow:false,noarchive:true}};}
+export default function OutlookSectionPage({params}:{params:{slug:string}}){
+ if(!outlookPreviewEnabled()) notFound();
+ const section=outlookSections.find(s=>s.slug===params.slug);
+ if(!section) notFound();
+ const idx=outlookSections.findIndex(s=>s.slug===section.slug);
+ return <main className={styles.wrap}><article className={styles.inner}>
+ <p className={styles.eyebrow}>NAVVYASIGNAL · STRATEGIC OUTLOOK 2027–2030 · {section.label}</p>
+ <h1>{section.title}</h1><p className={styles.lede}>{section.summary}</p>
+ <p className={styles.hold}>EDITORIAL HOLD — Full article is retained in the offline editorial package pending factual checks and explicit approval. This route does not publish the manuscript.</p>
+ <nav className={styles.sectionNav} aria-label="Series navigation"><Link href="/strategic-outlook">All sections</Link>{idx>0&&<Link href={`/strategic-outlook/${outlookSections[idx-1].slug}`}>Previous</Link>}{idx<outlookSections.length-1&&<Link href={`/strategic-outlook/${outlookSections[idx+1].slug}`}>Next</Link>}</nav>
+ </article></main>;
+}
