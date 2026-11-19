@@ -1,6 +1,7 @@
 """Extract the private review bundle into an external staging input directory."""
 from html.parser import HTMLParser
 from pathlib import Path
+import re
 from sys import argv
 from urllib.parse import urlsplit
 from zipfile import ZipFile
@@ -24,6 +25,16 @@ class ManuscriptValidator(HTMLParser):
     def handle_decl(self, decl):
         raise ValueError(f"Unexpected manuscript declaration: {decl}")
 
+# Recovered PDF text uses separate paragraph tags for some wrapped lines.
+# Join only plain-text fragments with a lowercase continuation and no sentence ending.
+wrapped_line = re.compile(r"(<p>[^<>]*[^<>.!?…:;)\s])</p>\s*<p>([a-z][^<>]*)</p>")
+
+def join_wrapped_lines(body):
+    while True:
+        body, count = wrapped_line.subn(r"\1 \2</p>", body)
+        if not count:
+            return body
+
 archive, destination = argv[1:]
 destination = Path(destination)
 assets = destination / "assets"
@@ -36,6 +47,8 @@ with ZipFile(archive) as bundle:
         body = page.split('<div class="article">', 1)[1].split('</div><a class="back"', 1)[0]
         ManuscriptValidator().feed(body)
         # The Next.js route supplies the primary heading.
+        if slug in {"part-01", "part-02", "part-04", "part-05", "part-06", "part-07"}:
+            body = join_wrapped_lines(body)
         manuscripts[slug] = body.replace("<h1>", "<h2>").replace("</h1>", "</h2>")
 
     pictures = [name for name in bundle.namelist() if name.startswith("assets/") and name.endswith(".png")]

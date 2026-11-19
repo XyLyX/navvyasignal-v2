@@ -5,3 +5,16 @@
 .manuscript a{color:#952530;text-decoration:underline}
 .manuscript table{display:block;max-width:100%;overflow:auto;border-collapse:collapse}
 .manuscript th,.manuscript td{border:1px solid #b8afa4;padding:8px;text-align:left}
+.card{display:block;text-decoration:none;color:inherit;min-height:0;padding:20px 24px}
+.card p{margin:0}
+.card h3{margin:8px 0}
+.card:hover h3,.card:focus-visible h3{text-decoration:underline}
+.card:focus-visible,.outlookNavigation a:focus-visible{outline:2px solid #952530;outline-offset:3px}
+.manuscript{font-size:18px;line-height:1.5}
+.manuscript p,.manuscript ul,.manuscript ol{margin:0 0 .75em}
+.manuscript h2,.manuscript h3{margin:1.15em 0 .4em}
+.manuscript > :first-child{margin-top:0}
+.outlookNavigation,.sectionNav{display:flex;flex-wrap:wrap;gap:6px 12px}
+.outlookNavigation{margin:0 0 20px;font:700 13px/1.25 Arial,sans-serif}
+.outlookNavigation a{color:#952530;padding:7px 8px;border-radius:3px;white-space:nowrap}
+.outlookNavigation a[aria-current="page"]{background:#952530;color:#fff;text-decoration:none}
