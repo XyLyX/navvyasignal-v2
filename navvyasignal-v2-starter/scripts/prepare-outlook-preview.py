@@ -59,13 +59,5 @@ with ZipFile(archive) as bundle:
     for slug, body in manuscripts.items():
         (destination / f"{slug}.html").write_text(body, encoding="utf-8")
 
-(assets / "opening-placeholder.svg").write_text(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">'
-    '<rect width="1600" height="900" fill="#202c39"/>'
-    '<rect x="120" y="295" width="100" height="8" fill="#da8b91"/>'
-    '<g fill="#fff" font-family="Georgia,serif">'
-    '<text x="120" y="460" font-size="100">Strategic Outlook</text>'
-    '<text x="120" y="580" font-size="76">2027–2030</text>'
-    '<text x="120" y="730" font-size="26">TEMPORARY COVER · PRIVATE EDITORIAL REVIEW</text>'
-    '</g></svg>', encoding="utf-8"
-)
+for artwork in sorted(Path(__file__).with_name("outlook-artwork").glob("*.webp")):
+    (assets / artwork.name).write_bytes(artwork.read_bytes())
