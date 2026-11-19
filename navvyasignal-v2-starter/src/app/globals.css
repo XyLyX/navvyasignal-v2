@@ -528,3 +528,12 @@ body:has(.arabic-shell) > .footer {display:none}
 .desk-detail-hero--india-subcontinent .desk-detail-image{object-position:65% center}
 
 .editorial-status .edition-line{font:12px/1.5 Arial,sans-serif;color:#596672;margin:0 0 18px}.editorial-status .editorial-pending{font:13px/1.5 Arial,sans-serif;margin:0 0 12px;color:#765b2e}
+
+.signal-article .signal-body { overflow-wrap: anywhere; }
+.signal-article section.signal-body p { margin-bottom: 1em; white-space: pre-line; }
+.signal-article .signal-body :is(h2, h3) { line-height: 1.25; margin: 1.3em 0 .4em; }
+.signal-article .signal-body :is(h2, h3):first-child { margin-top: 0; }
+.signal-article .signal-body ul,
+.signal-article .signal-body ol { padding-inline-start: 1.4em; margin: 0 0 1em; }
+.signal-article .signal-body li + li { margin-top: .35em; }
+.signal-article .signal-body blockquote { border-inline-start: 3px solid var(--deep); margin: 0 0 1em; padding-inline-start: 1em; }

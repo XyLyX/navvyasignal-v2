@@ -24,7 +24,9 @@
 }
 .mast .brand .brand-copy > span { color: var(--electric); }
 .mast .brand small { color: var(--midnight-secondary); }
-.mast a:hover, .footer a:hover { color: var(--electric); }
+.mast nav a { color: var(--cantaloupe); }
+.mast nav a:hover, .mast nav a:focus-visible { text-decoration: underline; text-underline-offset: 4px; }
+.footer a:hover { color: var(--electric); }
 .footer { background: var(--midnight); }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--midnight-light-link); outline-offset: 4px; }
 

@@ -1,4 +1,11 @@
 // Independent, read-only V2 adapter. Never writes to Notion or touches Framer sync flags.
+const longReadBlockKinds = [
+ 'paragraph', 'heading_1', 'heading_2', 'heading_3',
+ 'bulleted_list_item', 'numbered_list_item', 'quote', 'callout',
+] as const;
+
+export type ArticleBlock = { kind: typeof longReadBlockKinds[number]; text: string };
+
 export type Story = {
  id: string; title: string; brief: string; body: string; category: string; contentType: string;
  today: boolean; homepageDate: string | null; homepagePriority: number | null;
@@ -116,15 +123,15 @@ export async function getStories(depsIn: NotionDeps = {}):Promise<Story[]> {
  return [...byId.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
 }
 
-/** Read the original Notion page blocks for a selected long read whose legacy Text 1 is empty.
+/** Read the original Notion page blocks for a selected long read.
  *  Read-only: never mutates V1 sync flags or the underlying editorial document.
  */
-export async function getLongReadBlocks(pageId: string, depsIn: NotionDeps = {}): Promise<string[]> {
+export async function getLongReadBlocks(pageId: string, depsIn: NotionDeps = {}): Promise<ArticleBlock[]> {
  const deps = resolveDeps(depsIn);
  const creds = credentials(deps.env);
  if (typeof creds === 'string' || !/^[0-9a-f-]{36}$/i.test(pageId)) return [];
  const token = creds.token;
- const blocks: string[] = [];
+ const blocks: ArticleBlock[] = [];
  let cursor: string | undefined;
  do {
   const url = new URL(`https://api.notion.com/v1/blocks/${pageId}/children`);
@@ -139,9 +146,11 @@ export async function getLongReadBlocks(pageId: string, depsIn: NotionDeps = {})
    has_more: boolean; next_cursor: string | null;
   };
   for (const block of result.results) {
-   const data = block[block.type] as { rich_text?: { plain_text?: string }[] } | undefined;
+   const kind = longReadBlockKinds.find(value => value === block.type);
+   if (!kind) continue;
+   const data = block[kind] as { rich_text?: { plain_text?: string }[] } | undefined;
    const line = (data?.rich_text ?? []).map(t => t.plain_text ?? '').join('').trim();
-   if (line) blocks.push(line);
+   if (line) blocks.push({ kind, text: line });
   }
   cursor = result.has_more && result.next_cursor ? result.next_cursor : undefined;
  } while (cursor);

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import SignalArticleBody from '@/components/SignalArticleBody';
+import { articleBody } from '@/lib/signalArticle';
 import ShareLinks from '@/components/ShareLinks';
 import { notFound } from 'next/navigation';
 import { getStories, getLongReadBlocks } from '@/lib/notion';
@@ -20,14 +22,10 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
   if (!story) notFound();
   const desk = desks.find(d => matchesDeskCategory(d.slug, story.category));
   const related = visible.filter(item => item.id !== story.id && item.category === story.category).slice(0, 3);
-  // Current pipeline: Signal Brief is editorial prose; Text 1 is sources, never article body.
-  const briefParagraphs = story.brief.replace(/\\n/g, '\n').split(/(?:<br\s*\/?\s*>\s*){1,}|\n{2,}/gi)
-    .map(part => part.trim()).filter(Boolean);
-  const sources = story.body.trim();
-  // Notion page blocks on short Signals can contain unreviewed working notes.
-  // Only explicitly classified Long Reads expose the full page body.
-  const fullEditorial = story.contentType === 'Long Read'
-    ? await getLongReadBlocks(story.id) : [];
+  const sources = story.body.trim().replace(/^Sources:\s*/i, '');
+  // Short Signals use the reviewed brief. Only Long Reads expose Notion body blocks.
+  const fullEditorial = story.contentType === 'Long Read' ? await getLongReadBlocks(story.id) : [];
+  const article = articleBody(story.brief, fullEditorial);
   const recordedDate = new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(story.createdAt));
@@ -37,13 +35,9 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
     <p className="kicker">{story.category}{story.contentType ? ` · ${story.contentType}` : ''}</p>
     <h1>{story.title}</h1>
     <p className="signal-date">Record added <time dateTime={story.createdAt}>{recordedDate}</time></p>
-    {briefParagraphs.length > 0 ? <section aria-label="Signal brief">
-      
-      {briefParagraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+    {article.blocks.length > 0 ? <section className="signal-body" aria-label={article.label}>
+      <SignalArticleBody blocks={article.blocks} />
     </section> : <p className="empty">No report text is available for this record.</p>}
-    {fullEditorial.length > 0 && <section aria-label="Long read"><h2>Long read</h2>
-      {fullEditorial.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
-    </section>}
     {sources && <section aria-label="Sources"><h2>Sources</h2><p className="signal-sources">{sourceParts.map((part, index) => {
         if (!/^https?:\/\//.test(part)) return <span key={index}>{part}</span>;
         const href = part.replace(/[.,;:)\]]+$/, '');
@@ -52,7 +46,6 @@ export default async function LegacySignal({ params }: { params: Promise<{ id: s
           return <span key={index}><a href={href} target="_blank" rel="noopener noreferrer">{url.hostname.replace(/^www\./, '')}</a>{part.slice(href.length)}</span>;
         } catch { return <span key={index}>{part}</span>; }
       })}</p></section>}
-    <p className="signal-invitation">Follow the next development at <Link href="/">navvyasignal.com</Link>.</p>
     <p className="signal-date-note">The record date indicates when this Signal was added, rather than the date of the reported event.</p>
     <ShareLinks title={story.title} url={`https://navvyasignal.com/signals/${story.id}`} />
     <section className="article-discovery" aria-label="Explore related intelligence">

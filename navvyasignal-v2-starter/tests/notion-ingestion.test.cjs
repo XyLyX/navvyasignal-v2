@@ -140,3 +140,32 @@ test('the safety ceiling fails the build rather than dropping approved stories',
   await assert.rejects(getStories({ env: TOKEN_ENV, fetchImpl }), /more than \d+ approved stories/);
   assert.equal(n, MAX_NOTION_PAGES);
 });
+
+test('long reads use structured editorial blocks once and drop known website boilerplate', async () => {
+  const { articleBody } = load('signalArticle');
+  const block = (type, plain_text) => ({ type, [type]: { rich_text: [{ plain_text }] } });
+  const full = await getLongReadBlocks('3e711486-b145-8000-0000-000000000001', {
+    env: TOKEN_ENV,
+    fetchImpl: async () => R(200, { results: [
+      block('heading_2', 'What was announced'),
+      block('paragraph', 'The fit-out continues.'),
+      block('paragraph', 'The fit-out continues.'),
+      block('bulleted_list_item', 'Opening date'),
+      block('code', 'Internal working notes'),
+      block('paragraph', 'NavvyaSignal Editorial'),
+    ], has_more: false }),
+  });
+  assert.deepEqual(articleBody('The fit-out continues.', full), {
+    label: 'Long read', blocks: [
+      { kind: 'heading_2', text: 'What was announced' },
+      { kind: 'paragraph', text: 'The fit-out continues.' },
+      { kind: 'bulleted_list_item', text: 'Opening date' },
+    ],
+  });
+  assert.deepEqual(articleBody('First paragraph.\\n\\nSecond paragraph. Read the full analysis at navvyasignal.com.', []), {
+    label: 'Signal brief', blocks: [
+      { kind: 'paragraph', text: 'First paragraph.' },
+      { kind: 'paragraph', text: 'Second paragraph.' },
+    ],
+  });
+});
