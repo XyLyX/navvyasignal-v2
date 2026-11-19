@@ -1,6 +1,6 @@
 {
   "action": "publish-site-code-only",
-  "production_commit": "cbf397b5956be37f7a7dab3f2df6d6cbea12844f",
-  "requested_at": "2026-11-19T17:55:41Z",
-  "reason": "Publish corrected Signal article structure and Cantaloupe Orange navigation in one code-only release"
+  "production_commit": "6a9de2f8293898cd5c1b80426bfed1934d7fd242",
+  "requested_at": "2026-11-19T18:40:11Z",
+  "reason": "Publish homepage Navyaa Blog heading colour requested by the owner"
 }
