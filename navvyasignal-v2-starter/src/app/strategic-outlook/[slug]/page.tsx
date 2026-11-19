@@ -3,9 +3,10 @@ import Link from 'next/link';
 import {notFound} from 'next/navigation';
 import {outlookSections,outlookPreviewEnabled} from '@/lib/strategicOutlook';
 import styles from '../strategicOutlook.module.css';
+import {outlookNoIndex} from '@/lib/strategicOutlookSeo';
 export const dynamicParams=false;
 export function generateStaticParams(){return outlookSections.map(({slug})=>({slug}));}
-export async function generateMetadata({params}:{params:Promise<{slug:string}>}):Promise<Metadata>{const {slug}=await params;const section=outlookSections.find(s=>s.slug===slug);return {title:section?.title??'Strategic Outlook',robots:{index:false,follow:false,noarchive:true}};}
+export async function generateMetadata({params}:{params:Promise<{slug:string}>}):Promise<Metadata>{const {slug}=await params;const section=outlookSections.find(s=>s.slug===slug);return {title:section?.title??'Strategic Outlook',description:section?.summary,robots:outlookNoIndex,openGraph:{type:'article',siteName:'NavvyaSignal',title:section?.title??'Strategic Outlook',description:section?.summary,locale:'en_US'},twitter:{card:'summary',title:section?.title??'Strategic Outlook',description:section?.summary}};}
 export default async function OutlookSectionPage({params}:{params:Promise<{slug:string}>}){
  if(!outlookPreviewEnabled()) notFound();
  const {slug}=await params;const section=outlookSections.find(s=>s.slug===slug);
