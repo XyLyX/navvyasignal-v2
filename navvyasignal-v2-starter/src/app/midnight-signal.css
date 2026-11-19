@@ -42,12 +42,14 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--midnight-light-
 }
 .midnight-home .lead {
   background: var(--midnight);
-  padding: clamp(36px, 6vw, 78px) 0;
+  padding: clamp(20px, 2.6vw, 38px) 0;
   border-bottom: 1px solid var(--midnight-line);
 }
-.midnight-home .lead h1 { font-size: clamp(34px, 6vw, 72px); letter-spacing: -.04em; font-weight: 650; }
+.midnight-home .lead h1 { font-size: clamp(30px, 5vw, 54px); line-height: 1.06; letter-spacing: -.035em; font-weight: 650; margin: 8px 0; }
 .midnight-home .lead em { color: var(--electric); font-style: normal; font-weight: inherit; }
-.midnight-home .intro { color: var(--midnight-white); }
+.midnight-home .lead .eyebrow { margin: 0; }
+.midnight-home .intro { margin: 10px 0 0; color: var(--midnight-white); font-size: clamp(15px, 1.6vw, 18px); line-height: 1.45; }
+.midnight-home .lead-note { margin-top: 9px; line-height: 1.4; }
 .midnight-home :is(.eyebrow, .kicker, .section-title a, .watch-all, .pulse-city, .pulse-quote-label) {
   color: var(--electric);
 }
@@ -76,7 +78,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--midnight-light-
   background: var(--electric);
   color: var(--midnight);
 }
-.midnight-home .content { padding-block: clamp(30px, 5vw, 64px); }
+.midnight-home .content { padding-block: clamp(20px, 3vw, 36px); gap: clamp(16px, 3vw, 32px); }
 
 .signal-sources a, .article-discovery a, .insights-page a:hover {
   color: var(--midnight-light-link);
@@ -121,3 +123,39 @@ html { scroll-padding-top: 100px; }
   color: var(--ink);
   border: 1px solid var(--midnight-line);
 }
+
+/* Compact page chrome while preserving the original reading line height. */
+.inner { padding-block: clamp(22px, 3.2vw, 42px); }
+.inner h1 { margin-block: 8px 12px; }
+.inner > .eyebrow { margin: 0; }
+.intelligence-page-hero,
+.desk-detail-header {
+  min-height: 0;
+  padding: clamp(20px, 3vw, 32px);
+  margin-bottom: 16px;
+}
+.info-page section { padding-block: 18px; }
+.info-page section:first-of-type { margin-top: 22px; }
+.network-grid { margin-block: 22px; gap: 16px; }
+.network-card-body { padding: 18px; }
+.story { padding-block: 15px; }
+.article-discovery { margin-top: 26px; padding-top: 16px; }
+.footer { padding-block: 24px; }
+.footer-inner nav { row-gap: 9px; }
+.midnight-home .global-pulse { padding-block: 10px 12px; }
+.midnight-home .pulse-clocks { padding-block: 10px 12px; row-gap: 10px; }
+.midnight-home .pulse-market { padding-top: 10px; }
+.midnight-home .desk-section,
+.midnight-home .editorial-bottom { padding-block: clamp(22px, 3vw, 38px); }
+.midnight-home .desk-grid .desk { min-height: clamp(148px, 16vw, 198px); }
+.midnight-home .midnight-watchlist { padding: 16px 20px; }
+.midnight-home .midnight-edition { padding: clamp(16px, 2vw, 24px); }
+.midnight-home .section-title { margin-bottom: 12px; }
+.midnight-home :is(.section-title, .midnight-watchlist) h2 { margin: 0 0 8px; }
+.midnight-home :is(.editorial-panel, .editorial-empty) { padding: 18px; }
+.midnight-home :is(.subscribe-brief, .whatsapp-channel-invite).container { padding: 16px 20px; }
+@media (max-width: 540px) {
+  .midnight-home .desk-grid .desk { min-height: 150px; }
+  .midnight-home .lead h1 { overflow-wrap: normal; }
+}
+:where(.inner, .desk-section) { scroll-margin-top: 8px; }
