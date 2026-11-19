@@ -161,3 +161,6 @@ html { scroll-padding-top: 100px; }
   .midnight-home .lead h1 { overflow-wrap: normal; }
 }
 :where(.inner, .desk-section) { scroll-margin-top: 8px; }
+
+/* Burnt orange keeps the Navyaa heading readable on its light panel. */
+.midnight-home .navyaa-lens .nl-head h2 { color: #a83b19; }
