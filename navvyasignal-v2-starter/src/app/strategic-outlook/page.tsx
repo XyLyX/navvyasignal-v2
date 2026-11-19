@@ -3,7 +3,8 @@ import Link from 'next/link';
 import {notFound} from 'next/navigation';
 import {outlookSections,outlookYears,outlookPreviewEnabled} from '@/lib/strategicOutlook';
 import styles from './strategicOutlook.module.css';
-export const metadata:Metadata={title:'Strategic Outlook 2027–2030 — Editorial Preview',robots:{index:false,follow:false,noarchive:true},description:'Independent NavvyaSignal four-year strategic forecasting and annual review project.'};
+import {outlookDescription,outlookSeriesTitle,outlookNoIndex} from '@/lib/strategicOutlookSeo';
+export const metadata:Metadata={title:outlookSeriesTitle+' — Private Editorial Preview',description:outlookDescription,robots:outlookNoIndex,openGraph:{type:'website',siteName:'NavvyaSignal',title:outlookSeriesTitle,description:outlookDescription,locale:'en_US'},twitter:{card:'summary',title:outlookSeriesTitle,description:outlookDescription}};
 export default function StrategicOutlookPage(){
  if(!outlookPreviewEnabled()) notFound();
  return <main className={styles.wrap}><div className={styles.inner}>
