@@ -28,10 +28,10 @@ export default async function Home() {
       <p className="lead-note">Four regional desks · Current reporting · Developing watchlists</p>
     </div></section>
     <GlobalPulse />
-    <div className="container content"><section>
+    <div className="container content"><section className="midnight-edition">
       <div className="section-title"><h2>Today’s Intelligence</h2><Link href="/signals">All signals →</Link></div>
       <FreshIntelligence stories={fresh} initialNow={initialNow} />
-    </section><aside><h2>Watchlist</h2><p className="aside-intro">Ongoing developments under observation; review dates are shown for each case.</p>
+    </section><aside className="midnight-watchlist"><h2>Watchlist</h2><p className="aside-intro">Ongoing developments under observation; review dates are shown for each case.</p>
       {watch.length ? <div className="watch-list">{watch.map(s => <WatchCard key={s.id} story={s} variant="aside" />)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
       <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
     </aside></div>

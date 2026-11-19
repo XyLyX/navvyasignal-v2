@@ -95,3 +95,29 @@ html { scroll-padding-top: 100px; }
 @media (max-width: 760px) {
   html { scroll-padding-top: 150px; }
 }
+
+.midnight-home .lead .eyebrow,
+.midnight-home .pulse-heading .pulse-note,
+.midnight-home .midnight-watchlist h2 {
+  color: var(--cantaloupe);
+}
+.midnight-home .midnight-watchlist {
+  align-self: start;
+  padding: 24px;
+  background: var(--midnight-surface);
+  border: 1px solid var(--midnight-line);
+  border-top: 2px solid var(--cantaloupe);
+}
+.midnight-home .midnight-edition {
+  --electric: var(--midnight-light-link);
+  --midnight-surface: #fff;
+  --midnight-secondary: #415a69;
+  --midnight-line: #c3d1d9;
+  --midnight-white: var(--ink);
+  --gold: var(--midnight-light-link);
+  min-width: 0;
+  padding: clamp(18px, 3vw, 32px);
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--midnight-line);
+}
