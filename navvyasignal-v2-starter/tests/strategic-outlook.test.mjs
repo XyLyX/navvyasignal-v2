@@ -16,8 +16,8 @@ test('outlook preview is fail-closed and never enabled in production',()=>{
  assert.match(lib,/NEXT_PUBLIC_V2_PRODUCTION\s*!==\s*'true'/);
  assert.match(page,/if\(!outlookPreviewEnabled\(\)\) notFound\(\)/);
  assert.match(section,/if\(!outlookPreviewEnabled\(\)\) notFound\(\)/);
- assert.match(page,/index:false,follow:false/);
- assert.match(section,/index:false,follow:false/);
+ assert.match(page,/robots:outlookNoIndex/);
+ assert.match(section,/robots:outlookNoIndex/);
 });
 test('outlook route has no Notion or Signals dependency and no manuscript text',()=>{
  assert.doesNotMatch(lib+page+section,/from ['"][^'"]*(?:\/insights|\/notion|\/signals|\/feeds)['"]/);
@@ -27,4 +27,21 @@ test('outlook route has no Notion or Signals dependency and no manuscript text',
 test('Insights page and global layout remain unchanged on this branch',()=>{
  assert.match(insights,/getInsights/);
  assert.match(layout,/href="\/insights"/);
+});
+
+test('Outlook RSS, Atom and JSON Feed stay 404 while publication HOLD is active',()=>{
+ const seo=read('../src/lib/strategicOutlookSeo.ts');
+ assert.match(seo,/outlookPublicationEnabled=\(\)=>false/);
+ for(const p of ['rss.xml','atom.xml','feed.json']){
+  const route=read('../src/app/strategic-outlook/'+p+'/route.ts');
+  assert.match(route,/outlookPublicationEnabled\(\)/);
+  assert.match(route,/status:404/);
+  assert.match(route,/noindex, nofollow/);
+ }
+});
+test('Preview metadata contains unique titles and descriptions but no publishable structured data',()=>{
+ assert.match(page,/outlookSeriesTitle/);
+ assert.match(page,/outlookDescription/);
+ assert.match(section,/description:section\?\.summary/);
+ assert.doesNotMatch(page+section,/@context|application\/ld\+json/);
 });
