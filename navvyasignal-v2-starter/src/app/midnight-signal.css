@@ -55,7 +55,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--midnight-light-
                    .editorial-empty p, .empty, .pulse-note, .pulse-day, .pulse-disclosure, .pulse-market-title span) {
   color: var(--midnight-secondary);
 }
-.midnight-home :is(.global-pulse, .pulse-quote, .editorial-empty, .editorial-panel, .desk,
+.midnight-home :is(.global-pulse, .pulse-quote, .editorial-empty, .editorial-panel,
                    .subscribe-brief, .whatsapp-channel-invite, .feed-card, .feed-empty, .watch-aside) {
   background: var(--midnight-surface);
   color: var(--midnight-white);
@@ -66,7 +66,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--midnight-light-
 }
 .midnight-home :is(.pulse-heading, .pulse-market-title, .desk span, .desk b) { color: var(--electric); }
 .midnight-home .desk-section { background: var(--midnight); border-block: 1px solid var(--midnight-line); }
-.midnight-home .desk { border-top: 2px solid var(--electric); }
+.midnight-home .desk { background-color: var(--midnight-surface); border-top: 2px solid var(--electric); }
 .midnight-home :is(.watch .status, .watch-aside .status) { color: var(--cantaloupe); background: transparent; }
 .midnight-home :is(.editorial-pending, .editorial-status, .watch-review, .watch-excerpt, .edition-line,
                    .subscribe-brief p, .whatsapp-channel-invite p, .feed-card p, .sponsor-reserve) {
