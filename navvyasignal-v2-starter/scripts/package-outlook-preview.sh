@@ -2,10 +2,12 @@
 set -euo pipefail
 archive=${1:?Supply an absolute path to the private editorial ZIP}
 output=${2:?Supply an absolute path to the staging deployment ZIP}
+cover=${3:?Supply an absolute path to the private opening reference PNG}
 cd "$(dirname "$0")/.."
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 python scripts/prepare-outlook-preview.py "$archive" "$work/manuscripts"
+cp "$cover" "$work/manuscripts/assets/opening-reference-cover.png"
 CI=true V2_CI_STATIC_FIXTURE=1 NEXT_PUBLIC_V2_PRODUCTION=false \
   STRATEGIC_OUTLOOK_PRIVATE_PREVIEW=true STRATEGIC_OUTLOOK_MANUSCRIPTS="$work/manuscripts" npm run build
 mkdir "$work/deploy"

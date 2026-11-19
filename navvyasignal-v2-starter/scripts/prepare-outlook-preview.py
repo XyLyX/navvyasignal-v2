@@ -59,5 +59,5 @@ with ZipFile(archive) as bundle:
     for slug, body in manuscripts.items():
         (destination / f"{slug}.html").write_text(body, encoding="utf-8")
 
-for artwork in sorted(Path(__file__).with_name("outlook-artwork").glob("*.webp")):
-    (assets / artwork.name).write_bytes(artwork.read_bytes())
+artwork = Path(__file__).with_name("outlook-artwork") / "strategic-outlook-cover.webp"
+(assets / artwork.name).write_bytes(artwork.read_bytes())

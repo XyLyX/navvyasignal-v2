@@ -21,6 +21,7 @@ export default async function OutlookSectionPage({params}:{params:Promise<{slug:
  <h1>{section.title}</h1><p className={styles.lede}>{section.summary}</p>
  <p className={styles.hold}>EDITORIAL HOLD — Private editorial review. Fact-checking and approval are pending.</p>
  <img className={styles.hero} src={section.asset} alt={section.alt} />
+ {slug==='opening' && <p className={styles.note}>Editorial reference supplied for private review. Cover graphic references The Economist’s <cite>The World Ahead 2027</cite>.</p>}
  <div className={styles.manuscript} dangerouslySetInnerHTML={{__html:manuscript}} />
  <nav className={styles.sectionNav} aria-label="Series navigation"><Link href="/strategic-outlook">All sections</Link>{idx>0&&<Link href={`/strategic-outlook/${outlookSections[idx-1].slug}`} rel="prev">{outlookSections[idx-1].label}</Link>}{idx<outlookSections.length-1&&<Link href={`/strategic-outlook/${outlookSections[idx+1].slug}`} rel="next">{outlookSections[idx+1].label}</Link>}</nav>
  </article></main>;

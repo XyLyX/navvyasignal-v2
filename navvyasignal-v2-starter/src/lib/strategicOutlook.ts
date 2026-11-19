@@ -1,7 +1,7 @@
 /** Independent editorial stream. Never reads or writes the Signal Feed or Insights snapshot. */
 export type OutlookSection = {slug:string;label:string;title:string;summary:string;asset:string;alt:string;};
 export const outlookSections: OutlookSection[] = [
-{slug:'opening',label:'Opening editorial',title:'Strategic Outlook 2027–2030',summary:'The independent NavvyaSignal introduction to a four-year forecasting and accountability project.',asset:'/strategic-outlook/opening-editorial-cover.webp',alt:'Roads converging in coastal mountains at sunrise'},
+{slug:'opening',label:'Opening editorial',title:'Strategic Outlook 2027–2030',summary:'The independent NavvyaSignal introduction to a four-year forecasting and accountability project.',asset:'/strategic-outlook/opening-reference-cover.png',alt:'The World Ahead 2027 cover graphic with The Economist masthead and red and black illustrations'},
 {slug:'part-01',label:'Part 1',title:'The World Ahead 2027: A World at the Crossroads',summary:'Interconnected global risks and opportunities.',asset:'/strategic-outlook/part-01-world-crossroads.png',alt:'A fractured globe under a dark sky'},
 {slug:'part-02',label:'Part 2',title:'The New Global Power Struggle: America, China, Russia and Europe',summary:'The changing balance of power and the risks of strategic rivalry.',asset:'/strategic-outlook/part-02-global-power.png',alt:'World powers represented on a chessboard'},
 {slug:'part-03',label:'Part 3',title:'The Iran War Is Not Over. The Gulf Is Already Paying the Price.',summary:'Regional security, energy markets and maritime exposure.',asset:'/strategic-outlook/part-03-gulf-security.png',alt:'Shipping lanes through the Strait of Hormuz'},
