@@ -5,10 +5,10 @@ import {outlookSections,outlookPreviewEnabled} from '@/lib/strategicOutlook';
 import styles from '../strategicOutlook.module.css';
 export const dynamicParams=false;
 export function generateStaticParams(){return outlookSections.map(({slug})=>({slug}));}
-export function generateMetadata({params}:{params:{slug:string}}):Metadata{const section=outlookSections.find(s=>s.slug===params.slug);return {title:section?.title??'Strategic Outlook',robots:{index:false,follow:false,noarchive:true}};}
-export default function OutlookSectionPage({params}:{params:{slug:string}}){
+export async function generateMetadata({params}:{params:Promise<{slug:string}>}):Promise<Metadata>{const {slug}=await params;const section=outlookSections.find(s=>s.slug===slug);return {title:section?.title??'Strategic Outlook',robots:{index:false,follow:false,noarchive:true}};}
+export default async function OutlookSectionPage({params}:{params:Promise<{slug:string}>}){
  if(!outlookPreviewEnabled()) notFound();
- const section=outlookSections.find(s=>s.slug===params.slug);
+ const {slug}=await params;const section=outlookSections.find(s=>s.slug===slug);
  if(!section) notFound();
  const idx=outlookSections.findIndex(s=>s.slug===section.slug);
  return <main className={styles.wrap}><article className={styles.inner}>
