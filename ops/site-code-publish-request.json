@@ -1,6 +1,6 @@
 {
   "action": "publish-site-code-only",
-  "production_commit": "0f573d798f7cee72ab43372e0beaf1d5d70905bc",
-  "requested_at": "2026-11-19T19:49:26Z",
-  "reason": "Publish the exact owner-approved Strategic Outlook 2027–2030 edition and feeds through the fenced workflow"
+  "production_commit": "95b24451066a4f6049fb282523e9c8671b37f3ec",
+  "requested_at": "2026-11-19T20:02:21Z",
+  "reason": "Remove the reader-facing feed link row while preserving RSS, Atom, JSON Feed and the sitemap"
 }
