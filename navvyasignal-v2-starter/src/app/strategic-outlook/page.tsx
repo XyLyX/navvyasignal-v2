@@ -27,7 +27,6 @@ export default function StrategicOutlookPage(){
  <img className={styles.hero} src={preview ? "/strategic-outlook/strategic-outlook-cover.webp" : outlookArtworkPath("opening")} alt="Earth at sunrise with glowing connections between continents" width={1086} height={724} />
  <div className={styles.yearGrid}>{outlookYears.map((y,i)=><div key={y}><strong>{y}</strong><small>{i===0?'Original baseline':i===3?'Final assessment':'Annual comparison'}</small></div>)}</div>
  <h2>2027 baseline edition</h2>
- {published.length > 0 && <nav className={styles.sectionNav} aria-label="Edition feeds"><Link href="/strategic-outlook/rss.xml">RSS</Link><Link href="/strategic-outlook/atom.xml">Atom</Link><Link href="/strategic-outlook/feed.json">JSON Feed</Link><Link href="/strategic-outlook/sitemap.xml">Sitemap</Link></nav>}
  <div className={styles.cards}>{cards.map(s=><Link key={s.slug} href={`/strategic-outlook/${s.slug}`} className={styles.card}><p>{s.label}</p><h3>{s.title}</h3><span>{s.summary}</span></Link>)}</div>
  {preview && <p className={styles.note}>This is a separate editorial stream. The Signal Feed and Insights &amp; Analysis retain their existing publishing controls and data stores. The Economist cover is a third-party reference and must not be publicly reproduced without appropriate rights.</p>}
  </div></main>;
