@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import './globals.css';
+import './midnight-signal.css';
 const isProduction = process.env.NEXT_PUBLIC_V2_PRODUCTION === 'true';
 const channelCandidate = 'https://whatsapp.com/channel/0029VbDPeHH47Xe2oj9oSL3C';
 const whatsappChannel = channelCandidate && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(channelCandidate) ? channelCandidate : null;

@@ -1,0 +1,97 @@
+:root {
+  --midnight: #02070a;
+  --electric: #0297de;
+  --cantaloupe: #fc734d;
+  --midnight-surface: #101c29;
+  --midnight-secondary: #8fa8b7;
+  --midnight-line: #304256;
+  --midnight-white: #f5f9fc;
+  --midnight-light-link: #005e8a;
+  --paper: #eaf1f5;
+  --ink: #142331;
+  --navy: #132d43;
+  --deep: var(--midnight-light-link);
+  --gold: #0074a9;
+}
+
+.mast {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 10px 0;
+  background: var(--midnight);
+  border-bottom: 1px solid var(--midnight-line);
+}
+.mast .brand .brand-copy > span { color: var(--electric); }
+.mast .brand small { color: var(--midnight-secondary); }
+.mast a:hover, .footer a:hover { color: var(--electric); }
+.footer { background: var(--midnight); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--midnight-light-link); outline-offset: 4px; }
+
+.midnight-home {
+  background: var(--midnight);
+  color: var(--midnight-white);
+  font-family: Arial, sans-serif;
+  --deep: var(--electric);
+  --navy: var(--midnight-line);
+  --gold: var(--electric);
+}
+.midnight-home a:hover { color: var(--electric); }
+.midnight-home :is(a, button):focus-visible, .mast a:focus-visible, .footer a:focus-visible {
+  outline-color: var(--electric);
+}
+.midnight-home .lead {
+  background: var(--midnight);
+  padding: clamp(36px, 6vw, 78px) 0;
+  border-bottom: 1px solid var(--midnight-line);
+}
+.midnight-home .lead h1 { font-size: clamp(34px, 6vw, 72px); letter-spacing: -.04em; font-weight: 650; }
+.midnight-home .lead em { color: var(--electric); font-style: normal; font-weight: inherit; }
+.midnight-home .intro { color: var(--midnight-white); }
+.midnight-home :is(.eyebrow, .kicker, .section-title a, .watch-all, .pulse-city, .pulse-quote-label) {
+  color: var(--electric);
+}
+.midnight-home :is(.lead-note, .aside-intro, .section-deck, .story p, .watch p, .editorial-panel p,
+                   .editorial-empty p, .empty, .pulse-note, .pulse-day, .pulse-disclosure, .pulse-market-title span) {
+  color: var(--midnight-secondary);
+}
+.midnight-home :is(.global-pulse, .pulse-quote, .editorial-empty, .editorial-panel, .desk,
+                   .subscribe-brief, .whatsapp-channel-invite, .feed-card, .feed-empty, .watch-aside) {
+  background: var(--midnight-surface);
+  color: var(--midnight-white);
+  border-color: var(--midnight-line);
+}
+.midnight-home :is(.pulse-clock, .pulse-market, .content aside, .story, .watch) {
+  border-color: var(--midnight-line);
+}
+.midnight-home :is(.pulse-heading, .pulse-market-title, .desk span, .desk b) { color: var(--electric); }
+.midnight-home .desk-section { background: var(--midnight); border-block: 1px solid var(--midnight-line); }
+.midnight-home .desk { border-top: 2px solid var(--electric); }
+.midnight-home :is(.watch .status, .watch-aside .status) { color: var(--cantaloupe); background: transparent; }
+.midnight-home :is(.editorial-pending, .editorial-status, .watch-review, .watch-excerpt, .edition-line,
+                   .subscribe-brief p, .whatsapp-channel-invite p, .feed-card p, .sponsor-reserve) {
+  color: var(--midnight-secondary);
+}
+.midnight-home :is(.subscribe-brief a, .whatsapp-channel-invite a) {
+  background: var(--electric);
+  color: var(--midnight);
+}
+.midnight-home .content { padding-block: clamp(30px, 5vw, 64px); }
+
+.signal-sources a, .article-discovery a, .insights-page a:hover {
+  color: var(--midnight-light-link);
+}
+@media (max-width: 760px) {
+  .mast .container { gap: 10px; }
+  .mast nav { gap: 8px 14px; }
+  .midnight-home .lead h1 { overflow-wrap: anywhere; }
+}
+
+.midnight-home .whatsapp-channel-invite h2 { color: var(--midnight-white); }
+.midnight-home .editorial-empty a { color: var(--electric); }
+.midnight-home .editorial-status :is(.edition-line, .editorial-pending) { color: var(--midnight-secondary); }
+.midnight-home .desk-grid .desk :is(span, b) { color: var(--midnight-white); }
+html { scroll-padding-top: 100px; }
+@media (max-width: 760px) {
+  html { scroll-padding-top: 150px; }
+}
