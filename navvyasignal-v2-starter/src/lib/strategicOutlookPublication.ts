@@ -29,7 +29,8 @@ export function getPublishedOutlook(): PublishedSection[] {
  return outlookSections.map(section => {
   const {slug} = section;
   const hero = read(slug, 'hero.webp');
-  if (slug === 'opening' && !hero.equals(readFileSync(join(process.cwd(), 'scripts/outlook-artwork/strategic-outlook-cover.webp')))) {
+  const isEditionGlobe = hero.equals(readFileSync(join(process.cwd(), 'scripts/outlook-artwork/strategic-outlook-cover.webp')));
+  if (slug === 'opening' && !isEditionGlobe) {
    throw new Error('Outlook publication blocked: the opening cover must use the original NavvyaSignal artwork');
   }
   if (hero.toString('ascii', 0, 4) !== 'RIFF' || hero.toString('ascii', 8, 12) !== 'WEBP') {
@@ -38,7 +39,7 @@ export function getPublishedOutlook(): PublishedSection[] {
   return {
    slug, title: read(slug, 'title.txt').toString().trim(), summary: read(slug, 'bluf.txt').toString().trim(),
    body: read(slug, 'body.html').toString(), sources: JSON.parse(read(slug, 'sources.json').toString()),
-   imageAlt: slug === 'opening' ? 'Earth at sunrise with glowing connections between continents' : section.alt, hero, publishedAt: publicationDate,
+   imageAlt: isEditionGlobe ? 'Earth at sunrise with glowing connections between continents' : section.alt, hero, publishedAt: publicationDate,
   };
  });
 }
