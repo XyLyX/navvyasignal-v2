@@ -21,17 +21,17 @@ export default async function Home() {
   const latestBriefing = latestOfType(published, 'Briefing');
   const latestLongRead = latestOfType(published, 'Long Read');
   const watch = stories.filter(s => s.watchlist && s.watchStatus === 'Active').slice(0, 4);
-  return <main>
-    <GlobalPulse />
+  return <main className="midnight-home">
     <section className="lead"><div className="container"><p className="eyebrow">GLOBAL INTELLIGENCE</p>
       <h1>Understand what matters.<br/><em>See what connects.</em></h1>
       <p className="intro">Independent global intelligence, grounded in documented developments and the connections between them.</p>
       <p className="lead-note">Four regional desks · Current reporting · Developing watchlists</p>
     </div></section>
-    <div className="container content"><section>
+    <GlobalPulse />
+    <div className="container content"><section className="midnight-edition">
       <div className="section-title"><h2>Today’s Intelligence</h2><Link href="/signals">All signals →</Link></div>
       <FreshIntelligence stories={fresh} initialNow={initialNow} />
-    </section><aside><h2>Watchlist</h2><p className="aside-intro">Ongoing developments under observation; review dates are shown for each case.</p>
+    </section><aside className="midnight-watchlist"><h2>Watchlist</h2><p className="aside-intro">Ongoing developments under observation; review dates are shown for each case.</p>
       {watch.length ? <div className="watch-list">{watch.map(s => <WatchCard key={s.id} story={s} variant="aside" />)}</div> : <p className="empty">No approved active Watchlist entries are available.</p>}
       <Link className="watch-all" href="/watchlist">View Watchlist →</Link>
     </aside></div>
