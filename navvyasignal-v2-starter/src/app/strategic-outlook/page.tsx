@@ -1,0 +1,19 @@
+import type {Metadata} from 'next';
+import Link from 'next/link';
+import {notFound} from 'next/navigation';
+import {outlookSections,outlookYears,outlookPreviewEnabled} from '@/lib/strategicOutlook';
+import styles from './strategicOutlook.module.css';
+export const metadata:Metadata={title:'Strategic Outlook 2027–2030 — Editorial Preview',robots:{index:false,follow:false,noarchive:true},description:'Independent NavvyaSignal four-year strategic forecasting and annual review project.'};
+export default function StrategicOutlookPage(){
+ if(!outlookPreviewEnabled()) notFound();
+ return <main className={styles.wrap}><div className={styles.inner}>
+ <p className={styles.eyebrow}>NAVVYASIGNAL · INDEPENDENT STRATEGIC RESEARCH · PRIVATE STAGING</p>
+ <h1>Strategic Outlook <span>2027–2030</span></h1>
+ <p className={styles.lede}>Ten original editorial sections establish the 2027 baseline. Annual reviews will track the evidence, compare forecasts with outcomes and preserve the original dated assessments.</p>
+ <p className={styles.hold}>EDITORIAL HOLD — Manuscripts are not approved for publication. This preview contains section metadata only.</p>
+ <div className={styles.yearGrid}>{outlookYears.map((y,i)=><div key={y}><strong>{y}</strong><small>{i===0?'Original baseline':i===3?'Final assessment':'Annual comparison'}</small></div>)}</div>
+ <h2>2027 baseline edition</h2>
+ <div className={styles.cards}>{outlookSections.map(s=><article key={s.slug} className={styles.card}><p>{s.label}</p><h3><Link href={`/strategic-outlook/${s.slug}`}>{s.title}</Link></h3><span>{s.summary}</span></article>)}</div>
+ <p className={styles.note}>This is a separate editorial stream. The Signal Feed and Insights &amp; Analysis retain their existing publishing controls and data stores. The Economist cover is a third-party reference and must not be publicly reproduced without appropriate rights.</p>
+ </div></main>;
+}
