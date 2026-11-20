@@ -73,6 +73,25 @@ begin
 end $$;
 create trigger guard_entry_mutations before insert or update or delete on publication_shadow.entries
 for each row execute function publication_shadow.guard_entries();
+-- Approved content metadata is immutable; only forward lifecycle transitions are allowed.
+create or replace function publication_shadow.guard_edition() returns trigger
+language plpgsql security invoker set search_path = pg_catalog, publication_shadow as $
+begin
+  if old.status <> 'draft' then
+    if (new.edition_date,new.version,new.content_hash,new.approved_at,new.approved_by,new.frozen_at)
+       is distinct from
+       (old.edition_date,old.version,old.content_hash,old.approved_at,old.approved_by,old.frozen_at)
+       then raise exception 'Approved edition metadata is immutable'; end if;
+  end if;
+  if old.status = 'draft' and new.status not in ('draft','approved','withdrawn')
+     or old.status = 'approved' and new.status not in ('approved','frozen','withdrawn')
+     or old.status = 'frozen' and new.status not in ('frozen','published','withdrawn')
+     or old.status in ('published','withdrawn') and new.status <> old.status
+  then raise exception 'Invalid edition state transition'; end if;
+  return new;
+end $;
+create trigger guard_edition_mutations before update on publication_shadow.editions
+for each row execute function publication_shadow.guard_edition();
 -- No browser-facing policies. All operations require explicitly granted server privileges.
 alter table publication_shadow.editions enable row level security;
 alter table publication_shadow.entries enable row level security;
@@ -82,4 +101,5 @@ alter table publication_shadow.audit enable row level security;
 revoke all on all tables in schema publication_shadow from public, anon, authenticated;
 revoke all on all sequences in schema publication_shadow from public, anon, authenticated;
 revoke all on function publication_shadow.guard_entries() from public, anon, authenticated;
+revoke all on function publication_shadow.guard_edition() from public, anon, authenticated;
 commit;
