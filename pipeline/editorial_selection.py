@@ -59,7 +59,7 @@ Edition: '''+edition+'\nStories:\n'+json.dumps(records,ensure_ascii=False)
                                             max_tokens=16000,
                                             messages=[{'role':'user','content':prompt}]) as stream:
                     response = stream.get_final_message()
-                parsed = parse_json('\\n'.join(b.text for b in response.content
+                parsed = parse_json('\n'.join(b.text for b in response.content
                                                if getattr(b,'type','') == 'text'))
                 assessments = validate_assessments(parsed.get('assessments'), ids)
                 break
