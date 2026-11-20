@@ -9,6 +9,23 @@ except ImportError:
     from desk_discovery import parse_json
 
 
+def validate_assessments(assessments, ids):
+    """Fail closed on missing, duplicated, unknown or malformed model assessments."""
+    if not isinstance(assessments, list) or len(assessments) != len(ids):
+        raise ValueError('Editorial ranking must assess every approved candidate exactly once')
+    if any(not isinstance(a, dict) for a in assessments):
+        raise ValueError('Editorial ranking contains a non-object assessment')
+    actual = [a.get('id') for a in assessments]
+    if len(set(actual)) != len(actual) or set(actual) != set(ids):
+        raise ValueError('Editorial ranking must assess every approved candidate exactly once')
+    for a in assessments:
+        if (not isinstance(a.get('rationale'), str) or not a['rationale'].strip()
+                or any(type(a.get(k)) is not int or not 0 <= a[k] <= 5
+                       for k in ('urgency', 'consequence', 'reach'))):
+            raise ValueError('Editorial ranking lacks valid scores/rationale')
+    return assessments
+
+
 def select(api, edition, candidates, text):
     records = [{'id':p['id'], 'desk':(p['properties']['Category'].get('select') or {}).get('name'),
                 'title':text(p,'Name'), 'body':text(p,'Signal Brief'),
@@ -33,18 +50,25 @@ Prioritize documented airport/tanker attacks, public safety, material conflict e
 Do not turn disputed claims into confirmed facts. Explain the consequence and any uncertainty in each rationale.
 Return JSON only: {"assessments":[{"id":"exact supplied ID","urgency":0,"consequence":0,"reach":0,"rationale":"specific reason"}]}.
 Edition: '''+edition+'\nStories:\n'+json.dumps(records,ensure_ascii=False)
-        with client.messages.stream(model='claude-sonnet-4-5', max_tokens=6000,
-                                    messages=[{'role':'user','content':prompt}]) as stream:
-            response = stream.get_final_message()
-        assessments = parse_json('\n'.join(b.text for b in response.content if getattr(b,'type','')=='text')).get('assessments')
+        ids = {r['id'] for r in records}
+        # A malformed or truncated model answer is not an editorial decision.
+        # Retry the exact same immutable input; never synthesize missing scores.
+        for attempt in range(3):
+            try:
+                with client.messages.stream(model=os.environ.get('EDITORIAL_RANKING_MODEL', 'claude-sonnet-4-5'),
+                                            max_tokens=16000,
+                                            messages=[{'role':'user','content':prompt}]) as stream:
+                    response = stream.get_final_message()
+                parsed = parse_json('\\n'.join(b.text for b in response.content
+                                               if getattr(b,'type','') == 'text'))
+                assessments = validate_assessments(parsed.get('assessments'), ids)
+                break
+            except (ValueError, KeyError, TypeError) as exc:
+                print('EDITORIAL RANKING invalid attempt %d/3: %s' % (attempt+1, exc), flush=True)
+                if attempt == 2:
+                    raise RuntimeError('Editorial ranking failed validation after three attempts; publication withheld') from exc
     ids = {r['id'] for r in records}
-    if (not isinstance(assessments,list) or len(assessments)!=len(ids)
-            or {a.get('id') for a in assessments} != ids):
-        raise ValueError('Editorial ranking must assess every approved candidate exactly once')
-    for a in assessments:
-        if (not isinstance(a.get('rationale'),str) or not a['rationale'].strip()
-                or any(type(a.get(k)) is not int or not 0 <= a[k] <= 5 for k in ('urgency','consequence','reach'))):
-            raise ValueError('Editorial ranking lacks valid scores/rationale')
+    assessments = validate_assessments(assessments, ids)
     ranked = sorted(assessments,key=lambda a:(-a['urgency'],-a['consequence'],-a['reach'],a['id']))
     chosen = [a['id'] for a in ranked if a['urgency'] >= 2 or a['consequence'] >= 3][:7]
     # Persist the decision before mutating public selection. Retrying cannot make
