@@ -1,0 +1,21 @@
+name: Shadow pilot read-only
+on:
+  push:
+    branches: [fix/editorial-ranking-reliability-20261120]
+    paths: ['.github/workflows/shadow-readonly-pilot.yml']
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    environment: v2-preview
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compare one published Signal
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+        run: python -m pipeline.shadow_publication 2026-11-20 41e11486-b145-8110-9c36-c23d34f091f8
