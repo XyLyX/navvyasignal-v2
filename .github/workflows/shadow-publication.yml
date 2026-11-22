@@ -1,0 +1,27 @@
+name: Verify or freeze a shadow edition
+on:
+  workflow_dispatch:
+    inputs:
+      edition:
+        description: Dubai edition date (YYYY-MM-DD)
+        required: true
+        type: string
+      pages:
+        description: Page UUIDs or UUID=reviewed digest pairs
+        required: true
+        type: string
+      version:
+        description: Leave blank for read-only parity
+        type: string
+      approved:
+        description: I verified and approve these exact reviewed revisions
+        type: boolean
+        default: false
+permissions: {}
+jobs:
+  select-shadow-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo 'Select the migration branch when dispatching this workflow.'
+          exit 1
