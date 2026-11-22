@@ -1,5 +1,8 @@
 name: V2 preview validation
 on:
+  pull_request:
+    branches: [release/v2-english]
+    paths: ['navvyasignal-v2-starter/**', '.github/workflows/v2-preview-validation.yml']
   push:
     branches: [main, release/v2-english, fix/regional-daily-release, fix/editorial-formats]
   workflow_dispatch:
@@ -29,6 +32,12 @@ jobs:
           NOTION_TOKEN: ''
           NOTION_DATA_SOURCE_ID: ''
           V2_CI_STATIC_FIXTURE: '1'
+      - name: Verify Insights static export
+        if: github.event_name == 'pull_request'
+        run: |
+          test -f out/insights.html || test -f out/insights/index.html
+          grep -q '/insights' out/index.html
+          test -f out/strategic-outlook.html || test -f out/strategic-outlook/index.html
   pipeline:
     runs-on: ubuntu-latest
     steps:
