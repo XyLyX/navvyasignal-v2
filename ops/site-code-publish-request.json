@@ -1,6 +1,6 @@
 {
   "action": "publish-site-code-only",
-  "production_commit": "7488483c08251d4dab405139fefa22fedd7d6160",
-  "requested_at": "2026-11-22T14:26:57.413Z",
-  "reason": "Restore Insights route and shared navigation while retaining Strategic Outlook"
+  "production_commit": "57aa55385d8a6a486186b828a91a193894b37f09",
+  "requested_at": "2026-11-22T14:55:06.528Z",
+  "reason": "Keep Insights focused on Cross-Desk and surface fresh published reporting"
 }
