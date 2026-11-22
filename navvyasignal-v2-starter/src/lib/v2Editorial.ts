@@ -56,7 +56,7 @@ export function publishedStories(
     if (s.homepageDate && ISO_DATE.test(s.homepageDate) && s.homepageDate >= start) return true;
     const created = dubaiDateOf(s.createdAt);
     return created !== null && created >= start;
-  }).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
+  }).sort(newestPublishedFirst);
 }
 
 export type EditorialType = 'Cross-Desk' | 'Briefing' | 'Long Read';
@@ -64,7 +64,7 @@ export type EditorialType = 'Cross-Desk' | 'Briefing' | 'Long Read';
 /** Latest published story of a content type, independent of homepage selection. */
 export function latestOfType(published: Story[], type: EditorialType): Story | undefined {
   return published.filter(s => s.contentType === type)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id))[0];
+    .sort(newestPublishedFirst)[0];
 }
 
 /** Static article routes: every published story, plus approved Watchlist stories, plus the explicit CI fixture.
@@ -77,4 +77,14 @@ export function v2ArticleRoutes(stories: Story[], env: Env = process.env): Story
   const published = new Set(publishedStories(stories, env).map(s => s.id));
   return stories.filter(s => published.has(s.id) || (s.ready && s.watchlist) ||
     (env.CI === 'true' && env.V2_CI_STATIC_FIXTURE === '1' && s.id === 'ci-static-fixture'));
+}
+
+export function newestPublishedFirst(a: Story, b: Story): number {
+  const orderTime = (story: Story) => {
+    const created = Date.parse(story.createdAt) || 0;
+    const edition = story.releaseEdition ? Date.parse(story.releaseEdition + 'T00:00:00+04:00') : 0;
+    return Math.max(created, edition || 0);
+  };
+  return orderTime(b) - orderTime(a)
+    || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id);
 }

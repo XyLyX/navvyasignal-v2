@@ -5,18 +5,18 @@ import { publishedStories } from '@/lib/v2Editorial';
 
 export const metadata: Metadata = {
   title: 'Insights',
-  description: 'Approved long-form analysis and cross-desk intelligence from NavvyaSignal.',
+  description: 'Cross-desk analysis from NavvyaSignal.',
   alternates: { canonical: '/insights' },
 };
 
 export default async function InsightsPage() {
   const stories = publishedStories(await getStories())
-    .filter(story => story.contentType === 'Long Read' || story.contentType === 'Cross-Desk');
+    .filter(story => story.contentType === 'Cross-Desk');
   return <main className="container inner signal-feed-page">
     <header className="intelligence-page-hero">
       <p className="eyebrow">NAVVYASIGNAL · INSIGHTS</p>
       <h1>Insights</h1>
-      <p>Approved analysis and long-form reporting. Strategic Outlook is a separate editorial series.</p>
+      <p>Analysis connecting developments across NavvyaSignal’s desks.</p>
     </header>
     {stories.length ? <section aria-label="Published insights"><ul>
       {stories.map(story => <li key={story.id}>
