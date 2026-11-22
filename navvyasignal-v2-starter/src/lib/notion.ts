@@ -10,7 +10,7 @@ export type Story = {
  id: string; title: string; brief: string; body: string; category: string; contentType: string;
  today: boolean; homepageDate: string | null; homepagePriority: number | null;
  watchlist: boolean; watchStatus: string; nextReview: string | null;
- createdAt: string; ready: boolean; coverageThemes: string[];
+ createdAt: string; releaseEdition?: string; ready: boolean; coverageThemes: string[];
 };
 type Text = { plain_text?: string };
 type Prop = { title?: Text[]; rich_text?: Text[]; select?: {name:string}|null;
@@ -113,6 +113,7 @@ export async function getStories(depsIn: NotionDeps = {}):Promise<Story[]> {
     homepagePriority:p['Homepage Priority']?.number??null,
     watchlist:p.Watchlist?.checkbox===true,watchStatus:select(p['Watch Status']),
     nextReview:p['Next Review']?.date?.start??null,createdAt:page.created_time,
+    releaseEdition: releaseEdition(text(p['Internal Note'])),
     ready:true,coverageThemes:(p['Coverage Theme']?.multi_select??[]).map(x=>x.name)});
   }
   if (!data.has_more) break;
@@ -189,4 +190,21 @@ export async function getEditorialAssessments(depsIn: NotionDeps = {}):Promise<i
   cursor=data.next_cursor;seen.add(cursor);
  }
  throw new Error('Editorial assessment pagination exceeded safety ceiling');
+}
+
+/** Published release markers contain a Dubai edition date, not a posting time. */
+function releaseEdition(note: string): string | undefined {
+ const line = note.split('\n', 1)[0];
+ const prefix = 'V2_RELEASED:';
+ if (!line.startsWith(prefix)) return undefined;
+ try {
+  const edition: unknown = JSON.parse(line.slice(prefix.length))?.edition;
+  if (typeof edition === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(edition)) {
+   const timestamp = Date.parse(edition);
+   if (Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === edition) return edition;
+  }
+ } catch {
+  // Legacy records and malformed markers fall back to the Notion creation time.
+ }
+ return undefined;
 }

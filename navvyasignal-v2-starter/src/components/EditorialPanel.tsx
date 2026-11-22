@@ -2,8 +2,9 @@
 import {useEffect,useState} from 'react';
 import type {Story} from '@/lib/notion';
 import {editorialState,type EditorialKind,type EditorialAssessment} from '@/lib/editorialFormatStatus';
+import Link from 'next/link';
 import ExpandableEditorial from './ExpandableEditorial';
-const labels:Record<EditorialKind,string>={'Cross-Desk':'CROSS-DESK INTELLIGENCE','Briefing':'WEEKLY BRIEFING','Long Read':'LONG READS'};
+const labels:Record<EditorialKind,string>={'Cross-Desk':'INSIGHTS','Briefing':'WEEKLY BRIEFING','Long Read':'LONG READS'};
 export default function EditorialPanel({kind,heading,story,assessments,initialNow}:{
  kind:EditorialKind;heading:string;story:Story|undefined;assessments:EditorialAssessment[];initialNow:number;
 }) {
@@ -14,7 +15,7 @@ export default function EditorialPanel({kind,heading,story,assessments,initialNo
  const state=editorialState(kind,story,assessments,new Date(now));
  const date=(value:string)=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dubai',day:'numeric',month:'short',year:'numeric'}).format(new Date(value));
  return <section className="editorial-panel">
-  <span className="kicker">{labels[kind]}</span><h2>{heading}</h2>
+  <span className="kicker">{kind === 'Cross-Desk' ? <Link href="/insights">{labels[kind]}</Link> : labels[kind]}</span><h2>{heading}</h2>
   <div className="editorial-status">
    {!state.current&&<p className="editorial-pending">{state.message}{story?' Previous report retained below.':''}</p>}
    {story&&<p className="edition-line">{state.current?'Current edition':'Previous report'} · Published <time dateTime={story.createdAt}>{date(story.createdAt)}</time></p>}

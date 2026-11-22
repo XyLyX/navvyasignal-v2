@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { desks } from '@/lib/desks';
 import { getStories, getEditorialAssessments } from '@/lib/notion';
-import { publishedStories, latestOfType } from '@/lib/v2Editorial';
+import { publishedStories, latestOfType, newestPublishedFirst } from '@/lib/v2Editorial';
 import {selectHomepageEdition,dubaiPublicationDate} from '@/lib/homepageSelection';
 import FreshIntelligence from '@/components/FreshIntelligence';
 import GlobalPulse from '@/components/GlobalPulse';
@@ -16,7 +16,7 @@ export default async function Home() {
   const whatsappChannel = 'https://whatsapp.com/channel/0029VbDPeHH47Xe2oj9oSL3C';
   const channelUrl = whatsappChannel && /^https:\/\/whatsapp\.com\/channel\/[a-zA-Z0-9]+\/?$/.test(whatsappChannel) ? whatsappChannel : null;
   const published = publishedStories(stories);
-  const fresh = selectHomepageEdition(published,dubaiPublicationDate()).stories;
+  const fresh = selectHomepageEdition(published,dubaiPublicationDate()).stories.sort(newestPublishedFirst);
   const latestCrossDesk = latestOfType(published, 'Cross-Desk');
   const latestBriefing = latestOfType(published, 'Briefing');
   const latestLongRead = latestOfType(published, 'Long Read');
