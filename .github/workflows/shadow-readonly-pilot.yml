@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Compare one published Signal
+      - name: Compare all 18 published Signals
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-        run: python -m pipeline.shadow_publication 2026-11-20 41e11486-b145-8110-9c36-c23d34f091f8
+        run: python -m pipeline.shadow_publication 2026-11-20 41e11486b14581109c36c23d34f091f8 41e11486b1458135b43cfdbe2ed8c6b7 41e11486b1458161b2e4d91e185cddfa 41e11486b14581919bd5c10f84c8cba0 41e11486b14581d5b0bccb3e9fbb2197 41e11486b1458144a598da8be9236592 41e11486b145818d84f2d1ddfa8db0ca 41e11486b14581aca356cb83f1530f3c 41e11486b145811e9bbbfe827d8eadc3 41e11486b145812d819cd8b0a1415847 41e11486b14581eb9f6dfa0cc9bde57a 41e11486b1458132b2abff85ffd2848d 41e11486b145818abc2cc7581e079141 41d11486b145813cac70d25f98cfb586 41d11486b1458169a99de0fe340e15e9 41d11486b14581d6bcbdd82c9f90fad9 41d11486b1458149bcb6e9ed1d0dcc58 41d11486b145810a9276fbcf4a111787
