@@ -1,0 +1,49 @@
+name: Verify or freeze a shadow edition
+on:
+  workflow_dispatch:
+    inputs:
+      edition:
+        description: Dubai edition date (YYYY-MM-DD)
+        required: true
+        type: string
+      pages:
+        description: Space-separated page UUIDs, or UUID=reviewed digest for each page when freezing
+        required: true
+        type: string
+      version:
+        description: Leave blank to check parity and print revision digests
+        type: string
+      approved:
+        description: I verified and approve these exact reviewed revisions
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  shadow:
+    if: github.ref == 'refs/heads/fix/editorial-ranking-reliability-20261120'
+    runs-on: ubuntu-latest
+    environment: publication-shadow
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'psycopg[binary]==3.2.10'
+      - env:
+          EDITION: ${{ inputs.edition }}
+          PAGES: ${{ inputs.pages }}
+          VERSION: ${{ inputs.version }}
+          APPROVED: ${{ inputs.approved }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          SHADOW_PUBLICATION_DATABASE_URL: ${{ secrets.SHADOW_PUBLICATION_DATABASE_URL }}
+        shell: bash
+        run: |
+          read -r -a pages <<< "$PAGES"
+          options=()
+          if [[ -n "$VERSION" ]]; then
+            [[ "$APPROVED" == true ]] || exit 1
+            options+=(--freeze "$VERSION" --confirm-verified-and-approved)
+          fi
+          python -m pipeline.shadow_publication "$EDITION" "${options[@]}" -- "${pages[@]}"
