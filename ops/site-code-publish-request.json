@@ -1,6 +1,6 @@
 {
   "action": "publish-site-code-only",
-  "production_commit": "8e42176203566100d959fa3d25a5d2e61e92676b",
-  "requested_at": "2026-11-19T20:13:35Z",
-  "reason": "Publish dedicated share metadata and crawler-friendly artwork for Strategic Outlook pages"
+  "production_commit": "7488483c08251d4dab405139fefa22fedd7d6160",
+  "requested_at": "2026-11-22T14:26:57.413Z",
+  "reason": "Restore Insights route and shared navigation while retaining Strategic Outlook"
 }
