@@ -73,8 +73,10 @@ export function latestOfType(published: Story[], type: EditorialType): Story | u
  *  stories WITHOUT the publication cutoff, because ongoing developments may predate V2. Each of those cards links to
  *  /signals/<id>, so a route must exist or the link is dead. The exception grants a route only: such a story is never
  *  added to desks, the Signals archive, the homepage edition or the editorial panels unless it is itself published. */
+/** All approved historical records also need native article routes for the V1 archive.
+ * They remain excluded from current Signals and the homepage by publishedStories().
+ */
 export function v2ArticleRoutes(stories: Story[], env: Env = process.env): Story[] {
-  const published = new Set(publishedStories(stories, env).map(s => s.id));
-  return stories.filter(s => published.has(s.id) || (s.ready && s.watchlist) ||
+  return stories.filter(s => s.ready ||
     (env.CI === 'true' && env.V2_CI_STATIC_FIXTURE === '1' && s.id === 'ci-static-fixture'));
 }
