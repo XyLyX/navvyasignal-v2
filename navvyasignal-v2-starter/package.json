@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "node scripts/finish-outlook-export.mjs && node scripts/export-research-print.mjs",
+    "postbuild": "node scripts/finish-outlook-export.mjs && node scripts/export-research-print.mjs && node scripts/export-research-pdf.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "node --no-warnings --test \"tests/*.test.*\""
