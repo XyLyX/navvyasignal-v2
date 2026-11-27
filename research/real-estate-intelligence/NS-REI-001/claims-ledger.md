@@ -16,3 +16,6 @@ Status: HOLD. Independent reviewer not assigned. No claim marked verified.
 Sources: https://www.knightfrank.co.in/site-assets/research/india-real-estate-q3-2026-office-and-residential-market-1.pdf and https://www.crematrix.com/research/report-details/309
 
 Editorial scenarios are not factual predictions. Release requires independent verification, approved editorial status, build QA and explicit production clearance. No public index or production link while HOLD.
+
+## Source cross-check — 2026-11-27
+Primary Knight Frank Q3 2026 residential report reopened: sales 86,767, inventory 531,480 (+5% YoY), aggregate QTS 6.1 versus 5.8, price-band share 16% in 2018 and 55% YTD 2026, affordable stock 169,571 and QTS 9.4 supported. City QTS series corroborated by Business Standard, 26 November 2026: https://www.business-standard.com/amp/finance/personal-finance/2-years-to-sell-a-home-inventory-pile-up-raises-warning-signs-in-delhi-ncr-126112600453_1.html . NCR 5–10 crore sales decline 63% supported by primary report. Launch count still requires table confirmation; branded premium weighting still pending. This is an assistant source cross-check, not independent reviewer signoff. HOLD unchanged.
