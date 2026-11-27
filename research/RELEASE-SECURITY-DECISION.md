@@ -1,5 +1,0 @@
-# Research release security decision — 2026-11-28
-
-Repository visibility verified public. Do not upload confidential draft artifacts to this repository's Actions. Existing committed draft content must be treated as potentially public; deleting a branch is not a guarantee of removal. Do not change repository visibility without owner approval and dependency assessment.
-
-Use a private editorial source repository or restricted editorial workspace for unpublished content and private CI artifacts. Public repository contains publishing infrastructure and approved content only. A protected staging deployment is permitted only after access controls are verified; noindex and preview context are not authorization. Production output must exclude unapproved research routes, report binaries, embedded payloads and discovery feeds. Require independent verification and Ready to Post approval tied to the exact revision before release. Preserve current production and draft PR HOLD. Assess existing protected staging projects before reconfiguration; do not disrupt Strategic Outlook. Netlify preview scope depends on plan and dashboard configuration.
