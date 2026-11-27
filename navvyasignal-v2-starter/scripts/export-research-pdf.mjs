@@ -1,0 +1,11 @@
+import {execFileSync} from 'node:child_process';
+import fs from 'node:fs';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+const input=path.resolve('out/research/NS-REI-001-print.html');
+const output=path.resolve('out/research/NS-REI-001.pdf');
+const run=args=>execFileSync('npx',['--yes','playwright@1.56.1',...args],{stdio:'inherit'});
+run(['install','chromium']);
+run(['pdf','--browser','chromium','--paper-format','A4',pathToFileURL(input).href,output]);
+const pdf=fs.readFileSync(output);
+if(pdf.length<10000||pdf.subarray(0,5).toString()!=='%PDF-'||!pdf.subarray(-1024).toString().includes('%%EOF'))throw new Error('Invalid research PDF');
